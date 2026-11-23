@@ -44,12 +44,44 @@ class NowPlayingCard extends StatefulWidget {
 class _NowPlayingCardState extends State<NowPlayingCard> {
   double? _dragging;
 
+  /// Where the user just released the slider. Shown until the Player reports a
+  /// position near it, so the bar does not jump back to the old position while
+  /// the seek is on its way.
+  double? _pendingSeek;
+  Timer? _pendingTimer;
+
+  @override
+  void dispose() {
+    _pendingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _clearPending() {
+    _pendingTimer?.cancel();
+    _pendingSeek = null;
+  }
+
+  @override
+  void didUpdateWidget(NowPlayingCard old) {
+    super.didUpdateWidget(old);
+    final pending = _pendingSeek;
+    if (pending == null) return;
+    final s = widget.state;
+    // The Player caught up, or moved to another track.
+    if ((s.positionSeconds - pending).abs() <= 2 ||
+        s.title != old.state.title ||
+        s.songId != old.state.songId) {
+      _clearPending();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final s = widget.state;
     final duration = s.durationSeconds <= 0 ? 1 : s.durationSeconds;
-    final position = (_dragging ?? s.positionSeconds.toDouble()).clamp(0.0, duration.toDouble());
+    final position = (_dragging ?? _pendingSeek ?? s.positionSeconds.toDouble())
+        .clamp(0.0, duration.toDouble());
     // Live streams have no known length, so there is nothing to seek in.
     final canSeek = widget.enabled &&
         widget.onSeek != null &&
@@ -168,7 +200,15 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
               onChangeEnd: canSeek
                   ? (v) {
                       widget.onSeek!(v.round());
-                      setState(() => _dragging = null);
+                      setState(() {
+                        _dragging = null;
+                        _pendingSeek = v.roundToDouble();
+                      });
+                      // Give up waiting if the Player never confirms.
+                      _pendingTimer?.cancel();
+                      _pendingTimer = Timer(const Duration(seconds: 4), () {
+                        if (mounted) setState(() => _pendingSeek = null);
+                      });
                     }
                   : null,
             ),

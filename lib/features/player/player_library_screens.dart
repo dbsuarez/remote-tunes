@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
 import '../../providers/connection_providers.dart';
+import '../../core/song_list_style.dart';
 import '../../providers/library_providers.dart';
 import '../library/import_actions.dart';
 import '../music/music_browser.dart';
@@ -58,6 +59,7 @@ class _PlayerLibraryScreenState extends ConsumerState<PlayerLibraryScreen> {
         child: engine == null
             ? const Center(child: Text('The Player is starting…'))
             : MusicBrowser(
+                size: ref.watch(songListSizeProvider),
                 source: LocalMusicSource(
                   RepositoryPlayerLibrary(ref.read(libraryRepositoryProvider)),
                   engine,

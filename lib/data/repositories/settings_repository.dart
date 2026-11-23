@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../core/constants.dart';
+import '../../core/song_list_style.dart';
 import '../../core/models/enums.dart';
 import '../../core/online_defaults.dart';
 import '../database/app_database.dart';
@@ -20,6 +21,7 @@ class SettingKeys {
   static const supabaseUrl = 'supabase_url';
   static const supabaseAnonKey = 'supabase_anon_key';
   static const playerRoomCode = 'player_room_code';
+  static const songListSize = 'song_list_size';
 }
 
 /// Immutable snapshot of all settings, with defaults for missing keys.
@@ -35,6 +37,7 @@ class AppSettings {
     this.shuffleEnabled = false,
     this.externalAppControlEnabled = false,
     this.lastPlayerPort = AppConstants.defaultPlayerPort,
+    this.songListSize = SongListSize.small,
   });
 
   final String deviceName;
@@ -49,6 +52,7 @@ class AppSettings {
   final bool shuffleEnabled;
   final bool externalAppControlEnabled;
   final int lastPlayerPort;
+  final SongListSize songListSize;
 
   factory AppSettings.fromMap(Map<String, String> m) {
     final name = m[SettingKeys.deviceName]?.trim();
@@ -71,6 +75,7 @@ class AppSettings {
           m[SettingKeys.externalAppControlEnabled] == 'true',
       lastPlayerPort: int.tryParse(m[SettingKeys.lastPlayerPort] ?? '') ??
           AppConstants.defaultPlayerPort,
+      songListSize: SongListSize.parse(m[SettingKeys.songListSize]),
     );
   }
 }
@@ -161,6 +166,9 @@ class SettingsRepository {
 
   Future<void> setExternalAppControlEnabled(bool v) =>
       _put(SettingKeys.externalAppControlEnabled, v.toString());
+
+  Future<void> setSongListSize(SongListSize v) =>
+      _put(SettingKeys.songListSize, v.name);
 
   Future<void> setLastPlayerPort(int v) =>
       _put(SettingKeys.lastPlayerPort, v.toString());

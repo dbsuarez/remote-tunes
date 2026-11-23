@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/protocol/library_models.dart';
+import '../../core/song_list_style.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
 
@@ -28,7 +29,11 @@ class MusicBrowser extends StatefulWidget {
     this.refreshToken = 0,
     this.onRemoveSong,
     this.emptyMessage = 'No songs yet.',
+    this.size = SongListSize.small,
   });
+
+  /// Text size of the song rows.
+  final SongListSize size;
 
   final MusicSource source;
 
@@ -51,6 +56,10 @@ class _MusicBrowserState extends State<MusicBrowser> {
   _Drill? _drill;
   String _query = '';
   int _generation = 0;
+
+  /// Songs picked for a bulk action (long-press a song to start).
+  final Set<int> _selected = {};
+  String _selectionContext = '';
   Timer? _debounce;
   final TextEditingController _search = TextEditingController();
 
@@ -118,6 +127,79 @@ class _MusicBrowserState extends State<MusicBrowser> {
     return ids;
   }
 
+  /// Ids of every song in what is on screen (for Select all).
+  Future<List<int>> _idsOnScreen(_Drill? drill, String? view) async {
+    final ids = <int>[];
+    var offset = 0;
+    while (ids.length < 2000) {
+      final page = await widget.source.songs(
+          query: _query,
+          artist: drill?.artist,
+          album: drill?.album,
+          view: view,
+          playlistId: drill?.playlistId,
+          offset: offset,
+          limit: 100);
+      ids.addAll([for (final s in page.items) s.id]);
+      offset += page.items.length;
+      if (!page.hasMore || page.items.isEmpty) break;
+    }
+    return ids;
+  }
+
+  void _toggleSelected(int id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  Widget _selectionBar(_Drill? drill, String? view) {
+    final n = _selected.length;
+    return Material(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Cancel selection',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => setState(_selected.clear),
+            ),
+            Expanded(
+              child: Text('$n selected',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            IconButton(
+              tooltip: 'Select all',
+              icon: const Icon(Icons.select_all_rounded),
+              onPressed: () => _run(() async {
+                final ids = await _idsOnScreen(drill, view);
+                if (mounted) setState(() => _selected.addAll(ids));
+              }),
+            ),
+            IconButton(
+              tooltip: 'Add selected to queue',
+              icon: const Icon(Icons.queue_music_rounded),
+              onPressed: () => _run(() async {
+                await widget.source.queueSongs(_selected.toList());
+                if (mounted) setState(_selected.clear);
+              }, done: 'Added to queue'),
+            ),
+            IconButton(
+              tooltip: 'Add selected to playlist',
+              icon: const Icon(Icons.playlist_add_rounded),
+              onPressed: () async {
+                final ids = _selected.toList();
+                if (await _addIdsToPlaylist(ids) && mounted) {
+                  setState(_selected.clear);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<String?> _askName(String title, {String initial = ''}) {
     final c = TextEditingController(text: initial);
     return showDialog<String>(
@@ -151,15 +233,16 @@ class _MusicBrowserState extends State<MusicBrowser> {
     }, done: 'Playlist created');
   }
 
-  Future<void> _addToPlaylist(RemoteSong song) async {
+  /// Asks which playlist, then adds [ids]. True if songs were sent to a playlist.
+  Future<bool> _addIdsToPlaylist(List<int> ids) async {
     final List<RemotePlaylist> lists;
     try {
       lists = (await widget.source.playlists(limit: 100)).items;
     } catch (e) {
       _snack(friendlyError(e));
-      return;
+      return false;
     }
-    if (!mounted) return;
+    if (!mounted) return false;
     final choice = await showModalBottomSheet<Object>(
       context: context,
       showDragHandle: true,
@@ -183,7 +266,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
         ),
       ),
     );
-    if (choice == null || !mounted) return;
+    if (choice == null || !mounted) return false;
+    var ok = false;
     await _run(() async {
       int id;
       String name;
@@ -197,9 +281,15 @@ class _MusicBrowserState extends State<MusicBrowser> {
         id = l.id;
         name = l.name;
       }
-      final added = await widget.source.addToPlaylist(id, [song.id]);
-      _snack(added == 0 ? 'Already in "$name"' : 'Added to "$name"');
+      final added = await widget.source.addToPlaylist(id, ids);
+      ok = true;
+      _snack(added == 0
+          ? (ids.length == 1 ? 'Already in "$name"' : 'All of them are already in "$name"')
+          : (ids.length == 1
+              ? 'Added to "$name"'
+              : 'Added $added song${added == 1 ? '' : 's'} to "$name"'));
     });
+    return ok;
   }
 
   Future<void> _renamePlaylist(_Drill d) async {
@@ -265,7 +355,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
       ),
       itemBuilder: (context, song) => _SongTile(
         song: song,
-        onTap: () => _run(() async {
+        onTap: () => _selected.isNotEmpty
+            ? _toggleSelected(song.id)
+            : _run(() async {
           if (!song.available) {
             _snack("This song's file is missing from the Player.");
             return;
@@ -290,7 +382,11 @@ class _MusicBrowserState extends State<MusicBrowser> {
           () => widget.source.queueSongs([song.id]),
           done: 'Added to queue',
         ),
-        onAddToPlaylist: () => _addToPlaylist(song),
+        onAddToPlaylist: () => _addIdsToPlaylist([song.id]),
+        size: widget.size,
+        selecting: _selected.isNotEmpty,
+        selected: _selected.contains(song.id),
+        onSelect: () => _toggleSelected(song.id),
         onRemoveFromPlaylist: drill?.playlistId == null
             ? null
             : () => _run(() async {
@@ -312,6 +408,23 @@ class _MusicBrowserState extends State<MusicBrowser> {
     final drill = _drill;
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
         '${drill?.playlistId}|${widget.refreshToken}|$_generation');
+    // Moving to another list drops the selection.
+    final ctx = '$_scope|${drill?.artist}|${drill?.album}|${drill?.playlistId}';
+    if (ctx != _selectionContext) {
+      _selectionContext = ctx;
+      _selected.clear();
+    }
+    final String? viewName = drill != null
+        ? null
+        : switch (_scope) {
+            _Scope.favorites => LibraryView.favorites,
+            _Scope.recent => LibraryView.recent,
+            _ => null,
+          };
+    final songsShown = drill != null ||
+        _scope == _Scope.songs ||
+        _scope == _Scope.favorites ||
+        _scope == _Scope.recent;
 
     return IgnorePointer(
       ignoring: !widget.enabled,
@@ -341,7 +454,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 ),
               ),
             ),
-            if (drill == null)
+            if (_selected.isNotEmpty && songsShown)
+              _selectionBar(drill, viewName)
+            else if (drill == null)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -546,9 +661,22 @@ class _SongTile extends StatelessWidget {
     required this.onAddToQueue,
     required this.onFavorite,
     required this.onAddToPlaylist,
+    required this.size,
+    required this.selecting,
+    required this.selected,
+    required this.onSelect,
     this.onRemoveFromPlaylist,
     this.onRemove,
   });
+
+  final SongListSize size;
+
+  /// Some songs are picked: show check marks, hide per-song buttons.
+  final bool selecting;
+  final bool selected;
+
+  /// Starts or toggles selection (long-press).
+  final VoidCallback onSelect;
 
   final RemoteSong song;
   final VoidCallback onTap;
@@ -567,29 +695,44 @@ class _SongTile extends StatelessWidget {
         ? 'File missing from the Player'
         : '${song.artist} · ${song.album}';
 
+    final k = size.scale;
     return ListTile(
-      minTileHeight: 64,
+      minTileHeight: 64 * k,
+      dense: k < 1,
       enabled: true,
+      selected: selected,
+      selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
       leading: CircleAvatar(
+        radius: 20 * k,
         backgroundColor: theme.colorScheme.surfaceContainerHighest,
-        child: Icon(
-          dim ? Icons.error_outline_rounded : Icons.music_note_rounded,
-          color: dim ? theme.colorScheme.error : theme.colorScheme.primary,
-        ),
+        child: selected
+            ? Icon(Icons.check_rounded, color: theme.colorScheme.primary, size: 24 * k)
+            : Icon(
+                dim ? Icons.error_outline_rounded : Icons.music_note_rounded,
+                size: 24 * k,
+                color: dim ? theme.colorScheme.error : theme.colorScheme.primary,
+              ),
       ),
       title: Text(song.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: dim
-              ? TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))
-              : null),
-      subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Row(
+          style: TextStyle(
+            fontSize: 16 * k,
+            color: dim ? theme.colorScheme.onSurface.withValues(alpha: 0.5) : null,
+          )),
+      subtitle: Text(subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 14 * k)),
+      onLongPress: onSelect,
+      trailing: selecting
+          ? null
+          : Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (song.durationSeconds > 0)
             Text(formatDuration(song.durationSeconds),
-                style: theme.textTheme.bodySmall),
+                style: theme.textTheme.bodySmall?.copyWith(fontSize: 12 * k)),
           _FavoriteButton(initial: song.favorite, onChanged: onFavorite),
           PopupMenuButton<_SongAction>(
             tooltip: 'More',

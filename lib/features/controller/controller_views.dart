@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
 import '../../core/models/enums.dart';
 import '../../core/protocol/protocol.dart';
+import '../../core/song_list_style.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/playback_widgets.dart';
 import '../../core/widgets/status_pill.dart';
@@ -216,11 +218,14 @@ class ControllerDashboard extends StatelessWidget {
                 _KeepAlive(
                   child: p.isExternal
                       ? _ExternalNotice(app: p.externalApp)
-                      : MusicBrowser(
-                          source: source,
-                          enabled: enabled,
-                          emptyMessage:
-                              "The Player's library is empty.\nOn the Player, tap Add songs or Add folder.",
+                      : Consumer(
+                          builder: (context, ref, _) => MusicBrowser(
+                            source: source,
+                            size: ref.watch(songListSizeProvider),
+                            enabled: enabled,
+                            emptyMessage:
+                                "The Player's library is empty.\nOn the Player, tap Add songs or Add folder.",
+                          ),
                         ),
                 ),
                 _KeepAlive(

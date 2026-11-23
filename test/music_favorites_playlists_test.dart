@@ -104,6 +104,56 @@ void main() {
     expect(source.calls.last, 'play [3] start=3');
   });
 
+
+  testWidgets('long-press selects songs; add them all to a playlist', (tester) async {
+    source.playlistList.add(const RemotePlaylist(id: 4, name: 'Gym', songCount: 0));
+    await open(tester);
+
+    await tester.longPress(find.text('Apple Song'));
+    await settleUi(tester);
+    expect(find.text('1 selected'), findsOneWidget);
+    // Now taps pick songs instead of playing them.
+    await tester.tap(find.text('Cherry Song'));
+    await settleUi(tester);
+    expect(find.text('2 selected'), findsOneWidget);
+    expect(source.calls, isEmpty);
+    // Tap again to drop one.
+    await tester.tap(find.text('Cherry Song'));
+    await settleUi(tester);
+    await tester.tap(find.text('Banana Song'));
+    await settleUi(tester);
+    expect(find.text('2 selected'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Add selected to playlist'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gym'));
+    await tester.pumpAndSettle();
+    expect(source.calls.last, 'addToPlaylist 4 [1, 2]');
+    expect(find.text('Added 2 songs to "Gym"'), findsOneWidget);
+    expect(find.textContaining('selected'), findsNothing,
+        reason: 'the selection ends after the action');
+  });
+
+  testWidgets('select all, add to queue, and cancel', (tester) async {
+    await open(tester);
+    await tester.longPress(find.text('Apple Song'));
+    await settleUi(tester);
+    await tester.tap(find.byTooltip('Select all'));
+    await settleUi(tester);
+    expect(find.text('3 selected'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Add selected to queue'));
+    await settleUi(tester);
+    expect(source.calls.last, startsWith('queue [')); 
+    expect(find.textContaining('selected'), findsNothing);
+
+    await tester.longPress(find.text('Banana Song'));
+    await settleUi(tester);
+    await tester.tap(find.byTooltip('Cancel selection'));
+    await settleUi(tester);
+    expect(find.textContaining('selected'), findsNothing);
+  });
+
   testWidgets('a playlist can be renamed and deleted', (tester) async {
     source.playlistList.add(const RemotePlaylist(id: 7, name: 'Mix', songCount: 0));
     await open(tester);

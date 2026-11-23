@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/enums.dart';
 import '../../core/online_defaults.dart';
 import '../../core/router/app_router.dart';
+import '../../core/song_list_style.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../providers/connection_providers.dart';
@@ -139,6 +140,22 @@ class SettingsScreen extends ConsumerWidget {
                 title: const Text('Shuffle'),
                 value: s.shuffleEnabled,
                 onChanged: repo.setShuffleEnabled,
+              ),
+              const SizedBox(height: 16),
+              const _SectionHeader('Song list'),
+              Text('Text size', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<SongListSize>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final z in SongListSize.values)
+                      ButtonSegment(value: z, label: Text(z.label)),
+                  ],
+                  selected: {s.songListSize},
+                  onSelectionChanged: (v) => repo.setSongListSize(v.first),
+                ),
               ),
               const SizedBox(height: 16),
               const _SectionHeader('Advanced'),
