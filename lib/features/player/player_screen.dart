@@ -302,7 +302,7 @@ class _QrCard extends StatelessWidget {
             Text('Scan to connect', style: theme.textTheme.titleMedium),
             const SizedBox(height: 12),
             Semantics(
-              label: 'Pairing QR code. Scan it with the Controller phone.',
+              label: 'Pairing QR code. Scan it with the RemoteTunes app or a phone camera.',
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -318,9 +318,9 @@ class _QrCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'On the Controller phone choose Scan QR code, then tap Accept '
-              'here. It works once and refreshes itself. You can also use the '
-              'code or address below.',
+              'In the RemoteTunes app choose Scan QR code. Or point any phone '
+              'camera at it to open the web Controller (needs online mode). '
+              'Then tap Accept here. It works once and refreshes itself.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

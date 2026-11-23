@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/pairing_qr.dart';
 import 'providers/recent_links.dart';
 import 'web/web_app.dart';
 import 'web/web_storage.dart';
@@ -21,10 +22,13 @@ Future<void> main() async {
   SemanticsBinding.instance.ensureSemantics();
   final prefs = await SharedPreferences.getInstance();
   final storage = WebStorage(prefs);
+  // Opened from a Player's QR code? Read it before Flutter rewrites the address.
+  final link = PairingQr.fromFragment(Uri.base.fragment);
   runApp(
     ProviderScope(
       overrides: [
         webStorageProvider.overrideWithValue(storage),
+        webLaunchLinkProvider.overrideWithValue(link),
         recentLinksStoreProvider.overrideWithValue(WebRecentLinksStore(storage)),
       ],
       child: const WebControllerApp(),

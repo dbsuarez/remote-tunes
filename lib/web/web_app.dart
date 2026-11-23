@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/enums.dart';
 import '../core/online/room_code.dart';
 import '../core/online_defaults.dart';
+import '../core/pairing_qr.dart';
 import '../core/theme/app_theme.dart';
 import '../features/controller/controller_client.dart';
 import '../features/controller/controller_views.dart';
@@ -18,6 +19,10 @@ import 'web_storage.dart';
 final webStorageProvider = Provider<WebStorage>(
   (ref) => throw UnimplementedError('webStorageProvider must be overridden'),
 );
+
+/// The pairing link the page was opened with (from the Player's QR code), read
+/// once at start-up in `main_web.dart`. Null for a normal visit.
+final webLaunchLinkProvider = Provider<PairingQr?>((ref) => null);
 
 /// The web Controller's connection. Online only: browsers cannot reach a
 /// phone's local WebSocket (docs/17 §4), so this uses the Supabase relay with
@@ -59,6 +64,8 @@ class WebControllerApp extends StatelessWidget {
       theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.dark,
+      // The address after # may hold a pairing link, not a screen name.
+      initialRoute: '/',
       home: const WebHome(),
     );
   }
@@ -84,8 +91,13 @@ class _WebHomeState extends ConsumerState<WebHome> {
   void initState() {
     super.initState();
     _sub = _client.stateStream.listen(_persist);
+    final link = ref.read(webLaunchLinkProvider);
     final saved = _storage.loadSession();
-    if (saved != null) {
+    if (link != null) {
+      // Opened from a Player's QR code: connect to it right away. (The Player
+      // user still taps Accept.)
+      _startFromLink(link);
+    } else if (saved != null) {
       _resuming = true;
       _client
           .resumeSession(session: saved, deviceName: _storage.deviceName)
@@ -94,6 +106,25 @@ class _WebHomeState extends ConsumerState<WebHome> {
       });
     }
   }
+
+  void _startFromLink(PairingQr link) {
+    if (!link.hasOnline) {
+      // The code has no online room: a browser can only use the online relay.
+      setState(() => _linkProblem =
+          'This Player is not online, so the web page cannot reach it. On the '
+          "Player, turn on online mode (Settings), then scan its QR code again.");
+      return;
+    }
+    _client.connect(
+      roomCode: link.roomCode,
+      deviceName: _storage.deviceName,
+      mode: ConnectionMode.onlineOnly,
+      pairingTicket: link.ticket,
+    );
+  }
+
+  /// Why a scanned link could not be used (shown on the connect screen).
+  String? _linkProblem;
 
   @override
   void dispose() {
@@ -182,7 +213,7 @@ class _WebHomeState extends ConsumerState<WebHome> {
                   : ConnectPanel(
                       client: _client,
                       storage: _storage,
-                      message: state.message,
+                      message: _linkProblem ?? state.message,
                     ),
             },
           ),

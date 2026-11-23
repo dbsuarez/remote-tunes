@@ -17,6 +17,43 @@ void main() {
     expect(PairingQr.parse(const PairingQr(ticket: 'ABCDEFGH23', host: '10.0.0.2', port: 1).encode())!.hasOnline, isFalse);
   });
 
+  test('the code is a link to the web Controller with everything after the #', () {
+    const q = PairingQr(
+        ticket: 'ABCDEFGH23', host: '192.168.1.20', port: 8765, roomCode: 'ABCDEFGH', playerName: 'GT30 Pro');
+    final text = q.encode();
+    final uri = Uri.parse(text);
+    expect(text, startsWith('https://dbsuarez.github.io/remote-tunes/#/pair?'));
+    expect(uri.query, isEmpty, reason: 'nothing reaches the web server');
+    expect(PairingQr.parse(text)!.playerName, 'GT30 Pro');
+  });
+
+  test('the web page reads its own address fragment', () {
+    final q = PairingQr.fromFragment('/pair?v=1&r=ABCDEFGH&t=ABCDEFGH23&n=GT30+Pro')!;
+    expect(q.roomCode, 'ABCDEFGH');
+    expect(q.ticket, 'ABCDEFGH23');
+    expect(q.hasLocal, isFalse);
+    expect(PairingQr.fromFragment(''), isNull);
+    expect(PairingQr.fromFragment('/'), isNull);
+    expect(PairingQr.fromFragment('/pair?v=1&r=ABCDEFGH'), isNull, reason: 'no ticket');
+    expect(PairingQr.fromFragment('/pair?v=9&r=ABCDEFGH&t=ABCDEFGH23'), isNull);
+  });
+
+  test('the old remotetunes:// form still works', () {
+    final q = PairingQr.parse('remotetunes://pair?v=1&h=1.2.3.4&p=8765&t=ABCDEFGH23')!;
+    expect(q.host, '1.2.3.4');
+  });
+
+  test('links to other sites are not pairing codes', () {
+    for (final bad in [
+      'https://evil.example/remote-tunes/#/pair?v=1&r=ABCDEFGH&t=ABCDEFGH23',
+      'http://dbsuarez.github.io/remote-tunes/#/pair?v=1&r=ABCDEFGH&t=ABCDEFGH23',
+      'https://dbsuarez.github.io/other/#/pair?v=1&r=ABCDEFGH&t=ABCDEFGH23',
+      'https://dbsuarez.github.io/remote-tunes/',
+    ]) {
+      expect(PairingQr.parse(bad), isNull, reason: bad);
+    }
+  });
+
   test('rejects foreign or damaged codes', () {
     for (final bad in [
       'https://example.com',

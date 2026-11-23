@@ -1,0 +1,9 @@
+- generic [ref=e4]:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - heading "RemoteTunes Web" [active] [level=2] [ref=e5]
+            - generic [ref=e6]: Connecting to the Player…
+            - button "Cancel" [ref=e7]

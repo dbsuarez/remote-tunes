@@ -10,6 +10,10 @@ class AppConstants {
   /// Default port the Player's local WebSocket server will use (Phase 1).
   static const int defaultPlayerPort = 8765;
 
+  /// Where the web Controller is published (GitHub Pages). The Player's QR
+  /// code is a link to it, so any phone camera can open it.
+  static const String webControllerUrl = 'https://dbsuarez.github.io/remote-tunes/';
+
   /// Network protocol version, checked in `hello` (Phase 1).
   static const int protocolVersion = 1;
 

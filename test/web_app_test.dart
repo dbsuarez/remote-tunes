@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/core/models/enums.dart';
+import 'package:remote_tunes/core/pairing_qr.dart';
 import 'package:remote_tunes/core/protocol/protocol.dart';
 import 'package:remote_tunes/features/controller/controller_client.dart';
 import 'package:remote_tunes/providers/recent_links.dart';
@@ -23,6 +24,7 @@ class FakeWebClient extends ControllerClient {
   String? lastRoom;
   String? lastName;
   ConnectionMode? lastMode;
+  String? lastTicket;
   ControllerSession? resumedWith;
   Completer<void>? resumeGate;
 
@@ -53,6 +55,7 @@ class FakeWebClient extends ControllerClient {
     lastRoom = roomCode;
     lastName = deviceName;
     lastMode = mode;
+    lastTicket = pairingTicket;
     update(ControllerClientState(status: ControllerStatus.awaitingCode, roomCode: roomCode));
   }
 
@@ -91,6 +94,8 @@ const _session = ControllerSession(
   playerName: 'Living Room',
 );
 
+final withSession = <String, Object>{'rt.web.session': jsonEncode(_session.toJson())};
+
 Future<void> settleUi(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
@@ -104,6 +109,7 @@ void main() {
   Future<void> openWeb(
     WidgetTester tester, {
     Map<String, Object> prefs = const {},
+    PairingQr? link,
   }) async {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1;
@@ -115,12 +121,40 @@ void main() {
       overrides: [
         webStorageProvider.overrideWithValue(storage),
         webControllerProvider.overrideWithValue(client),
+        webLaunchLinkProvider.overrideWithValue(link),
         recentLinksStoreProvider.overrideWithValue(MemoryRecentLinksStore()),
       ],
       child: const WebControllerApp(),
     ));
     await settleUi(tester);
   }
+
+  group('opened from the Player QR code', () {
+    testWidgets('connects at once with the ticket, no typing', (tester) async {
+      await openWeb(tester,
+          link: const PairingQr(ticket: 'ABCDEFGH23', roomCode: 'ABCD2345', playerName: 'GT30 Pro'));
+      expect(client.calls, ['connect']);
+      expect(client.lastRoom, 'ABCD2345');
+      expect(client.lastTicket, 'ABCDEFGH23');
+      expect(client.lastMode, ConnectionMode.onlineOnly);
+    });
+
+    testWidgets('a fresh scan beats an old saved session', (tester) async {
+      await openWeb(tester,
+          prefs: withSession,
+          link: const PairingQr(ticket: 'ABCDEFGH23', roomCode: 'WXYZ2345'));
+      expect(client.calls, ['connect'], reason: 'it does not resume the old one');
+      expect(client.lastRoom, 'WXYZ2345');
+    });
+
+    testWidgets('a Player that is not online is explained, not a blank page',
+        (tester) async {
+      await openWeb(tester,
+          link: const PairingQr(ticket: 'ABCDEFGH23', host: '192.168.1.20', port: 8765));
+      expect(client.calls, isEmpty);
+      expect(find.textContaining('not online'), findsOneWidget);
+    });
+  });
 
   group('connect page', () {
     testWidgets('explains what to do and shows no recent rooms at first', (tester) async {
@@ -223,7 +257,6 @@ void main() {
   });
 
   group('reloading the page', () {
-    final withSession = <String, Object>{'rt.web.session': jsonEncode(_session.toJson())};
 
     testWidgets('resumes the saved session instead of asking for a code', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
