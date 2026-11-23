@@ -343,14 +343,33 @@ class _VolumeSliderState extends State<VolumeSlider> {
   double? _dragging;
   Timer? _debounce;
 
+  /// Where the user just let go. Shown until the Player reports a volume near
+  /// it, so the slider does not jump back to the old value on its way.
+  double? _pending;
+  Timer? _pendingTimer;
+
   @override
   void dispose() {
     _debounce?.cancel();
+    _pendingTimer?.cancel();
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(VolumeSlider old) {
+    super.didUpdateWidget(old);
+    final pending = _pending;
+    if (pending != null && (widget.volume - pending).abs() <= 0.02) {
+      _pendingTimer?.cancel();
+      _pending = null;
+    }
+  }
+
   void _onChanged(double v) {
-    setState(() => _dragging = v);
+    setState(() {
+      _dragging = v;
+      _pending = null;
+    });
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 250), () => widget.onChanged(v));
   }
@@ -358,12 +377,20 @@ class _VolumeSliderState extends State<VolumeSlider> {
   void _onEnd(double v) {
     _debounce?.cancel();
     widget.onChanged(v);
-    setState(() => _dragging = null);
+    setState(() {
+      _dragging = null;
+      _pending = v;
+    });
+    // Give up waiting if the Player never confirms.
+    _pendingTimer?.cancel();
+    _pendingTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _pending = null);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final v = (_dragging ?? widget.volume).clamp(0.0, 1.0);
+    final v = (_dragging ?? _pending ?? widget.volume).clamp(0.0, 1.0);
     return Row(
       children: [
         const Icon(Icons.volume_down_rounded),
