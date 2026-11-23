@@ -218,6 +218,8 @@ class PlayerServer {
   String? _ticket;
   Timer? _ticketTimer;
   List<TrustedController> _trusted = const [];
+  Timer? _sleepTimer;
+  DateTime? _sleepEndsAt;
 
   HttpServer? _http;
   bool _running = false;
@@ -318,6 +320,7 @@ class PlayerServer {
     _stopRequested = true;
     _staleTimer?.cancel();
     _ticketTimer?.cancel();
+    _sleepTimer?.cancel();
     _ticket = null;
     await _engineSub?.cancel();
     _engineSub = null;
@@ -487,10 +490,46 @@ class PlayerServer {
       RemoteMessage(
         type: MessageType.state,
         sessionId: s.sessionId,
-        payload: engine.state.toJson(),
+        payload: {
+          ...engine.state.toJson(),
+          if (_sleepSecondsLeft > 0) 'sleepTimerSeconds': _sleepSecondsLeft,
+        },
       ),
     );
   }
+
+  /// Seconds left on the sleep timer (rounded up), 0 when it is off.
+  int get _sleepSecondsLeft {
+    final end = _sleepEndsAt;
+    if (end == null) return 0;
+    final ms = end.difference(DateTime.now()).inMilliseconds;
+    return ms <= 0 ? 0 : (ms / 1000).ceil();
+  }
+
+  /// Starts (or with null, cancels) the sleep timer. [d] is exposed to tests
+  /// through [debugSetSleepTimer].
+  void _setSleepTimer(Duration? d) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepEndsAt = d == null ? null : DateTime.now().add(d);
+    if (d != null) {
+      _sleepTimer = Timer(d, () async {
+        _sleepEndsAt = null;
+        _sleepTimer = null;
+        try {
+          await engine.pause();
+        } catch (_) {}
+        final s = _session;
+        final conn = s?.conn;
+        if (s != null && conn != null) _sendState(conn, s);
+      });
+    }
+    final s = _session;
+    final conn = s?.conn;
+    if (s != null && conn != null) _sendState(conn, s);
+  }
+
+  void debugSetSleepTimer(Duration? d) => _setSleepTimer(d);
 
   void _onEngineState(dynamic _) {
     final s = _session;
@@ -973,6 +1012,13 @@ class PlayerServer {
         await engine.play();
       case RemoteActions.pause:
         await engine.pause();
+      case RemoteActions.setSleepTimer:
+        final m = p['minutes'];
+        if (m is! num || m < 0 || m > 720) {
+          throw PlaybackException(ErrorCodes.invalidAction,
+              'The sleep timer needs minutes from 0 to 720.');
+        }
+        _setSleepTimer(m == 0 ? null : Duration(minutes: m.toInt()));
       case RemoteActions.toggle:
         await engine.toggle();
       case RemoteActions.next:

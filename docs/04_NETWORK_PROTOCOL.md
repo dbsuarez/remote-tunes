@@ -97,3 +97,8 @@ Added while building Phase 1. All are optional fields or values that older peers
 - The web Controller speaks the same protocol over `OnlineTransport` only. No new message types.
 - `ControllerClient` can resume a saved session (`hello` with `sessionId` + `token`); the web app stores it in browser local storage and clears it on `bye`/disconnect or when the Player rejects it (`sessionInvalid`).
 - The token in browser storage is a secret: it is never put in a URL.
+
+## Phase 7 implementation notes (additive)
+- **`setSleepTimer` command:** `{"action":"setSleepTimer","minutes":30}`; `0` cancels; allowed 0 to 720, otherwise `INVALID_ACTION`. The Player pauses when the time is up.
+- **`state.payload.sleepTimerSeconds`:** time left, sent only while a timer runs.
+- **Trusted devices (QR pairing):** a `pairingCode` message may carry the one-time ticket from the Player's QR code instead of the 6-digit code. A `hello` with `sessionId` + `token` may resume a session the Player has stored as trusted (it keeps a SHA-256 hash of the token), even after the Player restarted.

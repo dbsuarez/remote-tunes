@@ -75,6 +75,9 @@ Future<void> openController(
   await settleUi(tester);
   await tester.tap(find.text('Start as CONTROLLER'));
   await settleUi(tester);
+  // The fallback ways to connect are folded away until asked for.
+  await tester.tap(find.text('Other ways to connect'));
+  await settleUi(tester);
 }
 
 Future<void> openPlayer(
@@ -99,6 +102,9 @@ Future<void> openPlayer(
   ));
   await settleUi(tester);
   await tester.tap(find.text('Start as PLAYER'));
+  await settleUi(tester);
+  // Connection details live on the Connect tab.
+  await tester.tap(find.widgetWithText(Tab, 'Connect'));
   await settleUi(tester);
 }
 

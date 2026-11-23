@@ -87,10 +87,13 @@ void main() {
 
     await tester.tap(find.text('Start as PLAYER'));
     await tester.pumpAndSettle();
+    // Player screen: the Player tab has the controls, Connect has the address.
+    expect(find.text('Demo Track 1'), findsOneWidget);
+    await tester.tap(find.widgetWithText(Tab, 'Connect'));
+    await tester.pumpAndSettle();
     expect(find.text('Connect from the Controller'), findsOneWidget);
     expect(find.text('192.168.1.20 : 8765'), findsOneWidget);
     expect(find.text('Ready · waiting for a Controller'), findsOneWidget);
-    expect(find.text('Demo Track 1'), findsOneWidget);
   });
 
   testWidgets('Controller screen lists discovered Players and offers manual '
@@ -110,6 +113,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Scan QR code'), findsOneWidget);
+    await tester.tap(find.text('Other ways to connect'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Nearby Players'), 300, scrollable: find.byType(Scrollable).last);
     expect(find.text('Nearby Players'), findsOneWidget);
     expect(find.text('Kitchen Phone'), findsOneWidget);
@@ -118,7 +123,8 @@ void main() {
     expect(find.text('Player IP address'), findsOneWidget);
 
     // Manual connect validates input before trying the network.
-    await tester.scrollUntilVisible(find.widgetWithText(FilledButton, 'Connect'), 300, scrollable: find.byType(Scrollable).last);
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Connect'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Connect'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Enter the Player'), findsOneWidget);

@@ -31,7 +31,7 @@ Build **one phase at a time**. Do not implement later phases early. The specs li
 | 4 | Online remote control via Supabase Realtime | **Built; automated tests pass (fake relay); NOT yet tried against a real Supabase project** |
 | 5 | Spotify / YouTube Music external control | **Built; Dart logic tested with a fake; the Android side compiles but has NEVER run on a phone** |
 | 6 | Web Controller: browser Controller over Supabase Realtime ([docs/17](docs/17_WEB_CONTROLLER.md)) | **Built; verified in a real browser against a simulated Player on the real Supabase relay; NOT yet tried against a real phone Player** |
-| 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_6_POLISH.md), file name predates the renumbering) | Not started |
+| 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_6_POLISH.md), file name predates the renumbering) | **Started:** search (already there), sleep timer, shorter screens. Left: favorites, recently played, album art on the Controller, playlists, playback speed, diagnostics, app icon |
 | 8 | Group Mode: same song in sync on several phones in one room ([draft spec](docs/16_GROUP_MODE.md), not approved) | Draft only |
 
 Phase 0 deliberately does **not** initialize Supabase, audio, networking, or discovery.
@@ -71,6 +71,22 @@ Checklist (real phone Player): 1. Enter the room code, Connect. 2. Accept on the
 - **Trusted devices:** accepting a Controller also trusts it. The Player keeps only a SHA-256 hash of its token (database schema v2); the Controller keeps its token in the app's private storage. Next time, **Your Players** on the Controller screen reconnects in one tap, and the Player used last reconnects automatically when the Controller screen opens, locally or online, with no pairing. The Player lists trusted Controllers and can **Forget** one (or all); the Player's Disconnect button also forgets. A Controller that was forgotten gets a clear message and is asked to scan the QR code again.
 - **Stable room code:** because trusted phones must find the Player online again, the Player now keeps its room code between runs (it used to change at every start). **Forget all** makes a new one. Pairing still needs Accept, and reconnecting needs the secret token, so knowing the room code alone gets nobody in.
 - **Limits:** the token on the Controller is not in the Android Keystore (plain app-private storage, like the web version in browser storage). One Controller at a time: a trusted phone coming back replaces the connected one.
+
+## Web Controller on GitHub Pages
+
+The web Controller is published automatically from `main` by `.github/workflows/pages.yml` to **https://dbsuarez.github.io/remote-tunes/**.
+
+One-time setup in the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**. After that every push that changes `lib/`, `web/` or `pubspec.*` rebuilds the page (Actions tab shows progress; you can also run the workflow by hand). The page uses the same Supabase defaults as the phone app, so it works with no setup. Local build with the same path: `fvm flutter build web -t lib/main_web.dart --release --base-href /remote-tunes/`.
+
+## Shorter screens (Phase 7)
+
+- **Player screen** has three tabs: *Player* (now playing and controls), *Connect* (QR code, room code, address, trusted Controllers) and *Music* (add songs, library, queue, URL). Who is connected, errors and a pairing request stay pinned on top of every tab.
+- **Controller** keeps a mini control bar (title, previous, play/pause, next) under the Queue, Library and URL tabs, so there is no going back to Now Playing to pause. The "Other ways to connect" fallbacks are folded away under the Scan QR button.
+- **Sleep timer:** on the Controller's Now Playing tab pick 15 min to 2 hours; the Player pauses when it runs out (even if the Controller has gone), and the Controller shows the countdown. Protocol: `setSleepTimer {minutes}` (0 cancels), `state.sleepTimerSeconds`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
 
 ### Testing Phase 1 on two phones
 

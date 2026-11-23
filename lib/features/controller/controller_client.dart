@@ -644,6 +644,10 @@ class ControllerClient {
 
   /// Switches what the Player controls: its own player, or another music app
   /// on the Player phone (External App Control, needs to be on at the Player).
+  /// Pauses the Player after [minutes]; 0 cancels the timer.
+  Future<void> setSleepTimer(int minutes) =>
+      sendCommand(RemoteActions.setSleepTimer, {'minutes': minutes});
+
   Future<void> setControlMode(ControlMode mode) =>
       sendCommand(RemoteActions.setControlMode, {'mode': mode.name});
 

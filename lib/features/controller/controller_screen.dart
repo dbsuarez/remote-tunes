@@ -325,12 +325,24 @@ class _ConnectViewState extends ConsumerState<_ConnectView> {
           const SizedBox(height: 16),
         ],
         _ScanCard(onScan: connecting ? null : _scan),
-        const SizedBox(height: 24),
-        Text('Or connect another way', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        if (showLocal) ..._localSection(theme, connecting),
-        if (showLocal && showOnline) const SizedBox(height: 24),
-        if (showOnline) ..._onlineSection(theme, connecting, mode),
+        // Everything below is the fallback: kept folded so the screen is short.
+        Theme(
+          data: theme.copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text('Other ways to connect', style: theme.textTheme.titleMedium),
+            subtitle: const Text('Nearby list, IP address, room code'),
+            initiallyExpanded: widget.state.message != null,
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showLocal) ..._localSection(theme, connecting),
+              if (showLocal && showOnline) const SizedBox(height: 24),
+              if (showOnline) ..._onlineSection(theme, connecting, mode),
+            ],
+          ),
+        ),
       ],
     );
   }

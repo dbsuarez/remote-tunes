@@ -236,7 +236,109 @@ class ControllerDashboard extends StatelessWidget {
               ],
             ),
           ),
+          // Controls stay reachable on every tab, so there is no scrolling
+          // back to Now Playing to pause or skip.
+          Builder(builder: (context) {
+            final tabs = DefaultTabController.of(context);
+            return AnimatedBuilder(
+              animation: tabs,
+              builder: (context, _) => tabs.index == 0
+                  ? const SizedBox.shrink()
+                  : _MiniControls(
+                      client: client,
+                      state: state,
+                      onOpen: () => tabs.animateTo(0),
+                    ),
+            );
+          }),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact title + previous / play-pause / next, shown under every tab except
+/// Now Playing.
+class _MiniControls extends StatelessWidget {
+  const _MiniControls({
+    required this.client,
+    required this.state,
+    required this.onOpen,
+  });
+
+  final ControllerClient client;
+  final ControllerClientState state;
+  final VoidCallback onOpen;
+
+  Future<void> _send(BuildContext context, String action) async {
+    try {
+      await client.sendCommand(action);
+    } on ControllerException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = state.playback;
+    final enabled = state.isConnected;
+    final title = p.title.isEmpty ? 'Nothing playing' : p.title;
+    return Material(
+      color: theme.colorScheme.surfaceContainerHigh,
+      child: SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: onOpen,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall),
+                      if (p.artist.isNotEmpty)
+                        Text(p.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Previous',
+              iconSize: 28,
+              onPressed: enabled && p.canSkip ? () => _send(context, RemoteActions.previous) : null,
+              icon: const Icon(Icons.skip_previous_rounded),
+            ),
+            IconButton.filled(
+              tooltip: p.isPlaying ? 'Pause' : 'Play',
+              iconSize: 28,
+              onPressed: enabled ? () => _send(context, RemoteActions.toggle) : null,
+              icon: Icon(p.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+            ),
+            IconButton(
+              tooltip: 'Next',
+              iconSize: 28,
+              onPressed: enabled && p.canSkip ? () => _send(context, RemoteActions.next) : null,
+              icon: const Icon(Icons.skip_next_rounded),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
       ),
     );
   }
@@ -334,7 +436,118 @@ class _NowPlayingTab extends StatelessWidget {
           enabled: enabled,
           onChanged: (v) => _send(context, RemoteActions.setVolume, {'volume': v}),
         ),
+        const SizedBox(height: 8),
+        _SleepTimerRow(
+          secondsLeft: p.sleepTimerSeconds,
+          enabled: enabled,
+          onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
+        ),
       ],
+    );
+  }
+}
+
+/// Sleep timer: pick a time, see it count down, cancel. The Player does the
+/// pausing, so it works even if this phone disconnects.
+class _SleepTimerRow extends StatefulWidget {
+  const _SleepTimerRow({
+    required this.secondsLeft,
+    required this.enabled,
+    required this.onSet,
+  });
+
+  final int secondsLeft;
+  final bool enabled;
+  final ValueChanged<int> onSet;
+
+  @override
+  State<_SleepTimerRow> createState() => _SleepTimerRowState();
+}
+
+class _SleepTimerRowState extends State<_SleepTimerRow> {
+  DateTime? _endsAt;
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_SleepTimerRow old) {
+    super.didUpdateWidget(old);
+    if (old.secondsLeft != widget.secondsLeft) _sync();
+  }
+
+  void _sync() {
+    _tick?.cancel();
+    if (widget.secondsLeft <= 0) {
+      _endsAt = null;
+      return;
+    }
+    _endsAt = DateTime.now().add(Duration(seconds: widget.secondsLeft));
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  String _left() {
+    final end = _endsAt;
+    if (end == null) return '';
+    final s = end.difference(DateTime.now()).inSeconds.clamp(0, 999999);
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final active = _endsAt != null;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(Icons.bedtime_rounded,
+                color: active ? RtColors.violet : theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                active ? 'Pauses in ${_left()}' : 'Sleep timer',
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            if (active)
+              TextButton(
+                onPressed: widget.enabled ? () => widget.onSet(0) : null,
+                child: const Text('Cancel'),
+              ),
+            PopupMenuButton<int>(
+              tooltip: 'Set sleep timer',
+              enabled: widget.enabled,
+              onSelected: widget.onSet,
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 15, child: Text('15 minutes')),
+                PopupMenuItem(value: 30, child: Text('30 minutes')),
+                PopupMenuItem(value: 45, child: Text('45 minutes')),
+                PopupMenuItem(value: 60, child: Text('1 hour')),
+                PopupMenuItem(value: 120, child: Text('2 hours')),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(active ? 'Change' : 'Set',
+                    style: TextStyle(color: theme.colorScheme.primary)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -53,67 +53,116 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Only offered if the user turned External App Control on in Settings.
     final showExternal = host?.controlEngine?.externalAvailable ?? false;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Player')),
-      body: SafeArea(
-        child: server.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => const _Message(
-            'The Player could not start. Go back and try again.',
-          ),
-          data: (s) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _StatusPill(state: s),
-              ),
-              const SizedBox(height: 16),
-              if (s.error != null) ...[
-                _ErrorCard(s.error!),
-                const SizedBox(height: 16),
-              ],
-              if (onlineProblem != null) ...[
-                _ErrorCard(onlineProblem),
-                const SizedBox(height: 16),
-              ],
-              if (s.pending != null) ...[
-                _PairingCard(info: s.pending!),
-                const SizedBox(height: 16),
-              ] else if (s.running &&
-                  s.pairingTicket != null &&
-                  !(s.controller?.connected ?? false)) ...[
-                _QrCard(state: s),
-                const SizedBox(height: 16),
-              ],
-              if (s.online != null) ...[
-                _OnlineCard(info: s.online!),
-                const SizedBox(height: 16),
-              ],
-              if (s.trusted.isNotEmpty) ...[
-                _TrustedCard(devices: s.trusted),
-                const SizedBox(height: 16),
-              ],
-              if (s.running && s.port != null) _ConnectCard(state: s),
-              if (s.controller != null) ...[
-                const SizedBox(height: 16),
-                _ControllerCard(info: s.controller!),
-              ],
-              if (showExternal) ...[
-                const SizedBox(height: 16),
-                const _ExternalCard(),
-              ],
-              const SizedBox(height: 16),
-              playback.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (p) => _LocalPlayer(state: p),
-              ),
-              const SizedBox(height: 16),
-              const _MusicActions(),
-              const SizedBox(height: 16),
-              const _InfoNote(),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Player'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Player'),
+              Tab(text: 'Connect'),
+              Tab(text: 'Music'),
             ],
+          ),
+        ),
+        body: SafeArea(
+          child: server.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => const _Message(
+              'The Player could not start. Go back and try again.',
+            ),
+            data: (s) => Column(
+              children: [
+                // Always visible, whatever tab is open: who is connected, any
+                // problem, and a pairing request that needs an answer.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.5,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _StatusPill(state: s),
+                        ),
+                        if (s.error != null) ...[
+                          const SizedBox(height: 12),
+                          _ErrorCard(s.error!),
+                        ],
+                        if (s.pending != null) ...[
+                          const SizedBox(height: 12),
+                          _PairingCard(info: s.pending!),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Player: what is playing, and its controls.
+                      ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        children: [
+                          playback.when(
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, __) => const SizedBox.shrink(),
+                            data: (p) => _LocalPlayer(state: p),
+                          ),
+                          if (showExternal) ...[
+                            const SizedBox(height: 16),
+                            const _ExternalCard(),
+                          ],
+                        ],
+                      ),
+                      // Connect: everything about how Controllers reach this phone.
+                      ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        children: [
+                          if (onlineProblem != null) ...[
+                            _ErrorCard(onlineProblem),
+                            const SizedBox(height: 16),
+                          ],
+                          if (s.pending == null &&
+                              s.running &&
+                              s.pairingTicket != null &&
+                              !(s.controller?.connected ?? false)) ...[
+                            _QrCard(state: s),
+                            const SizedBox(height: 16),
+                          ],
+                          if (s.controller != null) ...[
+                            _ControllerCard(info: s.controller!),
+                            const SizedBox(height: 16),
+                          ],
+                          if (s.online != null) ...[
+                            _OnlineCard(info: s.online!),
+                            const SizedBox(height: 16),
+                          ],
+                          if (s.running && s.port != null) ...[
+                            _ConnectCard(state: s),
+                            const SizedBox(height: 16),
+                          ],
+                          if (s.trusted.isNotEmpty) _TrustedCard(devices: s.trusted),
+                        ],
+                      ),
+                      // Music: add songs, open the library and queue.
+                      ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        children: const [
+                          _MusicActions(),
+                          SizedBox(height: 16),
+                          _InfoNote(),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

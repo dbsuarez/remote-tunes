@@ -66,6 +66,11 @@ class RemoteActions {
 
   // Phase 5 (External App Control): `{"action":"setControlMode","mode":"local"|"external"}`.
   static const setControlMode = 'setControlMode';
+
+  // Phase 7 (Polish): `{"action":"setSleepTimer","minutes":30}`; 0 cancels. The
+  // Player pauses when it runs out, and reports the time left in
+  // `state.sleepTimerSeconds`.
+  static const setSleepTimer = 'setSleepTimer';
 }
 
 class ErrorCodes {
@@ -233,7 +238,11 @@ class PlaybackState {
     this.canSeek = true,
     this.canSkip = true,
     this.localArtPath,
+    this.sleepTimerSeconds = 0,
   });
+
+  /// Seconds until the Player's sleep timer pauses playback; 0 when off.
+  final int sleepTimerSeconds;
 
   final String title;
   final String artist;
@@ -311,6 +320,7 @@ class PlaybackState {
     bool? canSeek,
     bool? canSkip,
     String? localArtPath,
+    int? sleepTimerSeconds,
   }) =>
       PlaybackState(
         title: title ?? this.title,
@@ -334,6 +344,7 @@ class PlaybackState {
         canSeek: canSeek ?? this.canSeek,
         canSkip: canSkip ?? this.canSkip,
         localArtPath: localArtPath ?? this.localArtPath,
+        sleepTimerSeconds: sleepTimerSeconds ?? this.sleepTimerSeconds,
       );
 
   Map<String, dynamic> toJson() => {
@@ -358,6 +369,7 @@ class PlaybackState {
         if (externalEnabled) 'externalEnabled': true,
         if (!canSeek) 'canSeek': false,
         if (!canSkip) 'canSkip': false,
+        if (sleepTimerSeconds > 0) 'sleepTimerSeconds': sleepTimerSeconds,
         // localArtPath is intentionally NOT included.
       };
 
@@ -388,6 +400,7 @@ class PlaybackState {
       externalEnabled: j['externalEnabled'] == true,
       canSeek: j['canSeek'] != false,
       canSkip: j['canSkip'] != false,
+      sleepTimerSeconds: i('sleepTimerSeconds'),
     );
   }
 }
