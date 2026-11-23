@@ -227,8 +227,32 @@ class _ConnectViewState extends ConsumerState<_ConnectView> {
     return RoomCode.isValid(n) ? n : null;
   }
 
-  void _connect({String? host, int? port, String? room, String? ticket}) {
+  /// A Player this phone already trusts that matches what was picked or typed:
+  /// by its online room (stable, even if it is renamed), by address, or by a
+  /// name that only one saved Player has.
+  TrustedPlayer? _trustedMatch({String? host, int? port, String? room, String? name}) {
+    for (final t in widget.trusted) {
+      if (room != null && t.roomCode == room) return t;
+      if (host != null && port != null && t.host == host && t.port == port) return t;
+    }
+    if (name != null) {
+      final byName = widget.trusted.where((t) => t.name == name).toList();
+      if (byName.length == 1) return byName.first;
+    }
+    return null;
+  }
+
+  void _connect({String? host, int? port, String? room, String? ticket, String? name}) {
     FocusScope.of(context).unfocus();
+    // Already trusted: reconnect with no code. (A scanned QR is always a fresh
+    // pairing.)
+    final known = ticket == null
+        ? _trustedMatch(host: host, port: port, room: room, name: name)
+        : null;
+    if (known != null) {
+      widget.onConnectTrusted(known.copyWith(host: host, port: port, roomCode: room));
+      return;
+    }
     widget.client.connect(
       host: host,
       port: port,
@@ -398,6 +422,7 @@ class _ConnectViewState extends ConsumerState<_ConnectView> {
                         onTap: () => _connect(
                           host: p.host,
                           port: p.port,
+                          name: p.name,
                           // The Player advertises its room, so Auto mode can
                           // fall back online without typing anything.
                           room: p.roomCode ?? _typedRoom,
