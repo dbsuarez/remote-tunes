@@ -9,6 +9,7 @@ import 'audio/audio_backend.dart';
 import 'playback_engine.dart';
 import 'queue/playable_song.dart';
 import 'queue/queue_controller.dart';
+import 'queue/queue_store.dart';
 import 'queue_aware_engine.dart';
 import 'url_checker.dart';
 
@@ -24,6 +25,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
     bool Function(String path)? fileExists,
     UrlChecker? urlChecker,
     this.onSongStarted,
+    this.queueStore,
   })  : _backend = backend,
         _queue = queue ?? QueueController(),
         _volume = initialVolume.clamp(0.0, 1.0),
@@ -40,6 +42,12 @@ class QueuePlaybackEngine implements QueueAwareEngine {
   }
 
   final AudioBackend _backend;
+
+  /// Saves the queue so it survives a restart (null: not saved).
+  final QueueStore? queueStore;
+  Timer? _saveTimer;
+  int _savedRevision = -1;
+  int _savedIndex = -2;
 
   /// Called with the library id when a library song starts playing (used for
   /// "recently played").
@@ -115,7 +123,58 @@ class QueuePlaybackEngine implements QueueAwareEngine {
 
   void _emit() {
     if (!_disposed && !_controller.isClosed) _controller.add(state);
+    _scheduleSave();
   }
+
+  /// Saves shortly after the queue or the current song changes, so a burst of
+  /// changes is one write.
+  void _scheduleSave() {
+    if (queueStore == null || _disposed) return;
+    if (_queue.revision == _savedRevision && _queue.currentIndex == _savedIndex) {
+      return;
+    }
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 400), () => unawaited(_saveQueue()));
+  }
+
+  Future<void> _saveQueue() async {
+    final store = queueStore;
+    if (store == null) return;
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    final revision = _queue.revision;
+    final entries = _queue.entries;
+    final current = _queue.current;
+    final songs = <PlayableSong>[];
+    var index = 0;
+    for (final e in entries) {
+      if (e.song.isUrl) continue;
+      if (current != null && e.id == current.id) index = songs.length;
+      songs.add(e.song);
+    }
+    // A current internet stream is not saved: resume at the next saved song.
+    final currentIndex = _queue.currentIndex;
+    try {
+      await store.save(songs, index);
+      _savedRevision = revision;
+      _savedIndex = currentIndex;
+    } catch (_) {
+      // The queue just will not be remembered this time.
+    }
+  }
+
+  /// Loads the saved queue (if this one is empty), paused on the song it was
+  /// on. Call once, right after creating the engine.
+  Future<void> restoreQueue() => _serial(() async {
+        final store = queueStore;
+        if (store == null || !_queue.isEmpty) return;
+        final saved = await store.load();
+        if (saved.songs.isEmpty) return;
+        _queue.replace(saved.songs, startIndex: saved.currentIndex);
+        _savedRevision = _queue.revision;
+        _savedIndex = _queue.currentIndex;
+        _emit();
+      });
 
   void _onPosition(Duration d) {
     final s = d.inSeconds;
@@ -513,6 +572,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
 
   @override
   Future<void> dispose() async {
+    if (_saveTimer != null) await _saveQueue(); // keep the latest changes
     _disposed = true;
     for (final s in _subs) {
       await s.cancel();

@@ -6,6 +6,7 @@ import '../core/online/relay.dart';
 import '../core/online/room_code.dart';
 import '../core/protocol/protocol.dart';
 import '../core/transport/local_websocket_transport.dart';
+import '../data/repositories/drift_queue_store.dart';
 import '../data/repositories/paired_controllers_store.dart';
 import '../data/repositories/settings_repository.dart';
 import '../features/controller/controller_client.dart';
@@ -46,7 +47,12 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     backend: JustAudioBackend(),
     initialVolume: settings.defaultVolume,
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
+    queueStore: DriftQueueStore(ref.watch(databaseProvider)),
   );
+  // The queue is kept between runs: pick up where it was, paused.
+  try {
+    await localEngine.restoreQueue();
+  } catch (_) {}
   // External App Control (Phase 5) exists only if the user opted in. With the
   // default settings, no other app is ever looked at.
   final engine = ControlModeEngine(

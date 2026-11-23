@@ -1,0 +1,129 @@
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_tunes/data/database/app_database.dart';
+import 'package:remote_tunes/data/repositories/drift_queue_store.dart';
+import 'package:remote_tunes/data/repositories/library_repository.dart';
+import 'package:remote_tunes/features/player/queue/playable_song.dart';
+import 'package:remote_tunes/features/player/queue_playback_engine.dart';
+
+import 'helpers/fake_audio_backend.dart';
+
+void main() {
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  late AppDatabase db;
+  late LibraryRepository repo;
+  late DriftQueueStore store;
+  final ids = <String, int>{};
+
+  setUp(() async {
+    db = AppDatabase.forTesting(NativeDatabase.memory());
+    repo = LibraryRepository(db);
+    store = DriftQueueStore(db);
+    for (final t in ['One', 'Two', 'Three']) {
+      ids[t] = await repo.addSong(
+          title: t, artist: 'A', album: 'B', filePath: '/m/$t.mp3', durationSeconds: 100);
+    }
+  });
+
+  tearDown(() => db.close());
+
+  QueuePlaybackEngine newEngine(FakeAudioBackend b) => QueuePlaybackEngine(
+      backend: b, fileExists: (_) => true, queueStore: store);
+
+  Future<List<PlayableSong>> songs(List<String> titles) async =>
+      repo.songsByIds([for (final t in titles) ids[t]!]).then(
+          (l) => [for (final s in l) s.toPlayable()!]);
+
+  Future<void> afterSave() => Future<void>.delayed(const Duration(milliseconds: 700));
+
+  test('the queue and current song come back after a restart, paused', () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One', 'Two', 'Three']), startIndex: 1);
+    await a.next(); // now on Three
+    await afterSave();
+    await a.dispose();
+
+    final backend = FakeAudioBackend();
+    final b = newEngine(backend);
+    await b.restoreQueue();
+    final q = b.queueSnapshot();
+    expect([for (final i in q.items) i.song.title], ['One', 'Two', 'Three']);
+    expect(q.items[q.currentIndex].song.title, 'Three');
+    expect(b.state.title, 'Three');
+    expect(b.state.isPlaying, isFalse, reason: 'it does not start by itself');
+    expect(backend.loaded, isEmpty);
+
+    await b.play(); // and Play starts the saved song
+    expect(backend.loaded, ['/m/Three.mp3']);
+    expect(b.state.isPlaying, isTrue);
+    await b.dispose();
+  });
+
+  test('changes made just before closing are kept', () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One']));
+    await a.enqueue(await songs(['Two']));
+    await a.dispose(); // no waiting: dispose saves
+
+    final b = newEngine(FakeAudioBackend());
+    await b.restoreQueue();
+    expect([for (final i in b.queueSnapshot().items) i.song.title], ['One', 'Two']);
+    await b.dispose();
+  });
+
+  test('internet links are not kept, library songs around them are', () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One']));
+    await a.enqueue([const PlayableSong.stream(url: 'https://x.test/a.mp3', title: 'Web')]);
+    await a.enqueue(await songs(['Two']));
+    await afterSave();
+    await a.dispose();
+
+    final b = newEngine(FakeAudioBackend());
+    await b.restoreQueue();
+    expect([for (final i in b.queueSnapshot().items) i.song.title], ['One', 'Two']);
+    await b.dispose();
+  });
+
+  test('a song deleted from the library is gone from the saved queue', () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One', 'Two', 'Three']));
+    await afterSave();
+    await a.dispose();
+    await repo.removeSong(ids['Two']!);
+
+    final b = newEngine(FakeAudioBackend());
+    await b.restoreQueue();
+    expect([for (final i in b.queueSnapshot().items) i.song.title], ['One', 'Three']);
+    await b.dispose();
+  });
+
+  test('clearing the queue is remembered too', () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One', 'Two']));
+    await afterSave();
+    await a.clearQueue();
+    await afterSave();
+    await a.dispose();
+
+    final b = newEngine(FakeAudioBackend());
+    await b.restoreQueue();
+    expect(b.queueSnapshot().items, isEmpty);
+    await b.dispose();
+  });
+
+  test('an engine that already has songs is not overwritten by the saved queue',
+      () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One', 'Two']));
+    await afterSave();
+    await a.dispose();
+
+    final b = newEngine(FakeAudioBackend());
+    await b.playSongs(await songs(['Three']));
+    await b.restoreQueue();
+    expect([for (final i in b.queueSnapshot().items) i.song.title], ['Three']);
+    await b.dispose();
+  });
+}
