@@ -22,6 +22,12 @@ class Songs extends Table {
   TextColumn get source => text()();
   DateTimeColumn get addedAt => dateTime().clientDefault(DateTime.now)();
 
+  /// Favorite songs (schema v3).
+  BoolColumn get favorite => boolean().withDefault(const Constant(false))();
+
+  /// When the song last started playing; null if never (schema v3).
+  DateTimeColumn get lastPlayedAt => dateTime().nullable()();
+
   /// A song has file_path or url, never both and never neither.
   @override
   List<String> get customConstraints => [
@@ -78,4 +84,21 @@ class RecentUrls extends Table {
   TextColumn get url => text().unique()();
   TextColumn get title => text().nullable()();
   DateTimeColumn get lastUsedAt => dateTime().clientDefault(DateTime.now)();
+}
+
+/// A named list of library songs (schema v3).
+class Playlists extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  DateTimeColumn get createdAt => dateTime().clientDefault(DateTime.now)();
+}
+
+/// Songs in a playlist, in order. Deleting a playlist or a song removes the rows.
+class PlaylistSongs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get playlistId =>
+      integer().references(Playlists, #id, onDelete: KeyAction.cascade)();
+  IntColumn get songId =>
+      integer().references(Songs, #id, onDelete: KeyAction.cascade)();
+  IntColumn get position => integer()();
 }

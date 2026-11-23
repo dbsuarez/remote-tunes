@@ -31,7 +31,7 @@ Build **one phase at a time**. Do not implement later phases early. The specs li
 | 4 | Online remote control via Supabase Realtime | **Built; automated tests pass (fake relay); NOT yet tried against a real Supabase project** |
 | 5 | Spotify / YouTube Music external control | **Built; Dart logic tested with a fake; the Android side compiles but has NEVER run on a phone** |
 | 6 | Web Controller: browser Controller over Supabase Realtime ([docs/17](docs/17_WEB_CONTROLLER.md)) | **Built; verified in a real browser against a simulated Player on the real Supabase relay; NOT yet tried against a real phone Player** |
-| 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_6_POLISH.md), file name predates the renumbering) | **Started:** search (already there), sleep timer, shorter screens. Left: favorites, recently played, album art on the Controller, playlists, playback speed, diagnostics, app icon |
+| 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_6_POLISH.md), file name predates the renumbering) | **Built:** search, sleep timer, shorter screens, favorites, recently played, playlists, playback speed, album art on the Controller, diagnostics, app icon. Not yet tried on phones: everything after the sleep timer |
 | 8 | Group Mode: same song in sync on several phones in one room ([draft spec](docs/16_GROUP_MODE.md), not approved) | Draft only |
 
 Phase 0 deliberately does **not** initialize Supabase, audio, networking, or discovery.
@@ -83,6 +83,14 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 - **Player screen** has three tabs: *Player* (now playing and controls), *Connect* (QR code, room code, address, trusted Controllers) and *Music* (add songs, library, queue, URL). Who is connected, errors and a pairing request stay pinned on top of every tab.
 - **Controller** keeps a mini control bar (title, previous, play/pause, next) under the Queue, Library and URL tabs, so there is no going back to Now Playing to pause. The "Other ways to connect" fallbacks are folded away under the Scan QR button.
 - **Sleep timer:** on the Controller's Now Playing tab pick 15 min to 2 hours; the Player pauses when it runs out (even if the Controller has gone), and the Controller shows the countdown. Protocol: `setSleepTimer {minutes}` (0 cancels), `state.sleepTimerSeconds`.
+
+## Favorites, playlists, speed, art (Phase 7)
+
+- **Library chips:** Songs, Artists, Albums, **Favorites**, **Recent**, **Playlists**. The heart on a song toggles a favorite; the song menu has *Add to playlist*. A playlist opens like an album (Play all, Rename, Delete, remove a song). Deleting a playlist keeps the songs.
+- **Now Playing (Controller):** a heart for the current song, a **Speed** picker (0.5x to 2x, kept for the next songs) and the album art.
+- **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path.
+- **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
+- The database moved to version 3; upgrading keeps the library.
 
 ## License
 

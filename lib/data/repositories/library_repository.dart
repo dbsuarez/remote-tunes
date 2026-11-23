@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 
 import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
+import '../../core/protocol/protocol.dart';
+import '../../features/player/playback_engine.dart';
 import '../../features/player/queue/playable_song.dart';
 import '../database/app_database.dart';
 
@@ -54,6 +56,121 @@ class LibraryRepository {
     await (_db.delete(_db.songs)..where((t) => t.id.equals(id))).go();
     return song;
   }
+
+  // ------------------------------------------------- favorites / recently played
+
+  Future<void> setFavorite(int songId, bool favorite) =>
+      (_db.update(_db.songs)..where((t) => t.id.equals(songId)))
+          .write(SongsCompanion(favorite: Value(favorite)));
+
+  Future<Set<int>> favoriteIds() async {
+    final rows = await _db.customSelect('SELECT id FROM songs WHERE favorite = 1').get();
+    return {for (final r in rows) r.read<int>('id')};
+  }
+
+  /// Remembers that [songId] just started playing.
+  Future<void> markPlayed(int songId) =>
+      (_db.update(_db.songs)..where((t) => t.id.equals(songId)))
+          .write(SongsCompanion(lastPlayedAt: Value(DateTime.now())));
+
+  // ---------------------------------------------------------------- playlists
+
+  static const maxPlaylistNameLength = 60;
+
+  Future<LibraryPage<RemotePlaylist>> playlists({
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    final q = query.trim();
+    final where = q.isEmpty ? '' : r"WHERE p.name LIKE ? ESCAPE '\'";
+    final vars = q.isEmpty ? <Variable<Object>>[] : [Variable<String>(_like(q))];
+    final total = (await _db
+            .customSelect('SELECT COUNT(*) AS c FROM playlists p $where', variables: vars)
+            .getSingle())
+        .read<int>('c');
+    final rows = await _db.customSelect(
+      'SELECT p.id AS id, p.name AS name, '
+      '(SELECT COUNT(*) FROM playlist_songs s WHERE s.playlist_id = p.id) AS c '
+      'FROM playlists p $where '
+      'ORDER BY p.name COLLATE NOCASE, p.id LIMIT ? OFFSET ?',
+      variables: [...vars, Variable<int>(limit), Variable<int>(offset)],
+    ).get();
+    return LibraryPage(
+      items: [
+        for (final r in rows)
+          RemotePlaylist(
+              id: r.read<int>('id'),
+              name: r.read<String>('name'),
+              songCount: r.read<int>('c')),
+      ],
+      total: total,
+      offset: offset,
+    );
+  }
+
+  /// Trims and checks a playlist name; throws a [PlaybackException] with a
+  /// plain-language message when it can't be used.
+  static String cleanPlaylistName(String raw) {
+    final name = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (name.isEmpty) throw PlaybackException(ErrorCodes.invalidAction, 'Give the playlist a name.');
+    if (name.length > maxPlaylistNameLength) {
+      throw PlaybackException(ErrorCodes.invalidAction,
+          'Playlist names can be up to $maxPlaylistNameLength letters.');
+    }
+    return name;
+  }
+
+  Future<int> createPlaylist(String name) => _db
+      .into(_db.playlists)
+      .insert(PlaylistsCompanion.insert(name: cleanPlaylistName(name)));
+
+  Future<bool> renamePlaylist(int id, String name) async {
+    final n = await (_db.update(_db.playlists)..where((t) => t.id.equals(id)))
+        .write(PlaylistsCompanion(name: Value(cleanPlaylistName(name))));
+    return n > 0;
+  }
+
+  Future<bool> deletePlaylist(int id) async =>
+      await (_db.delete(_db.playlists)..where((t) => t.id.equals(id))).go() > 0;
+
+  /// Adds songs to the end of a playlist, skipping ones already in it and ids
+  /// that are not in the library. Returns how many were added; null if the
+  /// playlist does not exist.
+  Future<int?> addToPlaylist(int playlistId, List<int> songIds) async {
+    final exists = await _db
+        .customSelect('SELECT 1 FROM playlists WHERE id = ?',
+            variables: [Variable<int>(playlistId)])
+        .get();
+    if (exists.isEmpty) return null;
+    final songs = await songsByIds(songIds);
+    final inList = {
+      for (final r in await _db.customSelect(
+          'SELECT song_id FROM playlist_songs WHERE playlist_id = ?',
+          variables: [Variable<int>(playlistId)]).get())
+        r.read<int>('song_id'),
+    };
+    final posRow = await _db.customSelect(
+        'SELECT IFNULL(MAX(position), -1) AS m FROM playlist_songs WHERE playlist_id = ?',
+        variables: [Variable<int>(playlistId)]).getSingle();
+    var pos = posRow.read<int>('m');
+    var added = 0;
+    await _db.transaction(() async {
+      for (final s in songs) {
+        if (!inList.add(s.id)) continue;
+        pos++;
+        added++;
+        await _db.into(_db.playlistSongs).insert(PlaylistSongsCompanion.insert(
+            playlistId: playlistId, songId: s.id, position: pos));
+      }
+    });
+    return added;
+  }
+
+  Future<void> removeFromPlaylist(int playlistId, int songId) =>
+      (_db.delete(_db.playlistSongs)
+            ..where((t) => t.playlistId.equals(playlistId) & t.songId.equals(songId)))
+          .go();
 
   // ----------------------------------------------------------------- lookups
 
@@ -135,9 +252,17 @@ class LibraryRepository {
     String query = '',
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
   }) {
     final clauses = <String>[];
     final vars = <Variable<Object>>[];
+    if (view == LibraryView.favorites) clauses.add('favorite = 1');
+    if (view == LibraryView.recent) clauses.add('last_played_at IS NOT NULL');
+    if (playlistId != null) {
+      clauses.add('id IN (SELECT song_id FROM playlist_songs WHERE playlist_id = ?)');
+      vars.add(Variable<int>(playlistId));
+    }
     final q = query.trim();
     if (q.isNotEmpty) {
       clauses.add(r"(title LIKE ? ESCAPE '\' OR artist LIKE ? ESCAPE '\' OR album LIKE ? ESCAPE '\')");
@@ -158,7 +283,12 @@ class LibraryRepository {
     );
   }
 
-  String _songOrder({String? artist, String? album}) {
+  String _songOrder({String? artist, String? album, String? view, int? playlistId}) {
+    if (view == LibraryView.recent) return 'ORDER BY last_played_at DESC, id';
+    if (playlistId != null) {
+      return 'ORDER BY (SELECT position FROM playlist_songs ps '
+          'WHERE ps.playlist_id = $playlistId AND ps.song_id = songs.id), id';
+    }
     if (album != null) {
       return 'ORDER BY COALESCE(track_number, 9999), title COLLATE NOCASE, id';
     }
@@ -185,17 +315,20 @@ class LibraryRepository {
     String query = '',
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
     int offset = 0,
     int limit = 50,
   }) async {
-    final f = _songFilter(query: query, artist: artist, album: album);
+    final f = _songFilter(
+        query: query, artist: artist, album: album, view: view, playlistId: playlistId);
     final total = (await _db
             .customSelect('SELECT COUNT(*) AS c FROM songs ${f.where}',
                 variables: f.vars)
             .getSingle())
         .read<int>('c');
     final rows = await _db.customSelect(
-      'SELECT * FROM songs ${f.where} ${_songOrder(artist: artist, album: album)} '
+      'SELECT * FROM songs ${f.where} ${_songOrder(artist: artist, album: album, view: view, playlistId: playlistId)} '
       'LIMIT ? OFFSET ?',
       variables: [...f.vars, Variable<int>(limit), Variable<int>(offset)],
     ).get();
@@ -310,5 +443,6 @@ extension SongMapping on Song {
         durationSeconds: durationSeconds ?? 0,
         trackNumber: trackNumber,
         available: available,
+        favorite: favorite,
       );
 }

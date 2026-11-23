@@ -493,9 +493,15 @@ class PlayerServer {
         payload: {
           ...engine.state.toJson(),
           if (_sleepSecondsLeft > 0) 'sleepTimerSeconds': _sleepSecondsLeft,
+          if (_currentIsFavorite) 'favorite': true,
         },
       ),
     );
+  }
+
+  bool get _currentIsFavorite {
+    final id = engine.state.songId;
+    return id != null && (library?.isFavorite(id) ?? false);
   }
 
   /// Seconds left on the sleep timer (rounded up), 0 when it is off.
@@ -1019,6 +1025,48 @@ class PlayerServer {
               'The sleep timer needs minutes from 0 to 720.');
         }
         _setSleepTimer(m == 0 ? null : Duration(minutes: m.toInt()));
+      case RemoteActions.setSpeed:
+        final v = p['speed'];
+        if (v is! num || v.isNaN || v < 0.5 || v > 2.0) {
+          throw PlaybackException(
+              ErrorCodes.invalidAction, 'Speed must be between 0.5 and 2.');
+        }
+        await _queueEngine.setSpeed(v.toDouble());
+      case RemoteActions.setFavorite:
+        if (p['favorite'] is! bool) {
+          throw PlaybackException(
+              ErrorCodes.invalidAction, 'setFavorite needs favorite: true or false.');
+        }
+        await _library.setFavorite(_requiredInt(p, 'songId'), p['favorite'] as bool);
+      case RemoteActions.createPlaylist:
+        final name = p['name'];
+        if (name is! String) {
+          throw PlaybackException(ErrorCodes.invalidAction, 'Give the playlist a name.');
+        }
+        return {'playlistId': await _library.createPlaylist(name)};
+      case RemoteActions.renamePlaylist:
+        final name = p['name'];
+        if (name is! String) {
+          throw PlaybackException(ErrorCodes.invalidAction, 'Give the playlist a name.');
+        }
+        if (!await _library.renamePlaylist(_requiredInt(p, 'playlistId'), name)) {
+          throw _noPlaylist();
+        }
+      case RemoteActions.deletePlaylist:
+        if (!await _library.deletePlaylist(_requiredInt(p, 'playlistId'))) {
+          throw _noPlaylist();
+        }
+      case RemoteActions.addToPlaylist:
+        final added =
+            await _library.addToPlaylist(_requiredInt(p, 'playlistId'), _songIds(p));
+        if (added == null) throw _noPlaylist();
+        return {'added': added};
+      case RemoteActions.removeFromPlaylist:
+        await _library.removeFromPlaylist(
+            _requiredInt(p, 'playlistId'), _requiredInt(p, 'songId'));
+      case RemoteActions.getArt:
+        final bytes = await _library.artThumbnail(_requiredInt(p, 'songId'));
+        return bytes == null ? const {} : {'art': base64Encode(bytes)};
       case RemoteActions.toggle:
         await engine.toggle();
       case RemoteActions.next:
@@ -1124,6 +1172,18 @@ class PlayerServer {
     return const {};
   }
 
+  PlayerLibrary get _library {
+    final lib = library;
+    if (lib == null) {
+      throw PlaybackException(
+          ErrorCodes.invalidAction, 'This Player has no music library.');
+    }
+    return lib;
+  }
+
+  PlaybackException _noPlaylist() => PlaybackException(
+      ErrorCodes.invalidAction, 'That playlist no longer exists.');
+
   QueueAwareEngine get _queueEngine {
     final e = engine;
     if (e is QueueAwareEngine) return e;
@@ -1223,10 +1283,15 @@ class PlayerServer {
             query: query,
             artist: text('artist'),
             album: text('album'),
+            view: text('view'),
+            playlistId: p['playlistId'] is num ? (p['playlistId'] as num).toInt() : null,
             offset: offset,
             limit: limit,
           );
           body = _pageJson(page, (RemoteSong e) => e.toJson());
+        case LibraryScope.playlists:
+          final page = await lib.playlists(query: query, offset: offset, limit: limit);
+          body = _pageJson(page, (RemotePlaylist e) => e.toJson());
         case LibraryScope.artists:
           final page = await lib.artists(query: query, offset: offset, limit: limit);
           body = _pageJson(page, (RemoteArtist e) => e.toJson());
@@ -1243,7 +1308,7 @@ class PlayerServer {
             conn,
             RemoteMessage.error(
               ErrorCodes.invalidAction,
-              'Library scope must be songs, artists or albums.',
+              'Library scope must be songs, artists, albums or playlists.',
               requestId: msg.requestId,
               sessionId: s.sessionId,
             ),

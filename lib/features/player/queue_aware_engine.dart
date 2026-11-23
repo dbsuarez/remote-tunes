@@ -25,5 +25,8 @@ abstract class QueueAwareEngine implements PlaybackEngine {
   Future<void> setRepeatMode(RepeatMode mode);
   Future<void> setShuffle(bool enabled);
 
+  /// Playback speed, 0.5–2.0 (1.0 = normal).
+  Future<void> setSpeed(double speed);
+
   QueueSnapshot queueSnapshot();
 }

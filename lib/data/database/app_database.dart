@@ -11,7 +11,15 @@ import 'tables.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [Songs, QueueItems, Settings, PairedControllers, RecentUrls],
+  tables: [
+    Songs,
+    QueueItems,
+    Settings,
+    PairedControllers,
+    RecentUrls,
+    Playlists,
+    PlaylistSongs,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   /// Opens `remote_tunes.db` in the app documents directory (lazily).
@@ -21,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -31,6 +39,13 @@ class AppDatabase extends _$AppDatabase {
             // Trusted devices: keeps every existing row (and the library).
             await m.addColumn(pairedControllers, pairedControllers.tokenHash);
             await m.addColumn(pairedControllers, pairedControllers.trusted);
+          }
+          if (from < 3) {
+            // Favorites, recently played and playlists: the library is kept.
+            await m.addColumn(songs, songs.favorite);
+            await m.addColumn(songs, songs.lastPlayedAt);
+            await m.createTable(playlists);
+            await m.createTable(playlistSongs);
           }
         },
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).

@@ -23,6 +23,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
     double initialVolume = 0.8,
     bool Function(String path)? fileExists,
     UrlChecker? urlChecker,
+    this.onSongStarted,
   })  : _backend = backend,
         _queue = queue ?? QueueController(),
         _volume = initialVolume.clamp(0.0, 1.0),
@@ -39,6 +40,10 @@ class QueuePlaybackEngine implements QueueAwareEngine {
   }
 
   final AudioBackend _backend;
+
+  /// Called with the library id when a library song starts playing (used for
+  /// "recently played").
+  final void Function(int songId)? onSongStarted;
   final QueueController _queue;
   final bool Function(String path) _fileExists;
   final UrlChecker _urlChecker;
@@ -52,6 +57,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
   int _positionSeconds = 0;
   int _durationSeconds = 0;
   double _volume;
+  double _speed = 1.0;
   bool _disposed = false;
 
   /// True while a track is being opened (an internet stream can take seconds).
@@ -100,6 +106,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
       isLoading: _loading,
       error: _error,
       localArtPath: song?.albumArtPath,
+      speed: _speed,
     );
   }
 
@@ -178,9 +185,12 @@ class QueuePlaybackEngine implements QueueAwareEngine {
               song.durationSeconds > 0 ? song.durationSeconds : (duration?.inSeconds ?? 0);
           _error = '';
           _loading = false;
+          if (_speed != 1.0) await _backend.setSpeed(_speed);
           if (autoplay) {
             await _backend.play();
             _playing = true;
+            final id = song.libraryId;
+            if (id != null) onSongStarted?.call(id);
           }
           _emit();
           return;
@@ -309,6 +319,19 @@ class QueuePlaybackEngine implements QueueAwareEngine {
         }
         _volume = volume;
         await _backend.setVolume(volume);
+        _emit();
+      });
+
+  @override
+  Future<void> setSpeed(double speed) => _serial(() async {
+        if (speed.isNaN || speed < 0.5 || speed > 2.0) {
+          throw PlaybackException(
+            ErrorCodes.invalidAction,
+            'Speed must be between 0.5 and 2.',
+          );
+        }
+        _speed = speed;
+        await _backend.setSpeed(speed);
         _emit();
       });
 

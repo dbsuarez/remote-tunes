@@ -20,9 +20,18 @@ class NowPlayingCard extends StatefulWidget {
     required this.state,
     this.onSeek,
     this.enabled = true,
+    this.art,
+    this.trailing,
   });
 
   final PlaybackState state;
+
+  /// Replaces the album-art picture (the Controller passes the thumbnail it
+  /// fetched from the Player).
+  final Widget? art;
+
+  /// Shown at the end of the title row (e.g. a favorite heart).
+  final Widget? trailing;
 
   /// Called with the new position (seconds) when the user releases the slider.
   final ValueChanged<int>? onSeek;
@@ -62,7 +71,7 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
             const SizedBox(height: 12),
             Row(
               children: [
-                _ArtTile(path: s.localArtPath),
+                widget.art ?? _ArtTile(path: s.localArtPath),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -124,6 +133,7 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
                     ],
                   ),
                 ),
+                if (widget.trailing != null) widget.trailing!,
               ],
             ),
             if (s.isLoading) ...[

@@ -27,12 +27,21 @@ class FakeMusicSource implements MusicSource {
   final List<RemoteQueueItem> queue;
   final calls = <String>[];
   Object? failWith;
+  final favorites = <int>{};
+  final recentIds = <int>{};
+  final playlistList = <RemotePlaylist>[];
+  final playlistSongs = <int, List<int>>{};
 
-  List<RemoteSong> _filter(String q, String? artist, String? album) => [
+  List<RemoteSong> _filter(String q, String? artist, String? album,
+          {String? view, int? playlistId}) =>
+      [
         for (final s in library)
           if ((q.isEmpty || s.title.toLowerCase().contains(q.toLowerCase())) &&
               (artist == null || s.artist == artist) &&
-              (album == null || s.album == album))
+              (album == null || s.album == album) &&
+              (view != LibraryView.favorites || favorites.contains(s.id)) &&
+              (view != LibraryView.recent || recentIds.contains(s.id)) &&
+              (playlistId == null || (playlistSongs[playlistId] ?? []).contains(s.id)))
             s,
       ];
 
@@ -44,10 +53,55 @@ class FakeMusicSource implements MusicSource {
 
   @override
   Future<LibraryPage<RemoteSong>> songs(
-      {String query = '', String? artist, String? album, int offset = 0, int limit = 50}) async {
+      {String query = '',
+      String? artist,
+      String? album,
+      String? view,
+      int? playlistId,
+      int offset = 0,
+      int limit = 50}) async {
     if (failWith != null) throw failWith!;
-    return _page(_filter(query, artist, album), offset, limit);
+    return _page(_filter(query, artist, album, view: view, playlistId: playlistId),
+        offset, limit);
   }
+
+  @override
+  Future<LibraryPage<RemotePlaylist>> playlists(
+          {String query = '', int offset = 0, int limit = 50}) async =>
+      _page(playlistList, offset, limit);
+
+  @override
+  Future<void> setFavorite(int songId, bool favorite) async {
+    calls.add('favorite $songId $favorite');
+    favorite ? favorites.add(songId) : favorites.remove(songId);
+  }
+
+  @override
+  Future<int> createPlaylist(String name) async {
+    calls.add('createPlaylist $name');
+    final id = playlistList.length + 1;
+    playlistList.add(RemotePlaylist(id: id, name: name, songCount: 0));
+    return id;
+  }
+
+  @override
+  Future<void> renamePlaylist(int playlistId, String name) async =>
+      calls.add('renamePlaylist $playlistId $name');
+
+  @override
+  Future<void> deletePlaylist(int playlistId) async =>
+      calls.add('deletePlaylist $playlistId');
+
+  @override
+  Future<int> addToPlaylist(int playlistId, List<int> songIds) async {
+    calls.add('addToPlaylist $playlistId $songIds');
+    playlistSongs.putIfAbsent(playlistId, () => []).addAll(songIds);
+    return songIds.length;
+  }
+
+  @override
+  Future<void> removeFromPlaylist(int playlistId, int songId) async =>
+      calls.add('removeFromPlaylist $playlistId $songId');
 
   @override
   Future<LibraryPage<RemoteArtist>> artists(

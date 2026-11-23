@@ -4,6 +4,7 @@ import '../../features/controller/controller_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/player/player_library_screens.dart';
 import '../../features/player/player_screen.dart';
+import '../../features/settings/diagnostics_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
 class AppRoutes {
@@ -11,6 +12,7 @@ class AppRoutes {
 
   static const home = '/';
   static const settings = '/settings';
+  static const diagnostics = '/settings/diagnostics';
   static const player = '/player';
   static const playerLibrary = '/player/library';
   static const playerQueue = '/player/queue';
@@ -29,6 +31,12 @@ GoRouter createRouter() {
       GoRoute(
         path: AppRoutes.settings,
         builder: (context, state) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            path: 'diagnostics',
+            builder: (context, state) => const DiagnosticsScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.player,

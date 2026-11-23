@@ -71,6 +71,20 @@ class RemoteActions {
   // Player pauses when it runs out, and reports the time left in
   // `state.sleepTimerSeconds`.
   static const setSleepTimer = 'setSleepTimer';
+
+  // Phase 7 (Polish), all `command` actions:
+  //  setFavorite {songId, favorite}; createPlaylist {name} -> {playlistId};
+  //  renamePlaylist {playlistId, name}; deletePlaylist {playlistId};
+  //  addToPlaylist {playlistId, songIds}; removeFromPlaylist {playlistId, songId};
+  //  setSpeed {speed 0.5-2.0}; getArt {songId} -> {art: base64 JPEG thumbnail}.
+  static const setFavorite = 'setFavorite';
+  static const createPlaylist = 'createPlaylist';
+  static const renamePlaylist = 'renamePlaylist';
+  static const deletePlaylist = 'deletePlaylist';
+  static const addToPlaylist = 'addToPlaylist';
+  static const removeFromPlaylist = 'removeFromPlaylist';
+  static const setSpeed = 'setSpeed';
+  static const getArt = 'getArt';
 }
 
 class ErrorCodes {
@@ -239,7 +253,15 @@ class PlaybackState {
     this.canSkip = true,
     this.localArtPath,
     this.sleepTimerSeconds = 0,
+    this.speed = 1.0,
+    this.favorite = false,
   });
+
+  /// Playback speed (1.0 = normal).
+  final double speed;
+
+  /// The current library song is a favorite.
+  final bool favorite;
 
   /// Seconds until the Player's sleep timer pauses playback; 0 when off.
   final int sleepTimerSeconds;
@@ -321,6 +343,8 @@ class PlaybackState {
     bool? canSkip,
     String? localArtPath,
     int? sleepTimerSeconds,
+    double? speed,
+    bool? favorite,
   }) =>
       PlaybackState(
         title: title ?? this.title,
@@ -345,6 +369,8 @@ class PlaybackState {
         canSkip: canSkip ?? this.canSkip,
         localArtPath: localArtPath ?? this.localArtPath,
         sleepTimerSeconds: sleepTimerSeconds ?? this.sleepTimerSeconds,
+        speed: speed ?? this.speed,
+        favorite: favorite ?? this.favorite,
       );
 
   Map<String, dynamic> toJson() => {
@@ -370,6 +396,8 @@ class PlaybackState {
         if (!canSeek) 'canSeek': false,
         if (!canSkip) 'canSkip': false,
         if (sleepTimerSeconds > 0) 'sleepTimerSeconds': sleepTimerSeconds,
+        if (speed != 1.0) 'speed': speed,
+        if (favorite) 'favorite': true,
         // localArtPath is intentionally NOT included.
       };
 
@@ -401,6 +429,10 @@ class PlaybackState {
       canSeek: j['canSeek'] != false,
       canSkip: j['canSkip'] != false,
       sleepTimerSeconds: i('sleepTimerSeconds'),
+      speed: j['speed'] is num
+          ? (j['speed'] as num).toDouble().clamp(0.5, 2.0)
+          : 1.0,
+      favorite: j['favorite'] == true,
     );
   }
 }

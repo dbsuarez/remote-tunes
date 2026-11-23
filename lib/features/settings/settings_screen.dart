@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/models/enums.dart';
 import '../../core/online_defaults.dart';
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../providers/connection_providers.dart';
@@ -169,6 +171,15 @@ class SettingsScreen extends ConsumerWidget {
                   return null;
                 },
                 onSave: (v) => repo.setLastPlayerPort(int.parse(v.trim())),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.monitor_heart_outlined),
+                title: const Text('Diagnostics'),
+                subtitle: const Text('Version, network and library status you can copy'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.push(AppRoutes.diagnostics),
               ),
             ],
           ),

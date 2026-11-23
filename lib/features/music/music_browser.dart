@@ -6,18 +6,20 @@ import '../../core/protocol/library_models.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
 
-enum _Scope { songs, artists, albums }
+enum _Scope { songs, artists, albums, favorites, recent, playlists }
 
 class _Drill {
-  const _Drill({required this.title, this.artist, this.album});
+  const _Drill({required this.title, this.artist, this.album, this.playlistId});
 
   final String title;
   final String? artist;
   final String? album;
+  final int? playlistId;
 }
 
-/// Library browser used on both phones: search, Songs/Artists/Albums filter
-/// chips, lazily loaded lists, and drill-down into an artist or album.
+/// Library browser used on both phones: search, filter chips (Songs, Artists,
+/// Albums, Favorites, Recent, Playlists), lazily loaded lists, and drill-down
+/// into an artist, album or playlist.
 class MusicBrowser extends StatefulWidget {
   const MusicBrowser({
     super.key,
@@ -88,8 +90,13 @@ class _MusicBrowserState extends State<MusicBrowser> {
     final ids = <int>[];
     var offset = 0;
     while (ids.length < 2000) {
-      final page = await widget.source
-          .songs(query: _query, artist: d.artist, album: d.album, offset: offset, limit: 100);
+      final page = await widget.source.songs(
+          query: _query,
+          artist: d.artist,
+          album: d.album,
+          playlistId: d.playlistId,
+          offset: offset,
+          limit: 100);
       ids.addAll([for (final s in page.items) s.id]);
       offset += page.items.length;
       if (!page.hasMore || page.items.isEmpty) break;
@@ -97,11 +104,214 @@ class _MusicBrowserState extends State<MusicBrowser> {
     return ids;
   }
 
+  /// Every song id in a whole view (Favorites or Recent), for Play all.
+  Future<List<int>> _allViewIds(String view) async {
+    final ids = <int>[];
+    var offset = 0;
+    while (ids.length < 2000) {
+      final page = await widget.source
+          .songs(query: _query, view: view, offset: offset, limit: 100);
+      ids.addAll([for (final s in page.items) s.id]);
+      offset += page.items.length;
+      if (!page.hasMore || page.items.isEmpty) break;
+    }
+    return ids;
+  }
+
+  Future<String?> _askName(String title, {String initial = ''}) {
+    final c = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          maxLength: 60,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Playlist name'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(c.text),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _newPlaylist() async {
+    final name = await _askName('New playlist');
+    if (name == null) return;
+    await _run(() async {
+      await widget.source.createPlaylist(name);
+      if (mounted) setState(() => _generation++);
+    }, done: 'Playlist created');
+  }
+
+  Future<void> _addToPlaylist(RemoteSong song) async {
+    final List<RemotePlaylist> lists;
+    try {
+      lists = (await widget.source.playlists(limit: 100)).items;
+    } catch (e) {
+      _snack(friendlyError(e));
+      return;
+    }
+    if (!mounted) return;
+    final choice = await showModalBottomSheet<Object>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add_rounded),
+              title: const Text('New playlist'),
+              onTap: () => Navigator.of(ctx).pop('new'),
+            ),
+            for (final l in lists)
+              ListTile(
+                leading: const Icon(Icons.queue_music_rounded),
+                title: Text(l.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${l.songCount} song${l.songCount == 1 ? '' : 's'}'),
+                onTap: () => Navigator.of(ctx).pop(l),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    await _run(() async {
+      int id;
+      String name;
+      if (choice == 'new') {
+        final n = await _askName('New playlist');
+        if (n == null) return;
+        id = await widget.source.createPlaylist(n);
+        name = n.trim();
+      } else {
+        final l = choice as RemotePlaylist;
+        id = l.id;
+        name = l.name;
+      }
+      final added = await widget.source.addToPlaylist(id, [song.id]);
+      _snack(added == 0 ? 'Already in "$name"' : 'Added to "$name"');
+    });
+  }
+
+  Future<void> _renamePlaylist(_Drill d) async {
+    final name = await _askName('Rename playlist', initial: d.title);
+    if (name == null) return;
+    await _run(() async {
+      await widget.source.renamePlaylist(d.playlistId!, name);
+      if (mounted) {
+        setState(() => _drill = _Drill(
+            title: name.trim(), playlistId: d.playlistId));
+      }
+    });
+  }
+
+  Future<void> _deletePlaylist(_Drill d) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete "${d.title}"?'),
+        content: const Text('The songs stay in your library.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _run(() async {
+      await widget.source.deletePlaylist(d.playlistId!);
+      if (mounted) {
+        setState(() {
+          _drill = null;
+          _generation++;
+        });
+      }
+    }, done: 'Playlist deleted');
+  }
+
+  Widget _songList(_Drill? drill, {String? view}) {
+    final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
+        '${drill?.playlistId}|${widget.refreshToken}|$_generation');
+    return _PagedList<RemoteSong>(
+      key: key,
+      emptyMessage: _query.isNotEmpty
+          ? 'No matches.'
+          : switch (view) {
+              LibraryView.favorites => 'No favorites yet. Tap the heart on a song.',
+              LibraryView.recent => 'Nothing played yet.',
+              _ => drill?.playlistId != null
+                  ? 'This playlist is empty. Use a song\'s menu to add songs.'
+                  : widget.emptyMessage,
+            },
+      load: (offset, limit) => widget.source.songs(
+        query: _query,
+        artist: drill?.artist,
+        album: drill?.album,
+        view: view,
+        playlistId: drill?.playlistId,
+        offset: offset,
+        limit: limit,
+      ),
+      itemBuilder: (context, song) => _SongTile(
+        song: song,
+        onTap: () => _run(() async {
+          if (!song.available) {
+            _snack("This song's file is missing from the Player.");
+            return;
+          }
+          if (drill != null) {
+            // Play the whole album/artist/playlist starting here.
+            await widget.source
+                .playSongs(await _allSongIds(drill), startSongId: song.id);
+          } else if (view != null) {
+            await widget.source
+                .playSongs(await _allViewIds(view), startSongId: song.id);
+          } else {
+            await widget.source.playSongs([song.id]);
+          }
+        }),
+        onFavorite: (fav) => widget.source.setFavorite(song.id, fav),
+        onPlayNext: () => _run(
+          () => widget.source.queueSongs([song.id], playNext: true),
+          done: 'Will play next',
+        ),
+        onAddToQueue: () => _run(
+          () => widget.source.queueSongs([song.id]),
+          done: 'Added to queue',
+        ),
+        onAddToPlaylist: () => _addToPlaylist(song),
+        onRemoveFromPlaylist: drill?.playlistId == null
+            ? null
+            : () => _run(() async {
+                  await widget.source.removeFromPlaylist(drill!.playlistId!, song.id);
+                  if (mounted) setState(() => _generation++);
+                }, done: 'Removed from playlist'),
+        onRemove: widget.onRemoveSong == null
+            ? null
+            : () => _run(() async {
+                  await widget.onRemoveSong!(song);
+                  if (mounted) setState(() => _generation++);
+                }, done: 'Removed from library'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final drill = _drill;
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
-        '${widget.refreshToken}|$_generation');
+        '${drill?.playlistId}|${widget.refreshToken}|$_generation');
 
     return IgnorePointer(
       ignoring: !widget.enabled,
@@ -132,7 +342,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
               ),
             ),
             if (drill == null)
-              Padding(
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
@@ -142,6 +353,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.songs => 'Songs',
                           _Scope.artists => 'Artists',
                           _Scope.albums => 'Albums',
+                          _Scope.favorites => 'Favorites',
+                          _Scope.recent => 'Recent',
+                          _Scope.playlists => 'Playlists',
                         }),
                         selected: _scope == s,
                         onSelected: (_) => setState(() => _scope = s),
@@ -155,6 +369,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
               _DrillHeader(
                 title: drill.title,
                 onBack: () => setState(() => _drill = null),
+                onRename: drill.playlistId == null ? null : () => _renamePlaylist(drill),
+                onDelete: drill.playlistId == null ? null : () => _deletePlaylist(drill),
                 onPlayAll: () => _run(() async {
                   final ids = await _allSongIds(drill);
                   if (ids.isEmpty) return;
@@ -168,46 +384,48 @@ class _MusicBrowserState extends State<MusicBrowser> {
               ),
             Expanded(
               child: switch (drill != null ? _Scope.songs : _scope) {
-                _Scope.songs => _PagedList<RemoteSong>(
-                    key: key,
-                    emptyMessage: _query.isEmpty ? widget.emptyMessage : 'No matches.',
-                    load: (offset, limit) => widget.source.songs(
-                      query: _query,
-                      artist: drill?.artist,
-                      album: drill?.album,
-                      offset: offset,
-                      limit: limit,
-                    ),
-                    itemBuilder: (context, song) => _SongTile(
-                      song: song,
-                      onTap: () => _run(() async {
-                        if (!song.available) {
-                          _snack("This song's file is missing from the Player.");
-                          return;
-                        }
-                        if (drill != null) {
-                          // Play the whole album/artist starting here.
-                          await widget.source
-                              .playSongs(await _allSongIds(drill), startSongId: song.id);
-                        } else {
-                          await widget.source.playSongs([song.id]);
-                        }
-                      }),
-                      onPlayNext: () => _run(
-                        () => widget.source.queueSongs([song.id], playNext: true),
-                        done: 'Will play next',
+                _Scope.songs => _songList(drill),
+                _Scope.favorites => _songList(null, view: LibraryView.favorites),
+                _Scope.recent => _songList(null, view: LibraryView.recent),
+                _Scope.playlists => Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _newPlaylist,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('New playlist'),
+                          ),
+                        ),
                       ),
-                      onAddToQueue: () => _run(
-                        () => widget.source.queueSongs([song.id]),
-                        done: 'Added to queue',
+                      Expanded(
+                        child: _PagedList<RemotePlaylist>(
+                          key: key,
+                          emptyMessage: _query.isEmpty
+                              ? 'No playlists yet. Make one with New playlist.'
+                              : 'No matches.',
+                          load: (offset, limit) => widget.source
+                              .playlists(query: _query, offset: offset, limit: limit),
+                          itemBuilder: (context, l) => ListTile(
+                            minTileHeight: 64,
+                            leading: const CircleAvatar(
+                                child: Icon(Icons.queue_music_rounded)),
+                            title: Text(l.name,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                                '${l.songCount} song${l.songCount == 1 ? '' : 's'}'),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () => setState(() {
+                              _search.clear();
+                              _query = '';
+                              _drill = _Drill(title: l.name, playlistId: l.id);
+                            }),
+                          ),
+                        ),
                       ),
-                      onRemove: widget.onRemoveSong == null
-                          ? null
-                          : () => _run(() async {
-                                await widget.onRemoveSong!(song);
-                                if (mounted) setState(() => _generation++);
-                              }, done: 'Removed from library'),
-                    ),
+                    ],
                   ),
                 _Scope.artists => _PagedList<RemoteArtist>(
                     key: key,
@@ -265,9 +483,13 @@ class _DrillHeader extends StatelessWidget {
     required this.onBack,
     required this.onPlayAll,
     required this.onQueueAll,
+    this.onRename,
+    this.onDelete,
   });
 
   final String title;
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
   final VoidCallback onBack;
   final VoidCallback onPlayAll;
   final VoidCallback onQueueAll;
@@ -299,13 +521,22 @@ class _DrillHeader extends StatelessWidget {
             icon: const Icon(Icons.queue_music_rounded),
             onPressed: onQueueAll,
           ),
+          if (onRename != null || onDelete != null)
+            PopupMenuButton<bool>(
+              tooltip: 'Playlist options',
+              onSelected: (rename) => rename ? onRename?.call() : onDelete?.call(),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: true, child: Text('Rename')),
+                PopupMenuItem(value: false, child: Text('Delete playlist')),
+              ],
+            ),
         ],
       ),
     );
   }
 }
 
-enum _SongAction { playNext, addToQueue, remove }
+enum _SongAction { playNext, addToQueue, addToPlaylist, removeFromPlaylist, remove }
 
 class _SongTile extends StatelessWidget {
   const _SongTile({
@@ -313,6 +544,9 @@ class _SongTile extends StatelessWidget {
     required this.onTap,
     required this.onPlayNext,
     required this.onAddToQueue,
+    required this.onFavorite,
+    required this.onAddToPlaylist,
+    this.onRemoveFromPlaylist,
     this.onRemove,
   });
 
@@ -320,6 +554,9 @@ class _SongTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onPlayNext;
   final VoidCallback onAddToQueue;
+  final VoidCallback onAddToPlaylist;
+  final VoidCallback? onRemoveFromPlaylist;
+  final Future<void> Function(bool favorite) onFavorite;
   final VoidCallback? onRemove;
 
   @override
@@ -353,11 +590,14 @@ class _SongTile extends StatelessWidget {
           if (song.durationSeconds > 0)
             Text(formatDuration(song.durationSeconds),
                 style: theme.textTheme.bodySmall),
+          _FavoriteButton(initial: song.favorite, onChanged: onFavorite),
           PopupMenuButton<_SongAction>(
             tooltip: 'More',
             onSelected: (a) => switch (a) {
               _SongAction.playNext => onPlayNext(),
               _SongAction.addToQueue => onAddToQueue(),
+              _SongAction.addToPlaylist => onAddToPlaylist(),
+              _SongAction.removeFromPlaylist => onRemoveFromPlaylist?.call(),
               _SongAction.remove => onRemove?.call(),
             },
             itemBuilder: (context) => [
@@ -365,6 +605,12 @@ class _SongTile extends StatelessWidget {
                   value: _SongAction.playNext, child: Text('Play next')),
               const PopupMenuItem(
                   value: _SongAction.addToQueue, child: Text('Add to queue')),
+              const PopupMenuItem(
+                  value: _SongAction.addToPlaylist, child: Text('Add to playlist')),
+              if (onRemoveFromPlaylist != null)
+                const PopupMenuItem(
+                    value: _SongAction.removeFromPlaylist,
+                    child: Text('Remove from playlist')),
               if (onRemove != null)
                 const PopupMenuItem(
                     value: _SongAction.remove, child: Text('Remove from library')),
@@ -373,6 +619,47 @@ class _SongTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+    );
+  }
+}
+
+/// Heart toggle for a song. Updates at once and goes back if the Player says no.
+class _FavoriteButton extends StatefulWidget {
+  const _FavoriteButton({required this.initial, required this.onChanged});
+
+  final bool initial;
+  final Future<void> Function(bool favorite) onChanged;
+
+  @override
+  State<_FavoriteButton> createState() => _FavoriteButtonState();
+}
+
+class _FavoriteButtonState extends State<_FavoriteButton> {
+  late bool _fav = widget.initial;
+
+  Future<void> _toggle() async {
+    final next = !_fav;
+    setState(() => _fav = next);
+    try {
+      await widget.onChanged(next);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _fav = !next);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: _fav ? 'Remove from favorites' : 'Add to favorites',
+      icon: Icon(
+        _fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        color: _fav ? Theme.of(context).colorScheme.primary : null,
+      ),
+      onPressed: _toggle,
     );
   }
 }

@@ -45,6 +45,9 @@ abstract class AudioBackend {
 
   /// 0.0–1.0
   Future<void> setVolume(double volume);
+
+  /// 0.5–2.0 (1.0 = normal).
+  Future<void> setSpeed(double speed);
   Future<void> dispose();
 }
 
@@ -122,6 +125,9 @@ class JustAudioBackend implements AudioBackend {
 
   @override
   Future<void> setVolume(double volume) => _player.setVolume(volume);
+
+  @override
+  Future<void> setSpeed(double speed) => _player.setSpeed(speed);
 
   @override
   Future<void> dispose() => _player.dispose();

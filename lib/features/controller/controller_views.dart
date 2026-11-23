@@ -298,8 +298,14 @@ class _MiniControls extends StatelessWidget {
               child: InkWell(
                 onTap: onOpen,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(children: [
+                    RemoteArt(
+                        client: client,
+                        songId: p.isExternal ? null : p.songId,
+                        size: 44),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -314,7 +320,8 @@ class _MiniControls extends StatelessWidget {
                             style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant)),
                     ],
-                  ),
+                  )),
+                  ]),
                 ),
               ),
             ),
@@ -420,6 +427,20 @@ class _NowPlayingTab extends StatelessWidget {
           state: p,
           enabled: enabled,
           onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
+          art: RemoteArt(client: client, songId: p.isExternal ? null : p.songId, size: 64),
+          trailing: p.songId == null || p.isExternal
+              ? null
+              : IconButton(
+                  tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
+                  onPressed: enabled
+                      ? () => _send(context, RemoteActions.setFavorite,
+                          {'songId': p.songId, 'favorite': !p.favorite})
+                      : null,
+                  icon: Icon(
+                    p.favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    color: p.favorite ? Theme.of(context).colorScheme.primary : null,
+                  ),
+                ),
         ),
         const SizedBox(height: 8),
         TransportControls(
@@ -436,6 +457,14 @@ class _NowPlayingTab extends StatelessWidget {
           enabled: enabled,
           onChanged: (v) => _send(context, RemoteActions.setVolume, {'volume': v}),
         ),
+        if (!p.isExternal) ...[
+          const SizedBox(height: 8),
+          _SpeedRow(
+            speed: p.speed,
+            enabled: enabled,
+            onSet: (v) => _send(context, RemoteActions.setSpeed, {'speed': v}),
+          ),
+        ],
         const SizedBox(height: 8),
         _SleepTimerRow(
           secondsLeft: p.sleepTimerSeconds,
@@ -443,6 +472,129 @@ class _NowPlayingTab extends StatelessWidget {
           onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
         ),
       ],
+    );
+  }
+}
+
+/// Playback speed picker (0.5x to 2x).
+class _SpeedRow extends StatelessWidget {
+  const _SpeedRow({required this.speed, required this.enabled, required this.onSet});
+
+  final double speed;
+  final bool enabled;
+  final ValueChanged<double> onSet;
+
+  static const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+
+  static String label(double v) =>
+      '${v.toString().replaceAll(RegExp(r'\.0$'), '')}\u00d7';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final changed = speed != 1.0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(Icons.speed_rounded,
+                color: changed ? RtColors.violet : theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(changed ? 'Speed ${label(speed)}' : 'Speed',
+                  style: theme.textTheme.titleSmall),
+            ),
+            PopupMenuButton<double>(
+              tooltip: 'Set playback speed',
+              enabled: enabled,
+              onSelected: onSet,
+              itemBuilder: (_) => [
+                for (final v in speeds)
+                  CheckedPopupMenuItem(
+                    value: v,
+                    checked: v == speed,
+                    child: Text(v == 1.0 ? 'Normal (1\u00d7)' : label(v)),
+                  ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text('Change', style: TextStyle(color: theme.colorScheme.primary)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Album art for a library song, fetched from the Player as a small picture.
+/// Shows a music note while loading, or if the song has no art.
+class RemoteArt extends StatefulWidget {
+  const RemoteArt({super.key, required this.client, required this.songId, this.size = 64});
+
+  final ControllerClient client;
+  final int? songId;
+  final double size;
+
+  @override
+  State<RemoteArt> createState() => _RemoteArtState();
+}
+
+class _RemoteArtState extends State<RemoteArt> {
+  Future<Uint8List?>? _art;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(RemoteArt old) {
+    super.didUpdateWidget(old);
+    if (old.songId != widget.songId) _load();
+  }
+
+  void _load() {
+    final id = widget.songId;
+    _art = id == null ? null : widget.client.artFor(id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final size = widget.size;
+    final placeholder = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(size / 5),
+      ),
+      child: Icon(Icons.music_note_rounded,
+          color: theme.colorScheme.primary, size: size / 2),
+    );
+    final art = _art;
+    if (art == null) return placeholder;
+    return FutureBuilder<Uint8List?>(
+      future: art,
+      builder: (context, snap) {
+        final bytes = snap.data;
+        if (bytes == null) return placeholder;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(size / 5),
+          child: Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => placeholder,
+          ),
+        );
+      },
     );
   }
 }

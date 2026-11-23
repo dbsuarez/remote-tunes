@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:uuid/uuid.dart';
 
@@ -688,6 +690,8 @@ class ControllerClient {
     String query = '',
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
     int offset = 0,
     int limit = 50,
   }) async {
@@ -696,6 +700,8 @@ class ControllerClient {
       'query': query,
       if (artist != null) 'artist': artist,
       if (album != null) 'album': album,
+      if (view != null) 'view': view,
+      if (playlistId != null) 'playlistId': playlistId,
       'offset': offset,
       'limit': limit,
     });
@@ -723,14 +729,58 @@ class ControllerClient {
     String query = '',
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
     int offset = 0,
     int limit = 50,
   }) async =>
       _page(
         await _library(LibraryScope.songs,
-            query: query, artist: artist, album: album, offset: offset, limit: limit),
+            query: query,
+            artist: artist,
+            album: album,
+            view: view,
+            playlistId: playlistId,
+            offset: offset,
+            limit: limit),
         RemoteSong.fromJson,
       );
+
+  Future<LibraryPage<RemotePlaylist>> playlists({
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async =>
+      _page(
+        await _library(LibraryScope.playlists,
+            query: query, offset: offset, limit: limit),
+        RemotePlaylist.fromJson,
+      );
+
+  /// Album art for a library song, as a small JPEG, or null if it has none.
+  /// Remembered, so each song's art is fetched once.
+  Future<Uint8List?> artFor(int songId) {
+    return _art.putIfAbsent(songId, () async {
+      try {
+        final r = await sendCommandForResult(
+            RemoteActions.getArt, {'songId': songId}, const Duration(seconds: 15));
+        final a = r['art'];
+        return a is String && a.isNotEmpty ? base64Decode(a) : null;
+      } catch (_) {
+        _art.remove(songId); // Try again next time (e.g. after a reconnect).
+        return null;
+      }
+    });
+  }
+
+  final Map<int, Future<Uint8List?>> _art = {};
+
+  /// Sets the playback speed (0.5 to 2.0).
+  Future<void> setSpeed(double speed) =>
+      sendCommand(RemoteActions.setSpeed, {'speed': speed});
+
+  Future<void> setFavorite(int songId, bool favorite) => sendCommand(
+      RemoteActions.setFavorite, {'songId': songId, 'favorite': favorite});
 
   Future<LibraryPage<RemoteArtist>> artists({
     String query = '',

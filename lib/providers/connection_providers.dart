@@ -41,9 +41,11 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
   final settings = await ref.watch(settingsRepositoryProvider).load();
   final plan = PlayerOnlinePlan.forMode(settings.connectionMode, settings);
 
+  final library = RepositoryPlayerLibrary(ref.watch(libraryRepositoryProvider));
   final localEngine = QueuePlaybackEngine(
     backend: JustAudioBackend(),
     initialVolume: settings.defaultVolume,
+    onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
   );
   // External App Control (Phase 5) exists only if the user opted in. With the
   // default settings, no other app is ever looked at.
@@ -59,7 +61,7 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     port: settings.lastPlayerPort,
     store: DriftPairedControllersStore(ref.watch(databaseProvider)),
     advertiser: plan.runLocal ? BonsoirPlayerAdvertiser() : null,
-    library: RepositoryPlayerLibrary(ref.watch(libraryRepositoryProvider)),
+    library: library,
     enableLocal: plan.runLocal,
     // If the local port is busy but online is on, carry on online.
     continueWithoutLocal: plan.runOnline,

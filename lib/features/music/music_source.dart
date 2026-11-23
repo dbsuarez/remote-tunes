@@ -13,9 +13,28 @@ abstract class MusicSource {
     String query,
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
     int offset,
     int limit,
   });
+
+  Future<LibraryPage<RemotePlaylist>> playlists({
+    String query,
+    int offset,
+    int limit,
+  });
+
+  Future<void> setFavorite(int songId, bool favorite);
+
+  /// Returns the new playlist id.
+  Future<int> createPlaylist(String name);
+  Future<void> renamePlaylist(int playlistId, String name);
+  Future<void> deletePlaylist(int playlistId);
+
+  /// How many songs were added (songs already in the playlist are skipped).
+  Future<int> addToPlaylist(int playlistId, List<int> songIds);
+  Future<void> removeFromPlaylist(int playlistId, int songId);
 
   Future<LibraryPage<RemoteArtist>> artists({
     String query,
@@ -55,11 +74,55 @@ class RemoteMusicSource implements MusicSource {
     String query = '',
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
     int offset = 0,
     int limit = 50,
   }) =>
       _client.songs(
-          query: query, artist: artist, album: album, offset: offset, limit: limit);
+          query: query,
+          artist: artist,
+          album: album,
+          view: view,
+          playlistId: playlistId,
+          offset: offset,
+          limit: limit);
+
+  @override
+  Future<LibraryPage<RemotePlaylist>> playlists(
+          {String query = '', int offset = 0, int limit = 50}) =>
+      _client.playlists(query: query, offset: offset, limit: limit);
+
+  @override
+  Future<void> setFavorite(int songId, bool favorite) =>
+      _client.setFavorite(songId, favorite);
+
+  @override
+  Future<int> createPlaylist(String name) async {
+    final r = await _client.sendCommandForResult(
+        RemoteActions.createPlaylist, {'name': name});
+    return r['playlistId'] is num ? (r['playlistId'] as num).toInt() : 0;
+  }
+
+  @override
+  Future<void> renamePlaylist(int playlistId, String name) => _client.sendCommand(
+      RemoteActions.renamePlaylist, {'playlistId': playlistId, 'name': name});
+
+  @override
+  Future<void> deletePlaylist(int playlistId) =>
+      _client.sendCommand(RemoteActions.deletePlaylist, {'playlistId': playlistId});
+
+  @override
+  Future<int> addToPlaylist(int playlistId, List<int> songIds) async {
+    final r = await _client.sendCommandForResult(RemoteActions.addToPlaylist,
+        {'playlistId': playlistId, 'songIds': songIds});
+    return r['added'] is num ? (r['added'] as num).toInt() : 0;
+  }
+
+  @override
+  Future<void> removeFromPlaylist(int playlistId, int songId) =>
+      _client.sendCommand(RemoteActions.removeFromPlaylist,
+          {'playlistId': playlistId, 'songId': songId});
 
   @override
   Future<LibraryPage<RemoteArtist>> artists({

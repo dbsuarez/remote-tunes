@@ -166,6 +166,10 @@ class ControlModeEngine implements QueueAwareEngine, ControlModeCapable {
       _isExternal ? Future.error(_unavailable()) : _local.setShuffle(enabled);
 
   @override
+  Future<void> setSpeed(double speed) =>
+      _isExternal ? Future.error(_unavailable()) : _local.setSpeed(speed);
+
+  @override
   QueueSnapshot queueSnapshot() =>
       _isExternal ? const QueueSnapshot() : _local.queueSnapshot();
 

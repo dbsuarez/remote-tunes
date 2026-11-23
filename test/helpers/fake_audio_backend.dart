@@ -39,6 +39,7 @@ class FakeAudioBackend implements AudioBackend {
   String? currentPath;
   bool playing = false;
   double volume = 1;
+  double speed = 1;
   Duration position = Duration.zero;
   int seekCount = 0;
 
@@ -107,6 +108,9 @@ class FakeAudioBackend implements AudioBackend {
 
   @override
   Future<void> setVolume(double v) async => volume = v;
+
+  @override
+  Future<void> setSpeed(double s) async => speed = s;
 
   /// Simulates playback progress.
   void emitPosition(Duration d) {

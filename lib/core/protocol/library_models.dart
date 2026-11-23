@@ -15,6 +15,15 @@ class LibraryScope {
   static const songs = 'songs';
   static const artists = 'artists';
   static const albums = 'albums';
+  static const playlists = 'playlists';
+}
+
+/// Extra song filters for `library_request` (scope `songs`).
+class LibraryView {
+  LibraryView._();
+
+  static const favorites = 'favorites';
+  static const recent = 'recent';
 }
 
 class RemoteSong {
@@ -26,6 +35,7 @@ class RemoteSong {
     this.durationSeconds = 0,
     this.trackNumber,
     this.available = true,
+    this.favorite = false,
   });
 
   final int id;
@@ -38,6 +48,9 @@ class RemoteSong {
   /// False when the file is missing from the Player's storage.
   final bool available;
 
+  /// Marked as a favorite on the Player.
+  final bool favorite;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -46,6 +59,7 @@ class RemoteSong {
         'durationSeconds': durationSeconds,
         if (trackNumber != null) 'trackNumber': trackNumber,
         'available': available,
+        if (favorite) 'favorite': true,
       };
 
   factory RemoteSong.fromJson(Map<String, dynamic> j) => RemoteSong(
@@ -56,6 +70,7 @@ class RemoteSong {
         durationSeconds: _int(j['durationSeconds']),
         trackNumber: j['trackNumber'] is num ? _int(j['trackNumber']) : null,
         available: j['available'] != false,
+        favorite: j['favorite'] == true,
       );
 }
 
@@ -97,6 +112,27 @@ class RemoteAlbum {
   factory RemoteAlbum.fromJson(Map<String, dynamic> j) => RemoteAlbum(
         name: _str(j['name']),
         artist: _str(j['artist']),
+        songCount: _int(j['songCount']),
+      );
+}
+
+class RemotePlaylist {
+  const RemotePlaylist({
+    required this.id,
+    required this.name,
+    required this.songCount,
+  });
+
+  final int id;
+  final String name;
+  final int songCount;
+
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'name': name, 'songCount': songCount};
+
+  factory RemotePlaylist.fromJson(Map<String, dynamic> j) => RemotePlaylist(
+        id: _int(j['id']),
+        name: _str(j['name']),
         songCount: _int(j['songCount']),
       );
 }

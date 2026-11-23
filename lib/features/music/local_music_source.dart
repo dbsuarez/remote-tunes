@@ -19,11 +19,55 @@ class LocalMusicSource implements MusicSource {
     String query = '',
     String? artist,
     String? album,
+    String? view,
+    int? playlistId,
     int offset = 0,
     int limit = 50,
   }) =>
       _library.songs(
-          query: query, artist: artist, album: album, offset: offset, limit: limit);
+          query: query,
+          artist: artist,
+          album: album,
+          view: view,
+          playlistId: playlistId,
+          offset: offset,
+          limit: limit);
+
+  @override
+  Future<LibraryPage<RemotePlaylist>> playlists(
+          {String query = '', int offset = 0, int limit = 50}) =>
+      _library.playlists(query: query, offset: offset, limit: limit);
+
+  @override
+  Future<void> setFavorite(int songId, bool favorite) =>
+      _library.setFavorite(songId, favorite);
+
+  @override
+  Future<int> createPlaylist(String name) => _library.createPlaylist(name);
+
+  @override
+  Future<void> renamePlaylist(int playlistId, String name) async {
+    if (!await _library.renamePlaylist(playlistId, name)) throw _gone();
+  }
+
+  @override
+  Future<void> deletePlaylist(int playlistId) async {
+    if (!await _library.deletePlaylist(playlistId)) throw _gone();
+  }
+
+  @override
+  Future<int> addToPlaylist(int playlistId, List<int> songIds) async {
+    final n = await _library.addToPlaylist(playlistId, songIds);
+    if (n == null) throw _gone();
+    return n;
+  }
+
+  @override
+  Future<void> removeFromPlaylist(int playlistId, int songId) =>
+      _library.removeFromPlaylist(playlistId, songId);
+
+  PlaybackException _gone() =>
+      PlaybackException(ErrorCodes.invalidAction, 'That playlist no longer exists.');
 
   @override
   Future<LibraryPage<RemoteArtist>> artists({

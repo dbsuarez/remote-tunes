@@ -102,3 +102,8 @@ Added while building Phase 1. All are optional fields or values that older peers
 - **`setSleepTimer` command:** `{"action":"setSleepTimer","minutes":30}`; `0` cancels; allowed 0 to 720, otherwise `INVALID_ACTION`. The Player pauses when the time is up.
 - **`state.payload.sleepTimerSeconds`:** time left, sent only while a timer runs.
 - **Trusted devices (QR pairing):** a `pairingCode` message may carry the one-time ticket from the Player's QR code instead of the 6-digit code. A `hello` with `sessionId` + `token` may resume a session the Player has stored as trusted (it keeps a SHA-256 hash of the token), even after the Player restarted.
+
+## Phase 7 additions (library and playback)
+- `library_request` scope `songs` accepts `view` (`favorites` or `recent`) and `playlistId`; new scope `playlists` returns `{id, name, songCount}`. Songs carry `favorite: true` when set.
+- Commands: `setFavorite {songId, favorite}`, `createPlaylist {name}` (returns `playlistId`), `renamePlaylist`, `deletePlaylist`, `addToPlaylist {playlistId, songIds}` (returns `added`), `removeFromPlaylist {playlistId, songId}`, `setSpeed {speed}` (0.5 to 2.0), `getArt {songId}` (returns `art`, base64 JPEG thumbnail, or nothing).
+- `state.payload` may carry `speed` (when not 1.0) and `favorite` (current song).

@@ -4,6 +4,9 @@ class AppConstants {
 
   static const String appName = 'RemoteTunes';
 
+  /// Keep in step with `version:` in pubspec.yaml (a test checks this).
+  static const String appVersion = '0.1.0';
+
   /// Default port the Player's local WebSocket server will use (Phase 1).
   static const int defaultPlayerPort = 8765;
 
