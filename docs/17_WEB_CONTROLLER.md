@@ -271,3 +271,6 @@ Use the same JSON protocol, pairing flow, session-token model, and error codes a
 Use the UX guardrails in 15_UX_DESIGN_GUARDRAILS.md.
 Do not copy Spotify’s exact visual identity, logo, color palette, icons, artwork, typography, screen layouts, or branding.
 ```
+
+## Opened from the Player's QR code
+The Player's QR code is a link to this page with the pairing details after the `#` (`#/pair?v=1&r=<room>&t=<ticket>&n=<name>`). `main_web.dart` reads it before Flutter rewrites the address, `WebHome` connects online-only with the ticket straight away (a fresh scan beats an old saved session), and the address bar is cleared. The Player user still taps Accept. If the code has no online room, the page explains that the Player must be in online mode. Tests: `test/web_app_test.dart` (opened from the Player QR code), `test/pairing_qr_test.dart`.

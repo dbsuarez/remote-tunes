@@ -107,3 +107,6 @@ Added while building Phase 1. All are optional fields or values that older peers
 - `library_request` scope `songs` accepts `view` (`favorites` or `recent`) and `playlistId`; new scope `playlists` returns `{id, name, songCount}`. Songs carry `favorite: true` when set.
 - Commands: `setFavorite {songId, favorite}`, `createPlaylist {name}` (returns `playlistId`), `renamePlaylist`, `deletePlaylist`, `addToPlaylist {playlistId, songIds}` (returns `added`), `removeFromPlaylist {playlistId, songId}`, `setSpeed {speed}` (0.5 to 2.0), `getArt {songId}` (returns `art`, base64 JPEG thumbnail, or nothing).
 - `state.payload` may carry `speed` (when not 1.0) and `favorite` (current song).
+- `playSong` accepts `keepQueue: true`: the songs are inserted after the current one and the first plays, without clearing the queue.
+- A Controller that receives `SESSION_REPLACED` or `INVALID_SESSION` while connected does not forget the Player; only a refused `hello` (resume) does.
+- Pairing QR: the text is `https://dbsuarez.github.io/remote-tunes/#/pair?v=1&h=&p=&r=&t=&n=` (the older `remotetunes://pair?...` is still read).

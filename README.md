@@ -41,7 +41,7 @@ Phase 1 is local Android-to-Android control only. Pairing tokens are kept in mem
 Phase 2 replaces the Phase 1 silent simulated engine (kept for tests) with real audio:
 - **Import:** "Add songs" uses the system picker and *copies* files into app-private storage (the picker only gives temporary cache copies). "Add folder" scans a folder and references files *in place* (needs the music permission). Missing files show as unavailable (checked at read time, no schema change).
 - **Queue:** own queue controller (`features/player/queue`) plays one track at a time (not gapless), with shuffle and repeat. Queue is in memory only (FR-55).
-- **Controller:** tabs Now Playing / Queue / Library. File paths never leave the Player; the Controller only gets ids and metadata. Album art is extracted and shown on the Player only (Controller art is Phase 7).
+- **Controller:** tabs Now Playing / Queue / Library. File paths never leave the Player; the Controller only gets ids and metadata. Album art is extracted on the Player; the Controller gets a small thumbnail (Phase 7).
 - **Background:** an `audio_service` media session keeps a foreground service (and the network server) alive while Player mode is open. This is unverified on real phones; Wi-Fi sleep may still need native work.
 
 Phase order follows `docs/17` §12: Web Controller is Phase 6, Polish is Phase 7, and Group Mode is Phase 8. Do not implement Phases 7–8 early. Shared Controller code (`core/protocol`, `core/transport/remote_transport.dart`, `features/controller/controller_client.dart`) is deliberately kept free of `dart:io` so a web Controller could reuse it.
@@ -67,8 +67,8 @@ Checklist (real phone Player): 1. Enter the room code, Connect. 2. Accept on the
 
 ## QR pairing and trusted devices
 
-- **QR pairing:** the Player shows a QR code; on the Controller tap **Scan QR code**. The code carries the Player's address, its online room and a one-time ticket that replaces typing the 6-digit code. The Player user still taps Accept. Typing the code, the Nearby list, manual IP and the room code remain as fallbacks. The phone app is locked to portrait.
-- **Trusted devices:** accepting a Controller also trusts it. The Player keeps only a SHA-256 hash of its token (database schema v2); the Controller keeps its token in the app's private storage. Next time, **Your Players** on the Controller screen reconnects in one tap, and the Player used last reconnects automatically when the Controller screen opens, locally or online, with no pairing. The Player lists trusted Controllers and can **Forget** one (or all); the Player's Disconnect button also forgets. A Controller that was forgotten gets a clear message and is asked to scan the QR code again.
+- **QR pairing:** the Player shows a QR code; on the Controller tap **Scan QR code**. The code is a link to the web Controller (`https://dbsuarez.github.io/remote-tunes/#/pair?...`) carrying the Player's address, its online room and a one-time ticket that replaces typing the 6-digit code. The app's scanner reads it, and any phone camera opens it as the web Controller, which connects on its own (needs the Player in online mode). Everything is after the `#`, so it never reaches the web server. The Player user still taps Accept. Typing the code, the Nearby list, manual IP and the room code remain as fallbacks. The phone app is locked to portrait.
+- **Trusted devices:** accepting a Controller also trusts it. The Player keeps only a SHA-256 hash of its token (database schema v2); the Controller keeps its token in the app's private storage. Next time, **Your Players** on the Controller screen reconnects in one tap, and the Player used last reconnects automatically when the Controller screen opens, locally or online, with no pairing. The Player lists trusted Controllers and can **Forget** one (or all); the Player's Disconnect button also forgets. A Controller that was forgotten gets a clear message and is asked to scan the QR code again. Picking a trusted Player in the Nearby list, or typing its address or room code, also reconnects without a code (matched by room code, address or a unique name, so renaming the Player is fine). If another Controller (for example the web page) takes over the Player, this phone keeps the saved Player and can take it back with one tap.
 - **Stable room code:** because trusted phones must find the Player online again, the Player now keeps its room code between runs (it used to change at every start). **Forget all** makes a new one. Pairing still needs Accept, and reconnecting needs the secret token, so knowing the room code alone gets nobody in.
 - **Limits:** the token on the Controller is not in the Android Keystore (plain app-private storage, like the web version in browser storage). One Controller at a time: a trusted phone coming back replaces the connected one.
 
@@ -91,6 +91,11 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 - **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path.
 - **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
 - The database moved to version 3; upgrading keeps the library.
+- **Multi-select:** long-press a song to start selecting; tap to pick more, then *Select all*, *Add to queue* or *Add to playlist*.
+- **Song list text size:** Settings > Song list > Small (default), Normal or Large.
+- **Play now keeps the queue:** tapping a single song inserts it after the current one and plays it, leaving the rest of the queue. *Play all*, and tapping a song inside an album, playlist, Favorites or Recent, still replace the queue.
+- **The queue survives restarts:** library songs are saved in `queue_items` (internet links are not); the Player comes back paused on the same song.
+- Sliders (progress bar, volume) hold the released value until the Player confirms, so they no longer snap back.
 
 ## License
 
