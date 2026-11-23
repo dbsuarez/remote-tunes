@@ -101,6 +101,35 @@ void main() {
     expect(c.current.sessionInvalid, isTrue);
   });
 
+  test('a trusted phone that another Controller replaced can reconnect', () async {
+    final t = await pairOnce();
+
+    final first = newClient();
+    await first.resumeTrusted(
+        player: t.copyWith(port: server.current.port), deviceName: 'Phone');
+    await waitFor(() => first.current.isConnected, reason: 'first connected');
+
+    // Someone else (say the web page) pairs and takes over the Player.
+    final other = newClient();
+    await other.connect(
+        host: '127.0.0.1', port: server.current.port!, deviceName: 'Browser');
+    final code = server.current.pending!.code;
+    server.acceptPairing();
+    await other.submitCode(code);
+    await waitFor(() => other.current.isConnected, reason: 'other paired');
+    await waitFor(() => first.current.status == ControllerStatus.disconnected,
+        reason: 'first replaced');
+    expect(first.current.sessionInvalid, isFalse,
+        reason: 'so the phone keeps the Player and shows it to tap');
+
+    // Tapping it again takes the Player back, no code needed.
+    final again = newClient();
+    await again.resumeTrusted(
+        player: t.copyWith(port: server.current.port), deviceName: 'Phone');
+    await waitFor(() => again.current.isConnected, reason: 'took it back');
+    expect(server.current.pending, isNull);
+  });
+
   test('a wrong token is not trusted', () async {
     final t = await pairOnce();
     final bad = TrustedPlayer(

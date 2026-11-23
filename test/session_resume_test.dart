@@ -297,13 +297,15 @@ void main() {
           reason: 'a network problem must not throw the saved session away');
     });
 
-    test('the Player replacing this Controller invalidates the session', () async {
+    test('being replaced ends the connection but does not forget the Player', () async {
       final a = newClient();
       await pair(a);
       final b = newClient();
       await pair(b);
       await waitFor(() => a.current.status == ControllerStatus.disconnected);
-      expect(a.current.sessionInvalid, isTrue);
+      expect(a.current.message, contains('took over'));
+      expect(a.current.sessionInvalid, isFalse,
+          reason: 'the Player may still trust it; only a refused reconnect forgets');
     });
 
     test('a resumed session survives a relay blip like any other', () async {

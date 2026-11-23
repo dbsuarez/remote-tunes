@@ -858,7 +858,9 @@ class ControllerClient {
             code == ErrorCodes.sessionReplaced
                 ? 'Another Controller took over this Player.'
                 : 'The Player ended this connection.',
-            sessionInvalid: true,
+            // Not "invalid": the Player may still trust this phone (a trusted
+            // Controller that is replaced can simply reconnect). Only a
+            // refused reconnect, which is checked when trying, forgets it.
           ));
         }
     }
