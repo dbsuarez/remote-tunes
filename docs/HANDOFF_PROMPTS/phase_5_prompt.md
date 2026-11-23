@@ -1,0 +1,1 @@
+Build Phase 5 Spotify/YouTube Music external control. Notification Listener, media-session detection, basic transport, metadata, compatibility warnings. Do not promise full control. Do not remove online features.

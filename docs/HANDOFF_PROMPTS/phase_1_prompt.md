@@ -1,0 +1,1 @@
+Build Phase 1 local control only. Player WebSocket server 8765, mDNS/NSD, discovery, manual IP/port, pairing, 6-digit code, token, play/pause/toggle/next/previous/seek/volume, state sync, UIs, reconnect. No Supabase relay yet. Must work offline/hotspot.

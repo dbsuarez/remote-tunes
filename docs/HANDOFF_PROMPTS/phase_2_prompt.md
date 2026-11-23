@@ -1,0 +1,1 @@
+Build Phase 2 local music player and queue. MP3/folder import, library, metadata, album art, queue, shuffle/repeat, background playback, notification controls, Controller library browsing/queue control. No Supabase relay yet.

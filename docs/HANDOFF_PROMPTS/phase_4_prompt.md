@@ -1,0 +1,1 @@
+Build Phase 4 optional online remote control via Supabase Realtime. Online room code, pairing, command relay, state relay, connection mode selector Auto/Local only/Online only, reconnection. Local mode must still work offline. Do not store music in Supabase. No login required.
