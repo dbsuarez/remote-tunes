@@ -132,8 +132,9 @@ class FakeMusicSource implements MusicSource {
   }
 
   @override
-  Future<void> playSongs(List<int> songIds, {int? startSongId}) async =>
-      calls.add('play $songIds start=$startSongId');
+  Future<void> playSongs(List<int> songIds,
+          {int? startSongId, bool keepQueue = false}) async =>
+      calls.add('play $songIds start=$startSongId${keepQueue ? ' keep' : ''}');
 
   @override
   Future<void> queueSongs(List<int> songIds, {bool playNext = false}) async =>
@@ -228,7 +229,7 @@ void main() {
       await settleUi(tester);
       await tester.tap(find.text('Banana Song'));
       await settleUi(tester);
-      expect(source.calls, ['play [2] start=null']);
+      expect(source.calls, ['play [2] start=null keep']);
     });
 
     testWidgets('song menu: play next and add to queue', (tester) async {

@@ -50,7 +50,10 @@ abstract class MusicSource {
   });
 
   /// Replaces the queue with [songIds] and plays, starting at [startSongId].
-  Future<void> playSongs(List<int> songIds, {int? startSongId});
+  ///
+  /// With [keepQueue] the songs are played right away but the queue is not
+  /// cleared: they go in after the current song.
+  Future<void> playSongs(List<int> songIds, {int? startSongId, bool keepQueue = false});
 
   Future<void> queueSongs(List<int> songIds, {bool playNext = false});
 
@@ -142,10 +145,12 @@ class RemoteMusicSource implements MusicSource {
       _client.albums(query: query, artist: artist, offset: offset, limit: limit);
 
   @override
-  Future<void> playSongs(List<int> songIds, {int? startSongId}) =>
+  Future<void> playSongs(List<int> songIds,
+          {int? startSongId, bool keepQueue = false}) =>
       _client.sendCommand(RemoteActions.playSong, {
         'songIds': songIds,
         'songId': startSongId ?? songIds.first,
+        if (keepQueue) 'keepQueue': true,
       });
 
   @override

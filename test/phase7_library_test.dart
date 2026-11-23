@@ -210,6 +210,37 @@ void main() {
     });
   });
 
+  group('play now keeps the queue', () {
+    test('a single song goes in after the current one and plays', () async {
+      await client.sendCommand('playSong',
+          {'songIds': [ids['One'], ids['Two']], 'songId': ids['One']});
+      await waitFor(() => client.current.playback.title == 'One');
+
+      await client.sendCommand(
+          'playSong', {'songId': ids['Three'], 'keepQueue': true});
+      await waitFor(() => client.current.playback.title == 'Three');
+
+      final q = await client.getQueue();
+      expect([for (final i in q.items) i.song.title], ['One', 'Three', 'Two']);
+      expect(q.items[q.currentIndex].song.title, 'Three');
+    });
+
+    test('with an empty queue it just plays the song', () async {
+      await client.sendCommand(
+          'playSong', {'songId': ids['Two'], 'keepQueue': true});
+      await waitFor(() => client.current.playback.title == 'Two');
+      expect((await client.getQueue()).items, hasLength(1));
+    });
+
+    test('without keepQueue the queue is replaced, as before', () async {
+      await client.sendCommand('playSong',
+          {'songIds': [ids['One'], ids['Two']], 'songId': ids['One']});
+      await client.sendCommand('playSong', {'songId': ids['Three']});
+      await waitFor(() => client.current.playback.title == 'Three');
+      expect((await client.getQueue()).items, hasLength(1));
+    });
+  });
+
   group('playback speed', () {
     test('the Player changes speed and reports it', () async {
       await client.sendCommand('playSong', {'songId': ids['One']});

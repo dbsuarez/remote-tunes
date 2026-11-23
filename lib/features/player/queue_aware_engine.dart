@@ -10,6 +10,10 @@ abstract class QueueAwareEngine implements PlaybackEngine {
   /// Replaces the queue and starts playing [songs] at [startIndex].
   Future<void> playSongs(List<PlayableSong> songs, {int startIndex = 0});
 
+  /// Plays [songs] now without clearing the queue: they go in right after the
+  /// current song, and the first one starts.
+  Future<void> playNow(List<PlayableSong> songs);
+
   /// Plays an internet audio URL now, replacing the queue. Throws a
   /// [PlaybackException] with a plain-language reason if the link can't work.
   Future<void> playUrl(String url, {String? title});

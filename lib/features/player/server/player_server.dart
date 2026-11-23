@@ -1122,6 +1122,11 @@ class PlayerServer {
       case RemoteActions.playSong:
         final ids = _songIds(p);
         final songs = await _playable(ids);
+        if (p['keepQueue'] == true) {
+          // Play now, but leave the rest of the queue alone.
+          await _queueEngine.playNow(songs);
+          return const {};
+        }
         final startId = p['songId'] is num ? (p['songId'] as num).toInt() : null;
         final start = startId == null
             ? 0

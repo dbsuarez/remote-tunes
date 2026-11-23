@@ -133,6 +133,10 @@ class ControlModeEngine implements QueueAwareEngine, ControlModeCapable {
       _isExternal ? Future.error(_unavailable()) : _local.playSongs(songs, startIndex: startIndex);
 
   @override
+  Future<void> playNow(List<PlayableSong> songs) =>
+      _isExternal ? Future.error(_unavailable()) : _local.playNow(songs);
+
+  @override
   Future<void> playUrl(String url, {String? title}) =>
       _isExternal ? Future.error(_unavailable()) : _local.playUrl(url, title: title);
 

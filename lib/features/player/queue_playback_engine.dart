@@ -378,6 +378,19 @@ class QueuePlaybackEngine implements QueueAwareEngine {
       });
 
   @override
+  Future<void> playNow(List<PlayableSong> songs) => _serial(() async {
+        if (songs.isEmpty) {
+          throw PlaybackException(
+            ErrorCodes.queueEmpty,
+            'There are no songs to play.',
+          );
+        }
+        final added = _queue.add(songs, playNext: true);
+        _queue.jumpTo(added.first.id);
+        await _startEntry(added.first, autoplay: true);
+      });
+
+  @override
   Future<void> playUrl(String url, {String? title}) async {
     final check = validateAudioUrl(url);
     if (!check.isValid) {

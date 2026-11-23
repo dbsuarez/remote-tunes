@@ -370,7 +370,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
             await widget.source
                 .playSongs(await _allViewIds(view), startSongId: song.id);
           } else {
-            await widget.source.playSongs([song.id]);
+            // A single song: play it now but keep the queue.
+            await widget.source.playSongs([song.id], keepQueue: true);
           }
         }),
         onFavorite: (fav) => widget.source.setFavorite(song.id, fav),

@@ -98,8 +98,13 @@ class LocalMusicSource implements MusicSource {
   }
 
   @override
-  Future<void> playSongs(List<int> songIds, {int? startSongId}) async {
+  Future<void> playSongs(List<int> songIds,
+      {int? startSongId, bool keepQueue = false}) async {
     final songs = await _resolve(songIds);
+    if (keepQueue) {
+      await _engine.playNow(songs);
+      return;
+    }
     final start = startSongId == null
         ? 0
         : songs.indexWhere((s) => s.id == startSongId).clamp(0, songs.length - 1);
