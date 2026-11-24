@@ -14,6 +14,7 @@ import '../../core/widgets/status_pill.dart';
 import '../external/external_limits.dart';
 import '../online_library/online_history_source.dart';
 import '../online_library/online_library_view.dart';
+import '../group/group_card.dart';
 import '../music/music_browser.dart';
 import '../music/music_source.dart';
 import '../music/queue_view.dart';
@@ -500,6 +501,8 @@ class _NowPlayingTab extends StatelessWidget {
           enabled: enabled,
           onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
         ),
+        // Only on the phone app: this phone plays the same song, in sync.
+        if (!p.isExternal) GroupCard(enabled: enabled),
       ],
     );
   }

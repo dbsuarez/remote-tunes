@@ -35,6 +35,17 @@ class MessageType {
   /// revokes the session. Needed on the online relay, which has no socket close
   /// code. (Local sockets still use [CloseCodes.controllerDisconnected].)
   static const bye = 'bye';
+
+  // Group play (docs/16): a second phone plays the same song in sync.
+  //  syncPing {t0}            Controller -> Player
+  //  syncPong {t0, t1, t2}    Player -> Controller (its monotonic clock at
+  //                           receiving the ping and at replying)
+  //  groupSync {...}          Player -> Controller, once a second while the
+  //                           Controller has joined: what is playing, where, and
+  //                           the Player's clock at that instant
+  static const syncPing = 'sync_ping';
+  static const syncPong = 'sync_pong';
+  static const groupSync = 'group_sync';
 }
 
 class RemoteActions {
@@ -85,6 +96,10 @@ class RemoteActions {
   static const removeFromPlaylist = 'removeFromPlaylist';
   static const setSpeed = 'setSpeed';
   static const getArt = 'getArt';
+
+  // Group play: `{"action":"groupJoin","enabled":true}` starts (or stops) the
+  // Player sending `group_sync` messages to this Controller.
+  static const groupJoin = 'groupJoin';
 
   // Online Library history (kept on the Player):
   //  playHistory {historyId, queue?}; removeHistory {historyId};

@@ -9,15 +9,15 @@ Notation: **P** = on the Player phone, **C** = on the Controller phone, **W** = 
 ---
 
 ## 1. Pairing and trust
-- [ ] **P** Start as PLAYER. The **Connect** tab shows a QR code.
-- [ ] **C** Start as CONTROLLER > **Scan QR code**. After scanning, **P** shows a pairing request. Tap **Accept**. **C** shows the dashboard.
-- [ ] **C** Press back to leave the Controller screen, then open **Start as CONTROLLER** again. It reconnects **by itself, with no code and no Accept**.
-- [ ] **P** Close the Player (back to home) and start it again. **C** reconnects with no code.
-- [ ] **C** Close the app completely (swipe away) and reopen > Controller. It reconnects with no code.
-- [ ] **C** Other ways to connect > **Nearby**: tap the Player in the list. It connects **with no code** (it is trusted).
-- [ ] **P** Rename the Player in Settings, restart it. **C** > Nearby > tap it. Still no code.
-- [ ] **P** Connect tab > **Forget** the Controller. **C** then needs the QR code again (and says so clearly).
-- [ ] Typing the 6-digit code still works as a fallback (after a Forget).
+- [x] **P** Start as PLAYER. The **Connect** tab shows a QR code.
+- [x] **C** Start as CONTROLLER > **Scan QR code**. After scanning, **P** shows a pairing request. Tap **Accept**. **C** shows the dashboard.
+- [x] **C** Press back to leave the Controller screen, then open **Start as CONTROLLER** again. It reconnects **by itself, with no code and no Accept**.
+- [x] **P** Close the Player (back to home) and start it again. **C** reconnects with no code.
+- [x] **C** Close the app completely (swipe away) and reopen > Controller. It reconnects with no code.
+- [x] **C** Other ways to connect > **Nearby**: tap the Player in the list. It connects **with no code** (it is trusted).
+- [x] **P** Rename the Player in Settings, restart it. **C** > Nearby > tap it. Still no code.
+- [x] **P** Connect tab > **Forget** the Controller. **C** then needs the QR code again (and says so clearly).
+- [x] Typing the 6-digit code still works as a fallback (after a Forget).
 
 ## 2. Screens
 - [x] **P** Three tabs: **Player**, **Connect**, **Music**. The "who is connected" pill stays on top of all of them.
@@ -69,22 +69,39 @@ The Controller build already has your Jamendo ID. If the tab asks for one, paste
 First switch on GitHub Pages (repo Settings > Pages > Source: **GitHub Actions**) and wait for the workflow to finish. Then:
 - [x] **W** Open https://dbsuarez.github.io/remote-tunes/ . It loads.
 - [x] **P** is in **Auto** or **Online** mode and shows a room code. **W** Enter it, type a name, Connect. **P** shows the request. Accept. The web dashboard appears.
-- [ ] **W** Reload the page. It reconnects by itself ("Reconnecting to your Player…").
-- [ ] **W** Disconnect, reload: the **name you typed is still in the box**.
-- [ ] **W** The dashboard has the same tabs. Play a song from the Library; progress bar and volume don't snap back.
-- [ ] **W** Online tab: paste your Jamendo ID **once**, search, **Play on Player**. Artwork shows (or a music note).
-- [ ] **QR to web:** point the **stock camera app** (not RemoteTunes) at **P**'s QR code. It opens the web page, which connects by itself. Tap **Accept** on **P**.
-- [ ] **QR in the app** still works after that (scan it with **C**).
-- [ ] While **W** is connected, connect **C** by tapping its saved Player: it takes over, and **C** can reconnect later with one tap and no code.
+- [x] **W** Reload the page. It reconnects by itself ("Reconnecting to your Player…").
+- [x] **W** Disconnect, reload: the **name you typed is still in the box**.
+- [x] **W** The dashboard has the same tabs. Play a song from the Library; progress bar and volume don't snap back.
+- [x] **W** Online tab: paste your Jamendo ID **once**, search, **Play on Player**. Artwork shows (or a music note).
+- [x] **QR to web:** point the **stock camera app** (not RemoteTunes) at **P**'s QR code. It opens the web page, which connects by itself. Tap **Accept** on **P**.
+- [x] **QR in the app** still works after that (scan it with **C**).
+- [x] While **W** is connected, connect **C** by tapping its saved Player: it takes over, and **C** can reconnect later with one tap and no code.
 
 ## 8. Other apps (Phase 5, never run on a phone)
-- [ ] **P** Settings > External app control > turn on, read the explanation, grant Notification access.
-- [ ] Start Spotify or YouTube Music on **P**. **C** Now Playing > **Other music app**. Play/pause/next/seek work as far as that app allows. Switch back to RemoteTunes.
+- [x] **P** Settings > External app control > turn on, read the explanation, grant Notification access.
+- [x] Start Spotify or YouTube Music on **P**. **C** Now Playing > **Other music app**. Play/pause/next/seek work as far as that app allows. Switch back to RemoteTunes.
 
 ## 9. Odds and ends
-- [ ] Settings > **Diagnostics** opens, shows sensible numbers and **Copy** works.
-- [ ] Switch **C** to mobile data only, keep **P** on Wi-Fi, mode **Auto**: it should still connect via the online room (needs online mode on **P**).
-- [ ] Turn **C**'s screen off for a minute and back on: it reconnects.
+- [x] Settings > **Diagnostics** opens, shows sensible numbers and **Copy** works.
+- [x] Switch **C** to mobile data only, keep **P** on Wi-Fi, mode **Auto**: it should still connect via the online room (needs online mode on **P**).
+- [x] Turn **C**'s screen off for a minute and back on: it reconnects.
+
+## 10. Group play (the Controller plays along with the Player)
+Put the two phones side by side, same Wi-Fi, music with a clear beat. **C** is connected to **P** locally (not via the internet).
+- [ ] **C** Now Playing > **Play on this phone too** > switch on. The status goes "Joining…", then "Getting the song from the Player…", then **"Playing in sync"**.
+- [ ] You hear the song from **both** phones, and it sounds like **one** song (no echo or flam). It may take a few seconds to settle after starting.
+- [ ] The card shows **Off by** a small number (ideally under 30 ms, shown in teal) and a connection delay of a few ms.
+- [ ] **Fine-tune:** if one phone is consistently ahead, move the slider (+ if **C** sounds late, - if early) until they line up by ear. Close the app and reopen it: the setting is remembered.
+- [ ] **P** pause and play: **C** pauses and resumes with it.
+- [ ] Drag the progress bar on **C** (a seek): both phones jump and stay together within a couple of seconds.
+- [ ] Next song: **C** keeps up (it fetched the next song ahead of time, so there should be no gap).
+- [ ] Play on **P** at 1.5x speed: both follow.
+- [ ] Walk the phones to different rooms, or put **C** in your pocket with the screen on: it stays in step. (Screen off or app in the background may stop it: tell me what happens.)
+- [ ] Switch the Wi-Fi off on **C**: the card shows reconnecting and **C** goes quiet. Switch it back on: it rejoins by itself.
+- [ ] Play a **Jamendo** track: **C** says it can't follow ("Waiting for the Player to play a song from its library"), the Player plays alone. Back to a library song: it rejoins the sound.
+- [ ] Switch it off: **C** goes silent. (It also deletes the temporary song files.)
+- [ ] **C** connected through the internet only (mobile data, Auto mode): the switch is disabled and says it needs the same Wi-Fi.
+- [ ] Note the **round-trip** and **clock spread** numbers and whether the sound ever drifts apart over a whole song. This is the most useful thing to report.
 
 ---
 

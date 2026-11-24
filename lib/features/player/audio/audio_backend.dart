@@ -19,6 +19,9 @@ abstract class AudioBackend {
   /// Playback position updates while playing.
   Stream<Duration> get positionStream;
 
+  /// The position right now (not the last update from [positionStream]).
+  Duration get position;
+
   /// Actual playing/paused state of the underlying player.
   Stream<bool> get playingStream;
 
@@ -58,6 +61,9 @@ class JustAudioBackend implements AudioBackend {
 
   @override
   Stream<Duration> get positionStream => _player.positionStream;
+
+  @override
+  Duration get position => _player.position;
 
   @override
   Stream<bool> get playingStream => _player.playingStream;

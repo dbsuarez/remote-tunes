@@ -8,6 +8,7 @@ import '../../core/url_validation.dart';
 import 'audio/audio_backend.dart';
 import 'playback_engine.dart';
 import 'queue/playable_song.dart';
+import 'group_sync_source.dart';
 import 'queue/queue_controller.dart';
 import 'queue/queue_store.dart';
 import 'queue_aware_engine.dart';
@@ -17,7 +18,7 @@ import 'url_checker.dart';
 ///
 /// All public commands run one at a time, so a burst of taps from a Controller
 /// (or the notification) can never interleave half-finished track changes.
-class QueuePlaybackEngine implements QueueAwareEngine {
+class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   QueuePlaybackEngine({
     required AudioBackend backend,
     QueueController? queue,
@@ -125,6 +126,22 @@ class QueuePlaybackEngine implements QueueAwareEngine {
 
   @override
   Stream<PlaybackState> get states => _controller.stream;
+
+  @override
+  int? get positionMsNow {
+    if (_loadedEntryId == null) return null;
+    try {
+      return _backend.position.inMilliseconds;
+    } catch (_) {
+      return _positionSeconds * 1000;
+    }
+  }
+
+  @override
+  int? get nextLibrarySongId {
+    final next = _queue.peekNext();
+    return next?.song.libraryId;
+  }
 
   void _emit() {
     if (!_disposed && !_controller.isClosed) _controller.add(state);

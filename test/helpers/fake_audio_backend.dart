@@ -40,11 +40,14 @@ class FakeAudioBackend implements AudioBackend {
   bool playing = false;
   double volume = 1;
   double speed = 1;
+  @override
   Duration position = Duration.zero;
   int seekCount = 0;
 
   @override
   Stream<Duration> get positionStream => _position.stream;
+
+  // `position` (a field above) is also the "right now" position.
   @override
   Stream<bool> get playingStream => _playing.stream;
   @override

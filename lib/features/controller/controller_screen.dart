@@ -12,6 +12,8 @@ import '../../providers/connection_providers.dart';
 import '../../providers/providers.dart';
 import 'controller_client.dart';
 import 'controller_views.dart';
+import '../group/group_models.dart';
+import '../group/group_providers.dart';
 import 'discovery.dart';
 import '../../core/pairing_qr.dart';
 import 'qr_scan_screen.dart';
@@ -36,6 +38,7 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
   @override
   void initState() {
     super.initState();
+    _group = ref.read(groupFollowerProvider);
     _loadTrusted(autoConnect: true);
   }
 
@@ -126,9 +129,13 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
     }
   }
 
+  GroupFollower? _group;
+
   @override
   void dispose() {
-    // Leaving the screen ends the connection (and revokes the session).
+    // Leaving the screen ends group play and the connection (and revokes the
+    // session).
+    unawaited(_group?.leave());
     unawaited(_client.disconnect());
     super.dispose();
   }

@@ -98,6 +98,12 @@ Added while building Phase 1. All are optional fields or values that older peers
 - `ControllerClient` can resume a saved session (`hello` with `sessionId` + `token`); the web app stores it in browser local storage and clears it on `bye`/disconnect or when the Player rejects it (`sessionInvalid`).
 - The token in browser storage is a secret: it is never put in a URL.
 
+## Phase 9: group play (additive, local network only)
+- `sync_ping {t0}` (Controller to Player) is answered by `sync_pong {t0, t1, t2}`: `t1` is when the Player received it and `t2` when it replied, both on the Player's monotonic clock (milliseconds, fractions allowed). The Controller adds its own receive time `t3`: `offset = ((t1-t0)+(t2-t3))/2`, `rtt = (t3-t0)-(t2-t1)`. Needs an authenticated session.
+- Command `groupJoin {enabled}`: while `true` the Player sends this Controller `group_sync` once a second and on every state change; refused over the online relay (`INVALID_ACTION`).
+- `group_sync` payload: `songId` (library id, omitted when nothing followable plays), `positionMs`, `atMs` (the Player's clock when the position was read), `playing`, `speed`, `durationMs`, `nextSongId` (optional).
+- `GET /group/audio/<songId>` on the Player's HTTP port, headers `x-rt-session` and `x-rt-token`. Only while that session has joined; library songs only; answers 403 / 404 otherwise. The reply carries `x-rt-sha256` and `x-rt-ext`.
+
 ## Phase 7 implementation notes (additive)
 - **`setSleepTimer` command:** `{"action":"setSleepTimer","minutes":30}`; `0` cancels; allowed 0 to 720, otherwise `INVALID_ACTION`. The Player pauses when the time is up.
 - **`state.payload.sleepTimerSeconds`:** time left, sent only while a timer runs.

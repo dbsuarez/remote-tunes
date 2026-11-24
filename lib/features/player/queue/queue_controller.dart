@@ -147,6 +147,17 @@ class QueueController {
     return true;
   }
 
+  /// The entry that would play after the current one (without moving), or null
+  /// at the end. With shuffle and repeat-queue the next round is not known yet.
+  QueueEntry? peekNext() {
+    if (_entries.isEmpty || _currentId == null) return null;
+    if (_repeat == RepeatMode.one) return current;
+    final oi = _order.indexOf(_currentId!);
+    if (oi + 1 < _order.length) return _entryById(_order[oi + 1]);
+    if (_repeat == RepeatMode.queue && !_shuffle) return _entryById(_order.first);
+    return null;
+  }
+
   /// Moves to the next entry and returns it, or null at the end of the queue.
   /// [auto] is true when a track ended by itself (repeat-one replays it).
   QueueEntry? advance({required bool auto}) {

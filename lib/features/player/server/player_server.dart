@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart' show sha256;
+
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
@@ -11,12 +13,14 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../core/constants.dart';
 import '../../../core/jamendo_url.dart';
+import '../../../core/mono_clock.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/protocol/protocol.dart';
 import '../../../data/repositories/paired_controllers_store.dart';
 import '../../../core/protocol/library_models.dart';
 import '../../external/control_mode_engine.dart';
 import '../../online/online_status.dart';
+import '../group_sync_source.dart';
 import '../playback_engine.dart';
 import '../queue/playable_song.dart';
 import '../queue_aware_engine.dart';
@@ -149,6 +153,10 @@ class _Session {
   final String token;
   final String controllerName;
 
+  /// This Controller joined group play: it gets `group_sync` messages and may
+  /// download the audio of the playing song.
+  bool group = false;
+
   /// Where the Controller last connected from (updated when it resumes on a
   /// different route, e.g. local Wi‑Fi -> online).
   String address;
@@ -192,7 +200,9 @@ class PlayerServer {
     this.maxCodeAttempts = 3,
     this.ticketTtl = const Duration(minutes: 5),
     Random? random,
-  }) : _random = random ?? Random.secure();
+    MonoClock? clock,
+  })  : _random = random ?? Random.secure(),
+        clock = clock ?? MonoClock.instance;
 
   final PlaybackEngine engine;
   final String deviceName;
@@ -215,6 +225,9 @@ class PlayerServer {
   final int maxCodeAttempts;
   final Duration ticketTtl;
   final Random _random;
+
+  /// The Player's monotonic clock, used for group play.
+  final MonoClock clock;
 
   String? _ticket;
   Timer? _ticketTimer;
@@ -322,6 +335,8 @@ class PlayerServer {
     _staleTimer?.cancel();
     _ticketTimer?.cancel();
     _sleepTimer?.cancel();
+    _groupTimer?.cancel();
+    _groupTimer = null;
     _ticket = null;
     await _engineSub?.cancel();
     _engineSub = null;
@@ -418,6 +433,11 @@ class PlayerServer {
   // ------------------------------------------------------------------- plumbing
 
   Handler get _handler => (Request request) {
+        // Group play: the other phone downloads the playing song here.
+        final segs = request.url.pathSegments;
+        if (segs.length == 3 && segs[0] == 'group' && segs[1] == 'audio') {
+          return _serveGroupAudio(request, int.tryParse(segs[2]));
+        }
         final info = request.context['shelf.io.connection_info'];
         final remote =
             info is HttpConnectionInfo ? info.remoteAddress.address : 'unknown';
@@ -426,6 +446,60 @@ class PlayerServer {
               _onConnection(WebSocketServerChannel(channel, remote)),
         )(request);
       };
+
+  final Map<String, ({int length, DateTime modified, String hash})> _hashes = {};
+
+  /// `GET /group/audio/<songId>` with the session id and token as headers. Only
+  /// for a Controller that joined group play, and only for songs in the
+  /// library (never an arbitrary path).
+  Future<Response> _serveGroupAudio(Request request, int? songId) async {
+    final s = _session;
+    final sid = request.headers['x-rt-session'];
+    final tok = request.headers['x-rt-token'];
+    if (s == null ||
+        !s.group ||
+        sid == null ||
+        tok == null ||
+        sid != s.sessionId ||
+        !_tokenEquals(tok, s.token)) {
+      return Response.forbidden('Not allowed.');
+    }
+    final lib = library;
+    if (songId == null || lib == null) return Response.notFound('No such song.');
+    final file = await lib.audioFileFor(songId);
+    if (file == null) return Response.notFound('No such song.');
+    try {
+      final stat = await file.stat();
+      final cached = _hashes[file.path];
+      String hash;
+      if (cached != null && cached.length == stat.size && cached.modified == stat.modified) {
+        hash = cached.hash;
+      } else {
+        hash = (await sha256.bind(file.openRead()).first).toString();
+        _hashes[file.path] = (length: stat.size, modified: stat.modified, hash: hash);
+      }
+      final dot = file.path.lastIndexOf('.');
+      final ext = dot < 0 ? '' : file.path.substring(dot + 1).toLowerCase();
+      return Response.ok(
+        file.openRead(),
+        headers: {
+          'content-type': switch (ext) {
+            'mp3' => 'audio/mpeg',
+            'm4a' || 'aac' => 'audio/mp4',
+            'ogg' || 'opus' => 'audio/ogg',
+            'flac' => 'audio/flac',
+            'wav' => 'audio/wav',
+            _ => 'application/octet-stream',
+          },
+          'content-length': '${stat.size}',
+          'x-rt-sha256': hash,
+          'x-rt-ext': RegExp(r'^[a-z0-9]{1,5}$').hasMatch(ext) ? ext : 'audio',
+        },
+      );
+    } on FileSystemException {
+      return Response.notFound('No such song.');
+    }
+  }
 
   void _onConnection(ServerChannel channel) {
     final conn = _Conn(channel);
@@ -467,6 +541,8 @@ class PlayerServer {
     final s = _session;
     if (s != null && s.conn == conn) {
       s.conn = null;
+      s.group = false; // it joins again when it reconnects
+      _updateGroupTimer();
       if (conn.byeReceived ||
           conn.channel.closeCode == CloseCodes.controllerDisconnected) {
         // The Controller user disconnected on purpose: revoke the session.
@@ -485,7 +561,78 @@ class PlayerServer {
     }
   }
 
+  /// Answers a clock-offset probe from the Controller: when the ping arrived
+  /// and when this reply leaves, on this phone's monotonic clock.
+  void _onSyncPing(_Conn conn, RemoteMessage msg) {
+    final t1 = clock.nowMs();
+    final s = _authorize(conn, msg);
+    if (s == null) return;
+    _send(
+      conn,
+      RemoteMessage(
+        type: MessageType.syncPong,
+        requestId: msg.requestId,
+        sessionId: s.sessionId,
+        payload: {'t0': msg.payload['t0'], 't1': t1, 't2': clock.nowMs()},
+      ),
+    );
+  }
+
+  Timer? _groupTimer;
+
+  /// While a Controller has joined group play it gets an update every second,
+  /// whether or not anything changed, so it can keep checking its drift and
+  /// recover from a missed message. (State changes also send one at once.)
+  void _updateGroupTimer() {
+    final s = _session;
+    final wanted = s != null && s.group && s.conn != null;
+    if (!wanted) {
+      _groupTimer?.cancel();
+      _groupTimer = null;
+      return;
+    }
+    _groupTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      final cur = _session;
+      final conn = cur?.conn;
+      if (cur == null || conn == null || !cur.group) {
+        _updateGroupTimer();
+        return;
+      }
+      _sendGroupSync(conn, cur);
+    });
+  }
+
+  /// Tells a joined Controller what is playing and where, stamped with this
+  /// phone's clock, so it can play the same song at the same moment.
+  void _sendGroupSync(_Conn conn, _Session s) {
+    if (!s.group) return;
+    final e = engine;
+    final source = e is GroupSyncSource ? e as GroupSyncSource : null;
+    final st = e.state;
+    // Sample the position and the clock together, as close as possible.
+    final positionMs = source?.positionMsNow;
+    final at = clock.nowMs();
+    final libraryId = st.songId; // null for internet links and external apps
+    _send(
+      conn,
+      RemoteMessage(
+        type: MessageType.groupSync,
+        sessionId: s.sessionId,
+        payload: {
+          if (libraryId != null && positionMs != null) 'songId': libraryId,
+          'positionMs': positionMs ?? 0,
+          'atMs': at,
+          'playing': st.isPlaying && !st.isLoading,
+          'speed': st.speed,
+          'durationMs': st.durationSeconds * 1000,
+          if (source?.nextLibrarySongId != null) 'nextSongId': source!.nextLibrarySongId,
+        },
+      ),
+    );
+  }
+
   void _sendState(_Conn conn, _Session s) {
+    _sendGroupSync(conn, s);
     _send(
       conn,
       RemoteMessage(
@@ -628,6 +775,8 @@ class PlayerServer {
         _onPairingRequest(conn, msg);
       case MessageType.pairingCode:
         _onPairingCode(conn, msg);
+      case MessageType.syncPing:
+        _onSyncPing(conn, msg);
       case MessageType.command:
         unawaited(_onCommand(conn, msg));
       case MessageType.libraryRequest:
@@ -1026,6 +1175,22 @@ class PlayerServer {
               'The sleep timer needs minutes from 0 to 720.');
         }
         _setSleepTimer(m == 0 ? null : Duration(minutes: m.toInt()));
+      case RemoteActions.groupJoin:
+        final s = _session;
+        if (p['enabled'] is! bool) {
+          throw PlaybackException(
+              ErrorCodes.invalidAction, 'groupJoin needs enabled: true or false.');
+        }
+        if (s == null || s.conn != conn) {
+          throw PlaybackException(ErrorCodes.invalidSession, 'Pair first.');
+        }
+        if (p['enabled'] == true && conn.type != ConnectionType.local) {
+          throw PlaybackException(ErrorCodes.invalidAction,
+              'Playing on two phones needs the local network (the same Wi-Fi). '
+              'The internet is too slow and uneven to keep them in step.');
+        }
+        s.group = p['enabled'] as bool;
+        _updateGroupTimer();
       case RemoteActions.setSpeed:
         final v = p['speed'];
         if (v is! num || v.isNaN || v < 0.5 || v > 2.0) {

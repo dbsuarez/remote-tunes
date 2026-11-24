@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'data/repositories/drift_recent_links_store.dart';
+import 'features/group/group_follower_service.dart';
+import 'features/group/group_providers.dart';
+import 'providers/connection_providers.dart';
 import 'providers/library_providers.dart';
 import 'providers/recent_links.dart';
 
@@ -21,6 +26,13 @@ void main() {
         recentLinksStoreProvider.overrideWith(
           (ref) => DriftRecentLinksStore(ref.watch(recentUrlsRepositoryProvider)),
         ),
+        // Group play (this phone plays along with the Player) needs audio, so
+        // only the phone app has it.
+        groupFollowerProvider.overrideWith((ref) {
+          final f = GroupFollowerService(client: ref.watch(controllerClientProvider));
+          ref.onDispose(() => unawaited(f.dispose()));
+          return f;
+        }),
       ],
       child: const RemoteTunesApp(),
     ),

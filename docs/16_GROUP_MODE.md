@@ -2,7 +2,23 @@
 
 > Renumbered: it was Phase 8 until the Online Library (docs/18) took that number.
 
-Status: draft for review. Not approved. Do not implement before Phases 0–7 are done and this doc is approved.
+Status: **v1 built** (see "v1 as built" below). The rest of this document is the longer-term design and is still a draft.
+
+## v1 as built: two phones, the Player leads
+
+The first version covers the most wanted case: **the Controller phone plays the song along with the Player**. It is deliberately smaller than the full design below.
+
+- **Roles:** the **Player is the master**. Its playback position and its clock define "now". The **Controller phone is the follower**: it downloads the song from the Player and plays it in sync. (The draft below has the Host sending files out; in RemoteTunes the music already lives on the Player, so the flow is reversed.)
+- **Switch:** Controller > Now Playing > **Play on this phone too**. Fine-tune slider (-300 to +300 ms, 5 ms steps, saved on the phone), live readouts of the sync error, the round trip and the clock spread, and **Measure again**.
+- **Local network only.** The Player refuses `groupJoin` over the internet relay, and the web Controller has no group play (no audio, no local network).
+- **Clock sync:** NTP-style `sync_ping`/`sync_pong` probes on a monotonic clock. 14 probes at join, 5 more every 10 s, slower half dropped, median of the rest (`features/group/clock_sync.dart`).
+- **Playing in step:** the Player sends `group_sync {songId, positionMs, atMs, playing, speed, nextSongId}` once a second and on every state change. The follower works out `expected = position + (Player clock now - atMs) * speed + nudge` and: starts there; hard-seeks if off by more than 200 ms (at most once per 1.5 s); plays 2% faster or slower if off by more than 15 ms; goes back to normal speed under 8 ms (`group_follower_core.dart`).
+- **Songs:** the follower downloads the playing song from the Player (`GET /group/audio/<songId>`, only for a joined Controller, only library songs, session id and token as headers, SHA-256 checked) and fetches the **next** song ahead of time. Downloads are deleted when group play ends. Only the last 6 songs are kept while it runs.
+- **Not covered in v1:** more than two phones, internet tracks (Jamendo/URL; the follower stays quiet and says so), playing while the app is in the background or the screen is off (keep the Controller app open), a tap-to-calibrate click helper, native low-latency audio.
+- **Open questions answered:** (1) the follower always plays; (2) the Player owns the files; (3) group size stays at 2 until the fan-out is built; (4) it uses the existing pairing/trust, no group code; (5) 50 ms is the target for v1, measure first, then decide about native audio.
+- **How to judge it:** put the two phones side by side, play a song with a clear beat, and listen. The Group card shows "Off by" in ms. If one phone is consistently early or late, use the fine-tune slider. Output latency differs per phone and per speaker or Bluetooth device, so it needs a one-off adjustment per setup.
+
+
 
 ## Goal
 One Host phone plays the same song in sync on N Player phones in the same room (target: 5 friends, 6 phones including the Host).
@@ -80,11 +96,10 @@ New error codes: `GROUP_FULL`, `FILE_NOT_READY`, `SYNC_UNAVAILABLE`, `TRANSFER_F
 - Must not copy Spotify branding or UI.
 
 ## Phased build plan (inside Phase 9)
-- 8a Multi-session fan-out: one Host controls N Players with simple commands (no sync guarantees).
-- 8b File distribution with progress and checksums.
-- 8c Clock sync service + measurable offset readout (diagnostics screen).
-- 8d Scheduled start + drift correction.
-- 8e Per-member latency calibration + group UI polish.
+v1 (two phones, Player leads) covers 8b (file distribution with checksum), 8c (clock sync and readout), 8d (start at the right position + drift correction) and the per-phone nudge of 8e. Still to do:
+- 8a Multi-session fan-out: more than one follower.
+- 8e Tap-to-calibrate helper, per-route warnings, group UI polish.
+- Background playback (foreground service) for the follower.
 
 ## Acceptance targets
 Measure with a recorded test: place all phones together, play a click/impulse track, record with a third device, compare onsets.

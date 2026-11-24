@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants.dart';
+import '../../core/mono_clock.dart';
 import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
 import '../../core/protocol/protocol.dart';
@@ -137,6 +138,7 @@ class ControllerClient {
   ControllerClient({
     TransportFactory? transportFactory,
     OnlineTransportFactory? onlineTransportFactory,
+    MonoClock? clock,
     this.heartbeatInterval = AppConstants.heartbeatInterval,
     this.connectionTimeout = AppConstants.connectionTimeout,
     this.commandTimeout = const Duration(seconds: 5),
@@ -155,7 +157,10 @@ class ControllerClient {
       Duration(seconds: 10),
     ],
   })  : _transportFactory = transportFactory,
-        _onlineFactory = onlineTransportFactory;
+        _onlineFactory = onlineTransportFactory,
+        _clock = clock ?? MonoClock.instance;
+
+  final MonoClock _clock;
 
   final TransportFactory? _transportFactory;
   final OnlineTransportFactory? _onlineFactory;
@@ -703,6 +708,63 @@ class ControllerClient {
     ), timeout: timeout);
   }
 
+  // ---------------------------------------------------------------- group play
+
+  final StreamController<RemoteMessage> _groupMessages =
+      StreamController<RemoteMessage>.broadcast();
+
+  /// The Player's `group_sync` messages (only sent after [setGroupJoin]).
+  Stream<RemoteMessage> get groupMessages => _groupMessages.stream;
+
+  /// Joins or leaves group play: the Player starts (or stops) sending
+  /// `group_sync` and lets this phone download the playing song. Needs the
+  /// local network; the Player refuses over the internet.
+  Future<void> setGroupJoin(bool enabled) =>
+      sendCommand(RemoteActions.groupJoin, {'enabled': enabled});
+
+  final Map<String, double> _syncArrivals = {};
+
+  /// One clock probe: returns the four timestamps (t0 and t3 on this phone's
+  /// monotonic clock, t1 and t2 on the Player's). Used by `ClockSync`.
+  Future<({double t0, double t1, double t2, double t3})> syncProbe() async {
+    final t0 = _clock.nowMs();
+    final reply = await _authenticatedRequest(
+        MessageType.syncPing, {'t0': t0},
+        timeout: const Duration(seconds: 3));
+    // The arrival time is taken when the message came in, not when this
+    // continuation got to run.
+    final t3 = _syncArrivals.remove(reply.requestId) ?? _clock.nowMs();
+    final t1 = reply.payload['t1'];
+    final t2 = reply.payload['t2'];
+    if (t1 is! num || t2 is! num) {
+      throw ControllerException('The Player sent an unreadable clock reply.');
+    }
+    return (t0: t0, t1: t1.toDouble(), t2: t2.toDouble(), t3: t3);
+  }
+
+  /// Where to download a song for group play: the Player's local address and
+  /// the headers that prove this phone joined. Null unless connected over the
+  /// local network.
+  ({Uri uri, Map<String, String> headers})? groupAudioRequest(int songId) {
+    final s = _state;
+    final sid = _sessionId;
+    final tok = _token;
+    final host = s.host;
+    final port = s.port;
+    if (!s.isConnected ||
+        s.route != ConnectionType.local ||
+        sid == null ||
+        tok == null ||
+        host == null ||
+        port == null) {
+      return null;
+    }
+    return (
+      uri: Uri(scheme: 'http', host: host, port: port, path: '/group/audio/$songId'),
+      headers: {'x-rt-session': sid, 'x-rt-token': tok},
+    );
+  }
+
   // ------------------------------------------------------------ library/queue
 
   Future<Map<String, dynamic>> _library(
@@ -876,6 +938,9 @@ class ControllerClient {
   void _onMessage(int gen, RemoteMessage m) {
     if (gen != _generation) return;
     _lastMessageAt = DateTime.now();
+    if (m.type == MessageType.syncPong && m.requestId.isNotEmpty) {
+      _syncArrivals[m.requestId] = _clock.nowMs();
+    }
 
     if (m.requestId.isNotEmpty) {
       final waiter = _waiters.remove(m.requestId);
@@ -905,6 +970,8 @@ class ControllerClient {
             _state.status == ControllerStatus.waitingForPlayer) {
           _onPairingResult(m.payload);
         }
+      case MessageType.groupSync:
+        if (_state.isConnected && !_groupMessages.isClosed) _groupMessages.add(m);
       case MessageType.state:
         if (_state.isConnected) {
           _update(playback: PlaybackState.fromJson(m.payload));
@@ -1106,5 +1173,6 @@ class ControllerClient {
     _disposed = true;
     await _teardown();
     await _stateController.close();
+    await _groupMessages.close();
   }
 }

@@ -33,7 +33,7 @@ Build **one phase at a time**. Do not implement later phases early. The specs li
 | 6 | Web Controller: browser Controller over Supabase Realtime ([docs/17](docs/17_WEB_CONTROLLER.md)) | **Built; verified in a real browser against a simulated Player on the real Supabase relay; NOT yet tried against a real phone Player** |
 | 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_7_POLISH.md)) | **Built:** search, sleep timer, shorter screens, favorites, recently played, playlists, playback speed, album art on the Controller, diagnostics, app icon. Not yet tried on phones: everything after the sleep timer |
 | 8 | Online Library: search Jamendo's free Creative Commons music from the Controller (and web Controller) and play or queue it on the Player ([docs/18](docs/18_PHASE_8_ONLINE_LIBRARY.md)) | **Built; automated tests pass (fake Jamendo); NOT yet tried with a real Jamendo client ID or on phones** |
-| 9 | Group Mode: same song in sync on several phones in one room ([draft spec](docs/16_GROUP_MODE.md), not approved) | Draft only |
+| 9 | Group Mode: same song in sync on several phones in one room ([spec](docs/16_GROUP_MODE.md)) | **v1 built: the Controller phone plays along with the Player, in sync. Automated tests pass; sync accuracy NOT yet measured on real phones.** More than two phones: not built |
 
 Phase 0 deliberately does **not** initialize Supabase, audio, networking, or discovery.
 
@@ -45,7 +45,7 @@ Phase 2 replaces the Phase 1 silent simulated engine (kept for tests) with real 
 - **Controller:** tabs Now Playing / Queue / Library. File paths never leave the Player; the Controller only gets ids and metadata. Album art is extracted on the Player; the Controller gets a small thumbnail (Phase 7).
 - **Background:** an `audio_service` media session keeps a foreground service (and the network server) alive while Player mode is open. This is unverified on real phones; Wi-Fi sleep may still need native work.
 
-Phase order follows `docs/17` §12: Web Controller is Phase 6, Polish is Phase 7, Online Library is Phase 8 and Group Mode is Phase 9. Do not implement Phase 9 early. Shared Controller code (`core/protocol`, `core/transport/remote_transport.dart`, `features/controller/controller_client.dart`) is deliberately kept free of `dart:io` so a web Controller could reuse it.
+Phase order follows `docs/17` §12: Web Controller is Phase 6, Polish is Phase 7, Online Library is Phase 8 and Group Mode is Phase 9. Shared Controller code (`core/protocol`, `core/transport/remote_transport.dart`, `features/controller/controller_client.dart`) is deliberately kept free of `dart:io` so a web Controller could reuse it.
 
 ## Phase 6: Web Controller
 
@@ -109,6 +109,15 @@ The Controller (phone and web) has an **Online** tab that searches [Jamendo](htt
 - **Nothing is downloaded or stored** (no download button), and there is no telemetry. The only network calls are to `api.jamendo.com` (and Jamendo's image server for artwork).
 - **Online history:** every Jamendo track played is remembered on the **Player** phone (title, artist, album, licence and links only, never audio), newest first, up to 200. Open it with the clock button in the Online tab: play again, add to the queue, remove one, **Clear**, or switch **Keep history** off. It is never sent anywhere; a Controller plays an entry again by id and never sees the stream link.
 - **Queued Jamendo tracks survive restarts** (their link and text are saved with the queue, in order among your own songs; Jamendo's links keep working because only the track id matters).
+
+## Group play (Phase 9, v1)
+
+**Controller > Now Playing > Play on this phone too** makes the Controller phone play the same song as the Player, in sync. The Player stays the master: the Controller phone downloads the playing song over the local Wi-Fi (checked with a SHA-256, deleted when you switch it off), measures the clock difference between the two phones, and corrects its own audio against the Player's position every second (small speed nudges, a jump only if it is far off). The card shows how many milliseconds it is off, and a fine-tune slider (-300 to +300 ms, saved on the phone) compensates for phones whose speakers are slower than others.
+
+- Same Wi-Fi or hotspot only (the internet is too uneven). The web Controller cannot do it.
+- Library songs only; an internet track (Jamendo, a link) plays on the Player alone.
+- Keep the Controller app open on screen while it plays along.
+- Two phones for now. See [docs/16](docs/16_GROUP_MODE.md) for how it works and what is left.
 
 ## Automated checks
 

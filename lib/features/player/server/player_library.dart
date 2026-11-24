@@ -43,6 +43,10 @@ abstract class PlayerLibrary {
   Future<int?> addToPlaylist(int playlistId, List<int> songIds);
   Future<void> removeFromPlaylist(int playlistId, int songId);
 
+  /// The audio file of a library song (for group play), or null if there is
+  /// none or it is missing. Only ever a file the library itself holds.
+  Future<File?> audioFileFor(int songId);
+
   /// A small JPEG of the song's album art, or null if it has none.
   Future<Uint8List?> artThumbnail(int songId, {int size});
 
@@ -178,6 +182,14 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
   @override
   Future<void> removeFromPlaylist(int playlistId, int songId) =>
       _repo.removeFromPlaylist(playlistId, songId);
+
+  @override
+  Future<File?> audioFileFor(int songId) async {
+    final song = await _repo.songById(songId);
+    final path = song?.filePath;
+    if (path == null || !_fileExists(path)) return null;
+    return File(path);
+  }
 
   @override
   Future<Uint8List?> artThumbnail(int songId, {int size = artThumbnailSize}) async {

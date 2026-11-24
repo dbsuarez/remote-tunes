@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
 import '../../core/protocol/protocol.dart';
+import '../player/group_sync_source.dart';
 import '../player/playback_engine.dart';
 import '../player/queue/playable_song.dart';
 import '../player/queue_aware_engine.dart';
@@ -21,7 +22,7 @@ abstract class ControlModeCapable {
 /// links only exist for RemoteTunes' own player, so they are refused (with a
 /// plain explanation) while another app is being controlled. Switching pauses
 /// the side being left, so two apps never play at once.
-class ControlModeEngine implements QueueAwareEngine, ControlModeCapable {
+class ControlModeEngine implements QueueAwareEngine, ControlModeCapable, GroupSyncSource {
   ControlModeEngine({required QueueAwareEngine local, ExternalAppEngine? external})
       : _local = local,
         _external = external {
@@ -64,6 +65,19 @@ class ControlModeEngine implements QueueAwareEngine, ControlModeCapable {
 
   @override
   Stream<PlaybackState> get states => _controller.stream;
+
+  // Group play follows RemoteTunes' own player only.
+  @override
+  int? get positionMsNow {
+    final l = _local;
+    return _isExternal || l is! GroupSyncSource ? null : (l as GroupSyncSource).positionMsNow;
+  }
+
+  @override
+  int? get nextLibrarySongId {
+    final l = _local;
+    return _isExternal || l is! GroupSyncSource ? null : (l as GroupSyncSource).nextLibrarySongId;
+  }
 
   void _emit(PlaybackState s) {
     if (!_controller.isClosed) _controller.add(_withFlags(s));
