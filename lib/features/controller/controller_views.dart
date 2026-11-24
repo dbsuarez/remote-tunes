@@ -20,6 +20,7 @@ import '../online_library/online_library_view.dart';
 import '../group/group_card.dart';
 import '../music/music_browser.dart';
 import '../../core/widgets/edge_swipe.dart';
+import '../music/library_search.dart';
 import '../music/lyrics_view.dart';
 import '../music/queue_peek.dart';
 import '../music/music_source.dart';
@@ -239,6 +240,15 @@ class ControllerDashboard extends StatelessWidget {
                             source: source,
                             size: ref.watch(songListSizeProvider),
                             enabled: enabled,
+                            homeList: true,
+                            onSearch: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => LibrarySearchScreen(
+                                  source: source,
+                                  size: ref.read(songListSizeProvider),
+                                ),
+                              ),
+                            ),
                             emptyMessage:
                                 "The Player's library is empty.\nOn the Player, tap Add songs or Add folder.",
                           ),

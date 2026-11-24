@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../core/constants.dart';
@@ -26,7 +27,18 @@ class SettingKeys {
   static const accentFromArt = 'accent_from_art';
   static const autoUpdateCheck = 'auto_update_check';
   static const lyricsEnabled = 'lyrics_enabled';
+  static const searchHistory = 'search_history';
   static const lastUpdateCheck = 'last_update_check';
+}
+
+List<String> _decodeList(String? raw) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final v = jsonDecode(raw);
+    return v is List ? [for (final e in v) if (e is String) e] : const [];
+  } catch (_) {
+    return const [];
+  }
 }
 
 /// Immutable snapshot of all settings, with defaults for missing keys.
@@ -47,6 +59,7 @@ class AppSettings {
     this.accentFromArt = true,
     this.autoUpdateCheck = true,
     this.lyricsEnabled = true,
+    this.searchHistory = const [],
     this.lastUpdateCheck = 0,
   });
 
@@ -76,6 +89,9 @@ class AppSettings {
   /// Look up lyrics on the internet (sends the song's title and artist to
   /// LRCLIB / lyrics.ovh). Lives on the Player.
   final bool lyricsEnabled;
+
+  /// What was searched for lately, newest first (kept on this phone).
+  final List<String> searchHistory;
 
   /// When that was last done (milliseconds since 1970; 0 = never).
   final int lastUpdateCheck;
@@ -107,6 +123,7 @@ class AppSettings {
       accentFromArt: m[SettingKeys.accentFromArt] != 'false',
       autoUpdateCheck: m[SettingKeys.autoUpdateCheck] != 'false',
       lyricsEnabled: m[SettingKeys.lyricsEnabled] != 'false',
+      searchHistory: _decodeList(m[SettingKeys.searchHistory]),
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
     );
   }
@@ -201,6 +218,9 @@ class SettingsRepository {
 
   Future<void> setHapticsEnabled(bool v) =>
       _put(SettingKeys.hapticsEnabled, v.toString());
+
+  Future<void> setSearchHistory(List<String> items) =>
+      _put(SettingKeys.searchHistory, jsonEncode(items));
 
   Future<void> setLyricsEnabled(bool v) =>
       _put(SettingKeys.lyricsEnabled, v.toString());

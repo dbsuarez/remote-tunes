@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../music/library_search.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
@@ -60,6 +61,18 @@ class _PlayerLibraryScreenState extends ConsumerState<PlayerLibraryScreen> {
             ? const Center(child: Text('The Player is starting…'))
             : MusicBrowser(
                 size: ref.watch(songListSizeProvider),
+                homeList: true,
+                onSearch: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => LibrarySearchScreen(
+                      size: ref.read(songListSizeProvider),
+                      source: LocalMusicSource(
+                        RepositoryPlayerLibrary(ref.read(libraryRepositoryProvider)),
+                        engine,
+                      ),
+                    ),
+                  ),
+                ),
                 source: LocalMusicSource(
                   RepositoryPlayerLibrary(ref.read(libraryRepositoryProvider)),
                   engine,

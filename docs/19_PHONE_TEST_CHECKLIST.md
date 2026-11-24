@@ -146,6 +146,10 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Album art finder:** Settings > Find missing album art. It says how many albums lack a cover, finds some, and they show on the next song played from those albums.
 - [ ] **Edit info:** on the Player, Library > a song's menu > Edit info. Change the title, Save: the list shows the new title. The Controller shows it too after reopening the Library.
 - [ ] **Now Playing v2 (Controller):** the cover is big (never more than about 40% of the screen), the title is in the accent color, and favorite / shuffle / repeat sit under it and switch on and off. The 10-second back / forward buttons jump in the song. Everything below (volume, speed, sleep timer, Lyrics) is still reachable by scrolling, and the Queue Peek sheet doesn't cover it. On your smallest phone nothing is cut off.
+- [ ] **Library list:** the Library tab (both phones) opens on a list of categories; each opens its list with a back arrow to the list. Folders, Top and New work as before.
+- [ ] **Search screen:** the search button on the Library list opens it. Typing shows songs, albums, artists and folders in sections; "See all" narrows to one kind; tapping a song plays it, tapping an album / artist / folder opens it. Your recent searches show when the box is empty, can be removed one by one or cleared, and are still there after closing the app.
+- [ ] **Quick row:** speed (the icon turns into e.g. 1.25× when changed) and the sleep timer (shows the time left while running; the menu has Cancel) are in the row under the title.
+- [ ] **Format line:** under the seek bar, between the times, it reads something like "44.1 kHz · 320 kbps · MP3" a moment after a local song starts; nothing for internet tracks.
 
 ---
 

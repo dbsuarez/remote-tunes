@@ -151,10 +151,10 @@ void main() {
 
     testWidgets('swiping in from the left edge opens the Library', (tester) async {
       await screen(tester);
-      expect(find.text('Songs'), findsNothing);
+      expect(find.text('All Songs'), findsNothing);
       await tester.dragFrom(const Offset(6, 300), const Offset(160, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Songs'), findsOneWidget, reason: 'the Library chips are showing');
+      expect(find.text('All Songs'), findsOneWidget, reason: 'the Library list is showing');
     });
 
     testWidgets('the normal swipe between tabs still works', (tester) async {

@@ -23,6 +23,17 @@ class _Drill {
   final int? folderId;
 }
 
+/// Something to open straight away in the browser (an album, an artist or a
+/// folder), used by the search screen.
+class LibraryTarget {
+  const LibraryTarget({required this.title, this.artist, this.album, this.folderId});
+
+  final String title;
+  final String? artist;
+  final String? album;
+  final int? folderId;
+}
+
 /// Library browser used on both phones: search, filter chips (Songs, Artists,
 /// Albums, Favorites, Recent, Playlists), lazily loaded lists, and drill-down
 /// into an artist, album or playlist.
@@ -36,7 +47,20 @@ class MusicBrowser extends StatefulWidget {
     this.onEditSong,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
+    this.homeList = false,
+    this.onSearch,
+    this.initialTarget,
   });
+
+  /// Start on a list of categories (All Songs, Folders, Albums...) instead of
+  /// the row of filter chips. Opening one shows it with a back arrow.
+  final bool homeList;
+
+  /// Shows a search button on the category list.
+  final VoidCallback? onSearch;
+
+  /// Opens this album / artist / folder at once; going back leaves the screen.
+  final LibraryTarget? initialTarget;
 
   /// Text size of the song rows.
   final SongListSize size;
@@ -63,7 +87,29 @@ class MusicBrowser extends StatefulWidget {
 
 class _MusicBrowserState extends State<MusicBrowser> {
   _Scope _scope = _Scope.songs;
-  _Drill? _drill;
+  late _Drill? _drill = widget.initialTarget == null
+      ? null
+      : _Drill(
+          title: widget.initialTarget!.title,
+          artist: widget.initialTarget!.artist,
+          album: widget.initialTarget!.album,
+          folderId: widget.initialTarget!.folderId,
+        );
+
+  /// Showing the list of categories (only with [MusicBrowser.homeList]).
+  late bool _home = widget.homeList && widget.initialTarget == null;
+
+  static String _scopeTitle(_Scope s) => switch (s) {
+        _Scope.songs => 'All Songs',
+        _Scope.artists => 'Artists',
+        _Scope.albums => 'Albums',
+        _Scope.folders => 'Folders',
+        _Scope.favorites => 'Favorites',
+        _Scope.recent => 'Recent',
+        _Scope.top => 'Top',
+        _Scope.newest => 'New',
+        _Scope.playlists => 'Playlists',
+      };
   String _query = '';
   int _generation = 0;
 
@@ -462,6 +508,27 @@ class _MusicBrowserState extends State<MusicBrowser> {
         _scope == _Scope.top ||
         _scope == _Scope.newest;
 
+    if (_home) {
+      return IgnorePointer(
+        ignoring: !widget.enabled,
+        child: Opacity(
+          opacity: widget.enabled ? 1 : 0.5,
+          child: _CategoryList(
+            onSearch: widget.onSearch,
+            onPick: (s) {
+              Haptics.selection();
+              setState(() {
+                _home = false;
+                _scope = s;
+                _search.clear();
+                _query = '';
+              });
+            },
+          ),
+        ),
+      );
+    }
+
     return IgnorePointer(
       ignoring: !widget.enabled,
       child: Opacity(
@@ -492,6 +559,15 @@ class _MusicBrowserState extends State<MusicBrowser> {
             ),
             if (_selected.isNotEmpty && songsShown)
               _selectionBar(drill, viewName)
+            else if (drill == null && widget.homeList)
+              _CategoryHeader(
+                title: _scopeTitle(_scope),
+                onBack: () => setState(() {
+                  _home = true;
+                  _search.clear();
+                  _query = '';
+                }),
+              )
             else if (drill == null)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -525,7 +601,13 @@ class _MusicBrowserState extends State<MusicBrowser> {
             else
               _DrillHeader(
                 title: drill.title,
-                onBack: () => setState(() => _drill = null),
+                onBack: () {
+                  if (widget.initialTarget != null) {
+                    Navigator.of(context).maybePop();
+                  } else {
+                    setState(() => _drill = null);
+                  }
+                },
                 onRename: drill.playlistId == null ? null : () => _renamePlaylist(drill),
                 onDelete: drill.playlistId == null ? null : () => _deletePlaylist(drill),
                 onPlayAll: () => _run(() async {
@@ -653,6 +735,91 @@ class _MusicBrowserState extends State<MusicBrowser> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The list of categories shown first when the browser is in home-list mode.
+class _CategoryList extends StatelessWidget {
+  const _CategoryList({required this.onPick, this.onSearch});
+
+  final ValueChanged<_Scope> onPick;
+  final VoidCallback? onSearch;
+
+  static const _items = <(_Scope, IconData, Color)>[
+    (_Scope.songs, Icons.music_note_rounded, Color(0xFF22E5D0)),
+    (_Scope.folders, Icons.folder_rounded, Color(0xFF4FC3F7)),
+    (_Scope.albums, Icons.album_rounded, Color(0xFF7C6CFF)),
+    (_Scope.artists, Icons.person_rounded, Color(0xFFB388FF)),
+    (_Scope.favorites, Icons.favorite_rounded, Color(0xFFFF6B8B)),
+    (_Scope.recent, Icons.history_rounded, Color(0xFFFFB74D)),
+    (_Scope.top, Icons.trending_up_rounded, Color(0xFFFF8A65)),
+    (_Scope.newest, Icons.new_releases_rounded, Color(0xFFAED581)),
+    (_Scope.playlists, Icons.queue_music_rounded, Color(0xFF4DB6AC)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
+          child: Row(
+            children: [
+              Expanded(child: Text('Library', style: theme.textTheme.headlineSmall)),
+              if (onSearch != null)
+                IconButton(
+                  tooltip: 'Search',
+                  icon: const Icon(Icons.search_rounded),
+                  onPressed: onSearch,
+                ),
+            ],
+          ),
+        ),
+        for (final (scope, icon, color) in _items)
+          ListTile(
+            minTileHeight: 60,
+            leading: CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.18),
+              child: Icon(icon, color: color),
+            ),
+            title: Text(_MusicBrowserState._scopeTitle(scope),
+                style: theme.textTheme.titleMedium),
+            onTap: () => onPick(scope),
+          ),
+      ],
+    );
+  }
+}
+
+/// Back arrow and the name of the opened category.
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Back to the Library',
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: onBack,
+          ),
+          Expanded(
+            child: Text(title,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+        ],
       ),
     );
   }
