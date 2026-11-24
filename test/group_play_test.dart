@@ -15,6 +15,7 @@ import 'package:remote_tunes/features/group/clock_sync.dart';
 import 'package:remote_tunes/features/group/group_audio_cache.dart';
 import 'package:remote_tunes/features/group/group_follower_service.dart';
 import 'package:remote_tunes/features/group/group_models.dart';
+import 'package:remote_tunes/features/group/group_native.dart';
 import 'package:remote_tunes/features/player/queue_playback_engine.dart';
 import 'package:remote_tunes/features/player/server/player_library.dart';
 import 'package:remote_tunes/features/player/server/player_server.dart';
@@ -31,11 +32,13 @@ Future<void> waitFor(bool Function() c,
 }
 
 class _MemNudge implements NudgeStore {
-  int value = 0;
+  final byRoute = <String, int>{};
+  int get value => byRoute['speaker'] ?? 0;
+  set value(int v) => byRoute['speaker'] = v;
   @override
-  Future<int> load() async => value;
+  Future<int> load(String route) async => byRoute[route] ?? 0;
   @override
-  Future<void> save(int ms) async => value = ms;
+  Future<void> save(String route, int ms) async => byRoute[route] = ms;
 }
 
 void main() {
@@ -289,6 +292,7 @@ void main() {
           folder: () async => cacheDir,
         ),
         nudges: nudges,
+        native: const NoGroupNative(),
         resyncEvery: const Duration(seconds: 30),
       );
     });

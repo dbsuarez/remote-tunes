@@ -332,7 +332,7 @@ class _MiniControls extends StatelessWidget {
                   child: Row(children: [
                     RemoteArt(
                         client: client,
-                        songId: p.isExternal ? null : p.songId,
+                        songId: p.isExternal || (p.songId ?? 0) <= 0 ? null : p.songId,
                         size: 44),
                     const SizedBox(width: 12),
                     Expanded(child: Column(
@@ -457,8 +457,11 @@ class _NowPlayingTab extends StatelessWidget {
           state: p,
           enabled: enabled,
           onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
-          art: RemoteArt(client: client, songId: p.isExternal ? null : p.songId, size: 64),
-          trailing: p.songId == null || p.isExternal
+          art: RemoteArt(
+              client: client,
+              songId: p.isExternal || (p.songId ?? 0) <= 0 ? null : p.songId,
+              size: 64),
+          trailing: p.songId == null || p.songId! <= 0 || p.isExternal
               ? null
               : IconButton(
                   tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',

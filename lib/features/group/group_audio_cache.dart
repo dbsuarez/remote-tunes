@@ -37,6 +37,9 @@ class GroupAudioCache implements GroupAudioSource {
   final Map<int, double> _progress = {};
   final List<int> _order = [];
 
+  /// Bumped by [clear]: downloads that started before it stop quietly.
+  int _epoch = 0;
+
   @override
   String? pathIfReady(int songId) {
     final p = _ready[songId];
@@ -70,6 +73,7 @@ class GroupAudioCache implements GroupAudioSource {
 
   Future<void> _download(int songId) async {
     _failures.remove(songId);
+    final epoch = _epoch;
     final req = requestFor(songId);
     if (req == null) {
       _fail(songId, 'This phone is not connected to the Player on the local network.');
@@ -104,18 +108,22 @@ class GroupAudioCache implements GroupAudioSource {
       final ext = RegExp(r'^[a-z0-9]{1,5}$').hasMatch(extRaw) ? extRaw : 'audio';
 
       part = File('${dir.path}${Platform.pathSeparator}$songId.part');
-      final sink = part.openWrite();
+      // A plain file handle (not an IOSink): if the folder disappears under it
+      // (group play ended), every failure is an ordinary awaited exception.
+      final out = await part.open(mode: FileMode.write);
       var got = 0;
       _progress[songId] = 0;
       try {
         await for (final chunk in response.timeout(const Duration(seconds: 20))) {
-          sink.add(chunk);
+          if (epoch != _epoch) return; // cleared meanwhile: stop quietly
+          await out.writeFrom(chunk);
           got += chunk.length;
           if (total > 0) _progress[songId] = got / total;
         }
       } finally {
-        await sink.close();
+        await out.close();
       }
+      if (epoch != _epoch) return;
       if (total > 0 && got != total) {
         _fail(songId, 'The song did not arrive completely. Try again.');
         return;
@@ -127,6 +135,7 @@ class GroupAudioCache implements GroupAudioSource {
           return;
         }
       }
+      if (epoch != _epoch) return;
       final done = File('${dir.path}${Platform.pathSeparator}$songId.$ext');
       if (done.existsSync()) done.deleteSync();
       part = await part.rename(done.path);
@@ -142,7 +151,10 @@ class GroupAudioCache implements GroupAudioSource {
     } on HttpException {
       _fail(songId, "The Player's answer couldn't be read.");
     } on FileSystemException {
-      _fail(songId, "Couldn't save the song on this phone (is the storage full?).");
+      // (Also what happens if the folder was removed because group play ended.)
+      if (epoch == _epoch) {
+        _fail(songId, "Couldn't save the song on this phone (is the storage full?).");
+      }
     } finally {
       _progress.remove(songId);
       client.close(force: true);
@@ -171,6 +183,7 @@ class GroupAudioCache implements GroupAudioSource {
 
   /// Deletes everything downloaded (group play ended).
   Future<void> clear() async {
+    _epoch++;
     _ready.clear();
     _order.clear();
     _failures.clear();

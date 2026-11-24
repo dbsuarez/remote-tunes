@@ -104,6 +104,12 @@ class RemoteActions {
   // Player sending `group_sync` messages to this Controller.
   static const groupJoin = 'groupJoin';
 
+  // Auto-align: `{"action":"groupCalibrate","action":...}` is sent as
+  // `{action: groupCalibrate, step: start|mutePlayer|unmutePlayer|end}`. See
+  // docs/16: the Player plays a click track, mutes itself on request, and puts
+  // its queue and volume back at the end.
+  static const groupCalibrate = 'groupCalibrate';
+
   // Online Library history (kept on the Player):
   //  playHistory {historyId, queue?}; removeHistory {historyId};
   //  clearHistory {}; setHistoryEnabled {enabled}.

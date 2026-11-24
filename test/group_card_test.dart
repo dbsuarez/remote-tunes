@@ -47,6 +47,16 @@ class FakeFollower implements GroupFollower {
 
   @override
   Future<void> resync() async => calls.add('resync');
+
+  CalibrationReport report = const CalibrationReport(ok: true, message: 'Done.');
+  @override
+  Future<CalibrationReport> autoAlign() async {
+    calls.add('autoAlign');
+    return report;
+  }
+
+  @override
+  void cancelAutoAlign() => calls.add('cancelAutoAlign');
 }
 
 void main() {

@@ -144,87 +144,110 @@ void main() {
     Future<void> startThen() async {
       await core.onSync(msg(pos: 10000));
       expect(backend.playing, isTrue);
+      now += 1000; // past the settling time after the start
     }
 
-    /// The Player's song position at [now] if all is well.
-    int ideal(int pos, double since) => (pos + since).round();
+    /// Feeds one second of playing with the audio [errMs] ahead (+) of where it
+    /// should be.
+    Future<void> second(double errMs) async {
+      now += 1000;
+      final pos = 11000 + (now - 6000).round();
+      backend.position = Duration(milliseconds: pos + errMs.round());
+      await core.onSync(msg(pos: pos));
+    }
 
     test('close enough: nothing is touched', () async {
       await startThen();
       final seeks = backend.seekCount;
-      now += 1000;
       backend.position = const Duration(milliseconds: 11005); // 5 ms off
-      await core.onSync(msg(pos: ideal(10000, 1000)));
+      await core.onSync(msg(pos: 11000));
       expect(backend.seekCount, seeks);
       expect(backend.speed, 1.0);
       expect(core.status.driftMs, closeTo(5, 1));
     });
 
-    test('a little ahead: plays slightly slower until it is close', () async {
+    test('just after starting nothing is corrected while the engine settles', () async {
+      await core.onSync(msg(pos: 10000)); // starts; settles for 800 ms
+      now += 300;
+      backend.position = const Duration(milliseconds: 10600); // 300 ms ahead: ignored
+      final seeks = backend.seekCount;
+      await core.onSync(msg(pos: 10300));
+      expect(backend.seekCount, seeks);
+      expect(backend.speed, 1.0);
+      // The drift is still shown honestly.
+      expect(core.status.driftMs, closeTo(300, 2));
+    });
+
+    test('a little ahead: plays 1% slower until it is close', () async {
       await startThen();
-      now += 1000;
-      backend.position = const Duration(milliseconds: 11060); // 60 ms ahead
-      await core.onSync(msg(pos: 11000));
-      expect(backend.speed, closeTo(0.98, 1e-9));
-      expect(core.status.driftMs, closeTo(60, 1));
-
-      // Still a bit ahead: keeps going slow.
-      now += 1000;
-      backend.position = const Duration(milliseconds: 12030);
-      await core.onSync(msg(pos: 12000));
-      expect(backend.speed, closeTo(0.98, 1e-9));
-
-      // Caught up: back to normal.
-      now += 1000;
-      backend.position = const Duration(milliseconds: 13003);
-      await core.onSync(msg(pos: 13000));
+      await second(60);
+      expect(backend.speed, closeTo(0.99, 1e-9));
+      await second(30);
+      expect(backend.speed, closeTo(0.99, 1e-9));
+      await second(3);
+      await second(3);
+      await second(3); // the recent readings are now mostly small
       expect(backend.speed, 1.0);
     });
 
-    test('a little behind: plays slightly faster', () async {
+    test('a little behind: plays 1% faster', () async {
       await startThen();
-      now += 1000;
-      backend.position = const Duration(milliseconds: 10940); // 60 ms behind
-      await core.onSync(msg(pos: 11000));
-      expect(backend.speed, closeTo(1.02, 1e-9));
+      await second(-60);
+      expect(backend.speed, closeTo(1.01, 1e-9));
     });
 
     test('in between the limits it does not flip-flop', () async {
       await startThen();
-      now += 1000;
-      backend.position = const Duration(milliseconds: 11030);
-      await core.onSync(msg(pos: 11000)); // 30 ms ahead -> slow
-      expect(backend.speed, closeTo(0.98, 1e-9));
-      now += 1000;
-      backend.position = const Duration(milliseconds: 12011); // 11 ms: between 8 and 15
-      await core.onSync(msg(pos: 12000));
-      expect(backend.speed, closeTo(0.98, 1e-9), reason: 'keeps its speed until under 8 ms');
+      await second(40);
+      expect(backend.speed, closeTo(0.99, 1e-9));
+      await second(12);
+      await second(12);
+      await second(12);
+      expect(backend.speed, closeTo(0.99, 1e-9),
+          reason: 'keeps its speed until it is under 8 ms');
     });
 
-    test('far off: jumps there, but not more than once in a while', () async {
+    test('one noisy reading among good ones does nothing', () async {
       await startThen();
-      now += 1000;
-      backend.position = const Duration(milliseconds: 10200); // 800 ms behind
-      await core.onSync(msg(pos: 11000));
-      // The first start was less than 1.5 s ago, so it waits.
-      expect(backend.position.inMilliseconds, 10200);
+      await second(2);
+      await second(3);
+      await second(2);
+      await second(95); // a glitch in the position reading
+      await second(2);
+      expect(backend.speed, 1.0);
+    });
 
-      now += 1000;
-      backend.position = const Duration(milliseconds: 10300);
-      await core.onSync(msg(pos: 12000));
-      expect(backend.position.inMilliseconds, 12000, reason: 'jumped to where it should be');
+    test('far off once is not enough to jump; twice in a row is', () async {
+      await startThen();
+      final before = backend.seekCount;
+      await second(-800); // 800 ms behind, first time
+      expect(backend.seekCount, before, reason: 'could be a glitch');
+      await second(-800);
+      expect(backend.seekCount, before + 1, reason: 'confirmed: jumped');
+    });
 
+    test('it does not keep jumping: a pause between jumps', () async {
+      await startThen();
+      await second(-800);
+      await second(-800); // jumps
       final seeks = backend.seekCount;
-      now += 500; // too soon for another jump
-      backend.position = const Duration(milliseconds: 11000);
-      await core.onSync(msg(pos: 12500));
+      // Still far off straight away (the seek did not take): not again so soon.
+      // (The Player's own position carries on normally.)
+      for (var i = 0; i < 3; i++) {
+        now += 300;
+        backend.position = const Duration(milliseconds: 5000);
+        await core.onSync(msg(pos: 11000 + (now - 6000).round()));
+      }
       expect(backend.seekCount, seeks);
     });
 
-    test('seeking on the Player is followed', () async {
+    test('seeking on the Player is followed at once', () async {
       await startThen();
-      now += 2000;
+      now += 1000;
       backend.position = const Duration(milliseconds: 12000);
+      await core.onSync(msg(pos: 12000));
+      now += 1000;
+      backend.position = const Duration(milliseconds: 13000);
       await core.onSync(msg(pos: 60000)); // the Player jumped to 1:00
       expect(backend.position.inMilliseconds, 60000);
     });
@@ -246,7 +269,6 @@ void main() {
     test('a new song starts from its beginning', () async {
       audio.ready[2] = '/cache/2.mp3';
       await startThen();
-      now += 1000;
       await core.onSync(msg(song: 2, pos: 150));
       expect(backend.loaded, ['/cache/1.mp3', '/cache/2.mp3']);
       expect(backend.playing, isTrue);
@@ -255,7 +277,6 @@ void main() {
 
     test('the Player changing speed is followed', () async {
       await startThen();
-      now += 1000;
       backend.position = const Duration(milliseconds: 11000);
       await core.onSync(msg(pos: 11000, speed: 1.25));
       expect(backend.speed, 1.25);
@@ -263,7 +284,6 @@ void main() {
 
     test('nothing playable on the Player: this phone goes quiet', () async {
       await startThen();
-      now += 1000;
       await core.onSync(msg(song: null, pos: 0, playing: false));
       expect(backend.playing, isFalse);
       expect(core.status.phase, GroupPhase.idle);
@@ -286,6 +306,43 @@ void main() {
       await core.onSync(msg());
       expect(core.status.phase, GroupPhase.problem);
       expect(core.status.message, contains('play along'));
+    });
+
+    test('muting silences this phone but keeps it in step', () async {
+      await startThen();
+      await core.setMuted(true);
+      expect(backend.volume, 0.0);
+      expect(backend.playing, isTrue, reason: 'still playing, just silent');
+      await second(2);
+      expect(core.isPlayingAlong, isTrue);
+      await core.setMuted(false);
+      expect(backend.volume, 1.0);
+    });
+
+    test('stopping always gives the volume back', () async {
+      await startThen();
+      await core.setMuted(true);
+      await core.stop();
+      expect(backend.volume, 1.0);
+    });
+
+    test('staying far off for a long time is reported honestly', () async {
+      await startThen();
+      // 60 ms off, second after second, and the correction never takes.
+      for (var i = 0; i < 6; i++) {
+        await second(60);
+      }
+      expect(core.status.warning, isEmpty, reason: 'not yet: give it a chance');
+      for (var i = 0; i < 10; i++) {
+        await second(60);
+      }
+      expect(core.status.warning, contains("Can't stay in step"));
+      expect(core.status.warning, contains('Auto-align'));
+      // When it recovers the warning goes away.
+      for (var i = 0; i < 6; i++) {
+        await second(2);
+      }
+      expect(core.status.warning, isEmpty);
     });
   });
 

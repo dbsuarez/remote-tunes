@@ -7,12 +7,12 @@
 ///   round trip = (t3 - t0) - (t2 - t1)
 ///
 /// A single probe can be wrong by up to half its round trip, and Wi-Fi round
-/// trips vary a lot. So many probes are taken, the slower half (by round trip)
-/// is thrown away, and the median of the rest is used.
+/// trips vary a lot. So many probes are taken, the slower two thirds (by round
+/// trip) are thrown away, and the median of the quickest is used.
 ///
 /// Pure Dart; all times are milliseconds on a monotonic clock.
 class ClockSync {
-  ClockSync({this.maxSamples = 24, this.minSamples = 5});
+  ClockSync({this.maxSamples = 40, this.minSamples = 5});
 
   final int maxSamples;
 
@@ -35,9 +35,12 @@ class ClockSync {
 
   void clear() => _samples.clear();
 
+  /// The quickest round trips: a probe that took the shortest time was the
+  /// least disturbed by Wi-Fi delays, so its offset is the most trustworthy.
+  /// About a third of the probes are kept (at least 3).
   List<({double offset, double rtt})> get _fastest {
     final sorted = List.of(_samples)..sort((a, b) => a.rtt.compareTo(b.rtt));
-    final keep = (sorted.length / 2).ceil().clamp(1, sorted.length);
+    final keep = (sorted.length * 0.34).ceil().clamp(3, sorted.length);
     return sorted.take(keep).toList();
   }
 

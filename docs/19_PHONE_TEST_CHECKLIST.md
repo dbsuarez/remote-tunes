@@ -103,6 +103,24 @@ Put the two phones side by side, same Wi-Fi, music with a clear beat. **C** is c
 - [x] **C** connected through the internet only (mobile data, Auto mode): the switch is disabled and says it needs the same Wi-Fi.
 - [x] Note the **round-trip** and **clock spread** numbers and whether the sound ever drifts apart over a whole song. This is the most useful thing to report.
 
+## 11. Group play hardening and Auto-align (new)
+Same setup as section 10 (**P** = Player, **C** = the phone that plays along, side by side, same Wi-Fi).
+- [ ] **C** switches on **Play on this phone too**. The **screen stays on** by itself while it is on (it does not dim and lock). Switch it off: the screen behaves normally again.
+- [ ] While it is on, the card shows **"This phone's own audio delay"** with a number (some phones don't report it; then the line is missing).
+- [ ] Turn **P**'s music to a Bluetooth speaker or earbuds, or connect **C**'s to one: the card shows an **orange warning about Bluetooth**. Back to the phone speaker: the warning goes away.
+- [ ] Move **C** far from the Wi-Fi router: a warning about an **uneven Wi-Fi** may appear. Move back: it goes.
+- [ ] Let it play a whole song **without touching anything**. The **Off by** number should stay small and steady. Note its typical size, and how often you hear it correct itself (a hard jump is a click or skip; a speed nudge should not be audible).
+- [ ] Seek on **C**, pause/play, next: after each, **C** is back in step within a couple of seconds and **does not keep jumping around**.
+- [ ] **Auto-align** (the microphone button): put the phones about 10 cm apart, volumes up, quiet room. Tap it, read the box, **Start**. The Player plays a short series of clicks, first alone (about 5 s), then **this phone alone** (about 5 s). Keep quiet.
+- [ ] A permission box asks for the **microphone**: allow it.
+- [ ] A message tells you what it found, for example **"This phone was 37.0 ms late. Fine-tune set to +37 ms."** **Write down the number it reports and the phones' names.**
+- [ ] **Run Auto-align a second time.** It should now say it is **already lined up** (within a few ms). If it reports a big number again, tell me both numbers.
+- [ ] After Auto-align the **Player is back to what it was**: the same song, queue and volume (it was silenced for a few seconds in the middle).
+- [ ] While Auto-align runs, tap **Cancel**: it stops, and the Player's volume and queue are back to normal.
+- [ ] In a noisy room, or with the volume very low, Auto-align says it **could not hear the clicks** and changes nothing.
+- [ ] After Auto-align the song really **sounds together** now. If it doesn't, nudge it by ear and tell me how far off it still was, and which way (this tells me how accurate the measurement is on your phones).
+- [ ] Deny the microphone permission: Auto-align says so and changes nothing.
+
 ---
 
 ## How to report

@@ -7,6 +7,7 @@ import '../core/online/room_code.dart';
 import '../core/protocol/protocol.dart';
 import '../core/transport/local_websocket_transport.dart';
 import '../data/repositories/drift_queue_store.dart';
+import '../features/group/group_native.dart';
 import '../data/repositories/online_history_repository.dart';
 import '../data/repositories/paired_controllers_store.dart';
 import '../data/repositories/settings_repository.dart';
@@ -129,6 +130,21 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     onlineProblem: plan.problem,
   );
   ref.onDispose(() => host.dispose());
+  // While a Controller plays along (group play), this Player stays awake with
+  // its Wi-Fi in a fast mode: power saving adds jittery delay that spoils the
+  // timing.
+  final groupNative = MethodChannelGroupNative();
+  var groupLocked = false;
+  final groupSub = server.stateStream.listen((st) {
+    if (st.groupJoined != groupLocked) {
+      groupLocked = st.groupJoined;
+      unawaited(groupNative.setLocks(enabled: groupLocked));
+    }
+  });
+  ref.onDispose(() {
+    unawaited(groupSub.cancel());
+    if (groupLocked) unawaited(groupNative.setLocks(enabled: false));
+  });
   await server.start();
   // Joining the room can take seconds (or fail when offline); the Player UI
   // follows its status instead of waiting here.

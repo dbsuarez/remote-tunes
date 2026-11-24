@@ -78,6 +78,10 @@ class GroupStatus {
     this.nudgeMs = 0,
     this.title = '',
     this.available = true,
+    this.warning = '',
+    this.route = 'speaker',
+    this.outputLatencyMs,
+    this.calibration = '',
   });
 
   final GroupPhase phase;
@@ -101,6 +105,20 @@ class GroupStatus {
   /// False when group play cannot be used right now (not connected locally).
   final bool available;
 
+  /// Things that make good sync unlikely right now (Bluetooth output, an
+  /// uneven Wi-Fi, being unable to keep in step). Plain language, may hold
+  /// several lines. Empty when all is well.
+  final String warning;
+
+  /// Where this phone's sound goes: `speaker`, `wired`, `bluetooth`, `unknown`.
+  final String route;
+
+  /// The phone's own estimate of its audio delay, when it tells.
+  final int? outputLatencyMs;
+
+  /// Progress or result of the last Auto-align (microphone measurement).
+  final String calibration;
+
   bool get isOn => phase != GroupPhase.off;
 
   GroupStatus copyWith({
@@ -114,6 +132,11 @@ class GroupStatus {
     int? nudgeMs,
     String? title,
     bool? available,
+    String? warning,
+    bool clearWarning = false,
+    String? route,
+    int? outputLatencyMs,
+    String? calibration,
   }) =>
       GroupStatus(
         phase: phase ?? this.phase,
@@ -125,7 +148,37 @@ class GroupStatus {
         nudgeMs: nudgeMs ?? this.nudgeMs,
         title: title ?? this.title,
         available: available ?? this.available,
+        warning: clearWarning ? '' : (warning ?? this.warning),
+        route: route ?? this.route,
+        outputLatencyMs: outputLatencyMs ?? this.outputLatencyMs,
+        calibration: calibration ?? this.calibration,
       );
+}
+
+/// The outcome of Auto-align (the microphone measurement).
+class CalibrationReport {
+  const CalibrationReport({
+    required this.ok,
+    required this.message,
+    this.offsetMs,
+    this.nudgeMs,
+    this.clamped = false,
+  });
+
+  /// True if a measurement was made and the fine-tune was set from it.
+  final bool ok;
+
+  /// Plain language: what was found, or why it could not be.
+  final String message;
+
+  /// How much later (+) or earlier (-) this phone sounded than the Player.
+  final double? offsetMs;
+
+  /// The fine-tune now in force.
+  final int? nudgeMs;
+
+  /// The needed correction was bigger than the fine-tune can hold (+/-300 ms).
+  final bool clamped;
 }
 
 /// This phone playing the Player's song along with it. The real thing needs
@@ -145,4 +198,11 @@ abstract class GroupFollower {
 
   /// Measures the clock difference again.
   Future<void> resync();
+
+  /// Auto-align: measures with the microphone how much later or earlier this
+  /// phone sounds than the Player and sets the fine-tune from it.
+  Future<CalibrationReport> autoAlign();
+
+  /// Stops an Auto-align that is running (everything is put back).
+  void cancelAutoAlign();
 }

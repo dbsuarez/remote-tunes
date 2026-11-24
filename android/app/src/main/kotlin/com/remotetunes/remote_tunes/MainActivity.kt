@@ -5,6 +5,7 @@ import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : AudioServiceActivity() {
     private var externalMedia: ExternalMediaBridge? = null
+    private var groupSupport: GroupSupport? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -13,11 +14,15 @@ class MainActivity : AudioServiceActivity() {
             applicationContext,
             flutterEngine.dartExecutor.binaryMessenger,
         )
+        // Phase 9: keep-awake / Wi-Fi mode / output route for group play.
+        groupSupport = GroupSupport(this, flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         externalMedia?.dispose()
         externalMedia = null
+        groupSupport?.dispose()
+        groupSupport = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

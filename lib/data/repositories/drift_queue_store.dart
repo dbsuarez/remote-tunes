@@ -36,7 +36,8 @@ class DriftQueueStore implements QueueStore {
                 licenseUrl: Value(s.licenseUrl),
                 imageUrl: Value(s.imageUrl),
               ));
-        } else {
+        } else if (s.id > 0) {
+          // (The Auto-align click track has id -1 and is not a library song.)
           await _db.into(_db.queueItems).insert(QueueItemsCompanion.insert(
                 songId: s.id,
                 position: i,

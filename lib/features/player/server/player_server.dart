@@ -20,6 +20,7 @@ import '../../../data/repositories/paired_controllers_store.dart';
 import '../../../core/protocol/library_models.dart';
 import '../../external/control_mode_engine.dart';
 import '../../online/online_status.dart';
+import '../../group/calibration_track.dart';
 import '../group_sync_source.dart';
 import '../playback_engine.dart';
 import '../queue/playable_song.dart';
@@ -96,7 +97,12 @@ class PlayerServerState {
     this.online,
     this.pairingTicket,
     this.trusted = const [],
+    this.groupJoined = false,
   });
+
+  /// A Controller has joined group play (the Player should stay awake and keep
+  /// its Wi-Fi in a fast mode).
+  final bool groupJoined;
 
   /// Controllers that may reconnect without pairing, newest first.
   final List<TrustedDeviceInfo> trusted;
@@ -202,6 +208,7 @@ class PlayerServer {
     this.ticketTtl = const Duration(minutes: 5),
     Random? random,
     MonoClock? clock,
+    this.scratchDir,
   })  : _random = random ?? Random.secure(),
         clock = clock ?? MonoClock.instance;
 
@@ -229,6 +236,10 @@ class PlayerServer {
 
   /// The Player's monotonic clock, used for group play.
   final MonoClock clock;
+
+  /// Where the Auto-align click track is written (the app's temporary folder).
+  /// Defaults to the system temporary directory.
+  final Directory? scratchDir;
 
   String? _ticket;
   Timer? _ticketTimer;
@@ -338,6 +349,7 @@ class PlayerServer {
     _sleepTimer?.cancel();
     _groupTimer?.cancel();
     _groupTimer = null;
+    await _endCalibration();
     _ticket = null;
     await _engineSub?.cancel();
     _engineSub = null;
@@ -411,6 +423,7 @@ class PlayerServer {
     final s = _session;
     if (s == null) return;
     _session = null;
+    _updateGroupTimer();
     final conn = s.conn;
     if (conn != null) {
       _send(
@@ -466,8 +479,13 @@ class PlayerServer {
       return Response.forbidden('Not allowed.');
     }
     final lib = library;
-    if (songId == null || lib == null) return Response.notFound('No such song.');
-    final file = await lib.audioFileFor(songId);
+    File? file;
+    if (songId == CalibrationTrack.songId) {
+      // The Auto-align click track, only while a test is running.
+      file = _calibration?.file;
+    } else if (songId != null && lib != null) {
+      file = await lib.audioFileFor(songId);
+    }
     if (file == null) return Response.notFound('No such song.');
     try {
       final stat = await file.stat();
@@ -581,6 +599,91 @@ class PlayerServer {
 
   Timer? _groupTimer;
 
+  // ---------------------------------------------------------------- Auto-align
+
+  _Calibration? _calibration;
+
+  /// Plays the click track on this Player (as the next thing in the queue) so
+  /// the other phone can measure the difference between the two phones.
+  Future<void> _startCalibration() async {
+    if (_calibration != null) await _endCalibration();
+    final dir = scratchDir ?? Directory.systemTemp;
+    final file = File('${dir.path}${Platform.pathSeparator}rt_calibration.wav');
+    final bytes = CalibrationTrack.wavBytes();
+    if (!file.existsSync() || file.lengthSync() != bytes.length) {
+      await file.writeAsBytes(bytes, flush: true);
+    }
+    // Remember what was playing, to put it back afterwards.
+    final before = engine.state;
+    int? origItem;
+    final e0 = engine;
+    if (e0 is QueueAwareEngine) {
+      for (final i in e0.queueSnapshot().items) {
+        if (i.isCurrent) origItem = i.queueItemId;
+      }
+    }
+    final cal = _calibration = _Calibration(file, before.volume)
+      ..origItemId = origItem
+      ..origPositionSeconds = before.positionSeconds
+      ..wasPlaying = before.isPlaying;
+    // A safety net: whatever happens, this is undone after 40 seconds.
+    cal.watchdog = Timer(const Duration(seconds: 40), () => unawaited(_endCalibration()));
+    await _queueEngine.playNow([
+      PlayableSong(
+        id: CalibrationTrack.songId,
+        title: 'Sync test (Auto-align)',
+        artist: 'RemoteTunes',
+        album: 'Auto-align',
+        filePath: file.path,
+        durationSeconds: CalibrationTrack.seconds.round(),
+      ),
+    ]);
+  }
+
+  Future<void> _muteForCalibration(bool mute) async {
+    final cal = _calibration;
+    if (cal == null) return;
+    await engine.setVolume(mute ? 0.0 : cal.savedVolume);
+  }
+
+  /// Puts everything back: the volume, the queue without the click track, and
+  /// the playback state (paused).
+  Future<void> _endCalibration() async {
+    final cal = _calibration;
+    if (cal == null) return;
+    _calibration = null;
+    cal.watchdog?.cancel();
+    try {
+      await engine.setVolume(cal.savedVolume);
+    } catch (_) {}
+    try {
+      await engine.pause();
+    } catch (_) {}
+    try {
+      final e = engine;
+      if (e is QueueAwareEngine) {
+        for (final i in e.queueSnapshot().items) {
+          if (i.song.id == CalibrationTrack.songId) {
+            await e.removeQueueItem(i.queueItemId);
+          }
+        }
+        // Back to the song (and spot) that was playing before the test.
+        final orig = cal.origItemId;
+        if (orig != null &&
+            e.queueSnapshot().items.any((i) => i.queueItemId == orig)) {
+          await e.playQueueItem(orig);
+          await e.pause();
+          if (cal.origPositionSeconds > 0) {
+            try {
+              await e.seek(cal.origPositionSeconds);
+            } catch (_) {}
+          }
+          if (cal.wasPlaying) await e.play();
+        }
+      }
+    } catch (_) {}
+  }
+
   /// While a Controller has joined group play it gets an update every second,
   /// whether or not anything changed, so it can keep checking its drift and
   /// recover from a missed message. (State changes also send one at once.)
@@ -590,6 +693,8 @@ class PlayerServer {
     if (!wanted) {
       _groupTimer?.cancel();
       _groupTimer = null;
+      // Nobody is playing along any more: undo an unfinished Auto-align.
+      unawaited(_endCalibration());
       return;
     }
     _groupTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
@@ -712,6 +817,7 @@ class PlayerServer {
       advertisingWarning: _advertisingWarning,
       online: _online,
       pairingTicket: _ticket,
+      groupJoined: s != null && s.group && s.conn != null,
       trusted: [
         for (final t in _trusted)
           TrustedDeviceInfo(sessionId: t.sessionId, name: t.name, lastSeen: t.lastSeen),
@@ -1176,6 +1282,25 @@ class PlayerServer {
               'The sleep timer needs minutes from 0 to 720.');
         }
         _setSleepTimer(m == 0 ? null : Duration(minutes: m.toInt()));
+      case RemoteActions.groupCalibrate:
+        final gs = _session;
+        if (gs == null || gs.conn != conn || !gs.group) {
+          throw PlaybackException(ErrorCodes.invalidAction,
+              'Switch on "Play on this phone too" before Auto-align.');
+        }
+        switch (p['step']) {
+          case 'start':
+            await _startCalibration();
+          case 'mutePlayer':
+            await _muteForCalibration(true);
+          case 'unmutePlayer':
+            await _muteForCalibration(false);
+          case 'end':
+            await _endCalibration();
+          default:
+            throw PlaybackException(ErrorCodes.invalidAction,
+                'step must be start, mutePlayer, unmutePlayer or end.');
+        }
       case RemoteActions.groupJoin:
         final s = _session;
         if (p['enabled'] is! bool) {
@@ -1192,6 +1317,7 @@ class PlayerServer {
         }
         s.group = p['enabled'] as bool;
         _updateGroupTimer();
+        _publish();
       case RemoteActions.setSpeed:
         final v = p['speed'];
         if (v is! num || v.isNaN || v < 0.5 || v > 2.0) {
@@ -1652,4 +1778,21 @@ class PlayerServer {
       return const [];
     }
   }
+}
+
+/// An Auto-align test in progress on the Player.
+class _Calibration {
+  _Calibration(this.file, this.savedVolume);
+
+  final File file;
+
+  /// The Player's volume before the test, put back afterwards.
+  final double savedVolume;
+  Timer? watchdog;
+
+  /// What was playing before the test: its queue entry, position and whether
+  /// it was playing, so it can be put back.
+  int? origItemId;
+  int origPositionSeconds = 0;
+  bool wasPlaying = false;
 }

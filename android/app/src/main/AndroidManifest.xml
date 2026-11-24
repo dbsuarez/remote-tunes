@@ -20,6 +20,10 @@
         android:maxSdkVersion="32" />
 
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Group play, Auto-align: listens to both phones for a few seconds to
+         measure the delay between them. Nothing is saved or sent. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application

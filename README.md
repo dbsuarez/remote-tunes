@@ -117,7 +117,9 @@ The Controller (phone and web) has an **Online** tab that searches [Jamendo](htt
 
 - Same Wi-Fi or hotspot only (the internet is too uneven). The web Controller cannot do it.
 - Library songs only; an internet track (Jamendo, a link) plays on the Player alone.
-- Keep the Controller app open on screen while it plays along.
+- The phone that plays along keeps its screen on (and both phones keep a fast Wi-Fi) while it runs. Keep the Controller app open.
+- **Auto-align:** if the two phones sound a few milliseconds apart (speakers differ), tap **Auto-align (uses the microphone)** with the phones side by side. The Player plays clicks first alone, then this phone alone; the microphone measures the exact difference and sets the fine-tune. Run it again to check. It needs the microphone permission, listens for about 15 seconds, and saves and sends nothing.
+- Bluetooth output breaks sync (large, changing delay): the card warns. The fine-tune is remembered separately for speaker, wired and Bluetooth.
 - Two phones for now. See [docs/16](docs/16_GROUP_MODE.md) for how it works and what is left.
 
 ## Automated checks

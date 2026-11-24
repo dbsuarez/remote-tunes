@@ -106,6 +106,8 @@ Added while building Phase 1. All are optional fields or values that older peers
 - `group_sync` payload: `songId` (library id, omitted when nothing followable plays), `positionMs`, `atMs` (the Player's clock when the position was read), `playing`, `speed`, `durationMs`, `nextSongId` (optional).
 - `GET /group/audio/<songId>` on the Player's HTTP port, headers `x-rt-session` and `x-rt-token`. Only while that session has joined; library songs only; answers 403 / 404 otherwise. The reply carries `x-rt-sha256` and `x-rt-ext`.
 
+- Auto-align (group play): command `groupCalibrate {step}`, `step` one of `start`, `mutePlayer`, `unmutePlayer`, `end`. Needs a joined session. `start` plays the click track (library id -1, "Sync test (Auto-align)") as the next queue entry; `mutePlayer` sets the Player's volume to 0 (its previous volume is remembered); `end` restores the volume, removes the click track, goes back to the song and position that was playing, and its play state. The same restore happens by itself if the Controller leaves group play, disconnects, or after 40 s. `GET /group/audio/-1` serves the click track WAV only while a test runs.
+
 ## Phase 7 implementation notes (additive)
 - **`setSleepTimer` command:** `{"action":"setSleepTimer","minutes":30}`; `0` cancels; allowed 0 to 720, otherwise `INVALID_ACTION`. The Player pauses when the time is up.
 - **`state.payload.sleepTimerSeconds`:** time left, sent only while a timer runs.
