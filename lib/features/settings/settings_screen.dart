@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../update/update_widgets.dart';
+import 'album_art_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -185,6 +186,7 @@ class SettingsScreen extends ConsumerWidget {
                 value: s.lyricsEnabled,
                 onChanged: repo.setLyricsEnabled,
               ),
+              const AlbumArtTile(),
               const SizedBox(height: 16),
               const _SectionHeader('App updates'),
               UpdateSettingsTiles(settings: s),
