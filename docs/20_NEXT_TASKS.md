@@ -62,6 +62,12 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [ ] Megalobiz fallback (scraping a site that asks for attribution; skipped unless LRCLIB misses a lot).
 - [ ] A note in the privacy documents that lyrics, album-art and update checks contact LRCLIB / lyrics.ovh, MusicBrainz / Cover Art Archive and GitHub (the Settings text already says what is sent).
 
+### Direction: a music player first, the Controller as a mode (all three steps wanted, planned for later)
+The app should look like a normal music player; the Controller is reached by a button or tab and its extra settings live behind it. For the owner the Controller is the main use, so the app should be able to open straight into it. The Library, Queue, Now Playing and Search screens already work on either source (`MusicSource`), so this is mostly a new shell.
+- [ ] **Step 1 (quick):** an "Open in" setting that skips Home and goes straight to Player or Controller, auto-reconnecting to the last Player.
+- [ ] **Step 2 (medium):** the bottom-bar shell (Library, Now Playing, Search, Queue) with a mini player on every screen, playing this phone's own music. Looks like a plain music player by default.
+- [ ] **Step 3 (larger):** merge the Controller into that shell as a source switch ("This phone" / a Player) behind a Remote button; pairing, QR, online room and group play behind it and in Settings; retire the Home and role screens. A switch "Allow other phones to control this one" replaces "Player mode is open" (battery cost; on for the owner). Default source on a fresh install: this phone; the owner's setting can default to the last Player.
+
 ### Verification and housekeeping (owner)
 - [ ] Try everything on the phones with `docs/19_PHONE_TEST_CHECKLIST.md`: gapless, lyrics, edge swipes, Now Playing v2, library list, search, album-art finder, lock screen, updates, and group play / Auto-align (never verified).
 - [ ] Free space on the C: drive (it was nearly full).
