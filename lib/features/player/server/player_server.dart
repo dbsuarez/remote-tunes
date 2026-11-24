@@ -1669,10 +1669,14 @@ class PlayerServer {
             album: text('album'),
             view: text('view'),
             playlistId: p['playlistId'] is num ? (p['playlistId'] as num).toInt() : null,
+            folderId: p['folderId'] is num ? (p['folderId'] as num).toInt() : null,
             offset: offset,
             limit: limit,
           );
           body = _pageJson(page, (RemoteSong e) => e.toJson());
+        case LibraryScope.folders:
+          final page = await lib.folders(query: query, offset: offset, limit: limit);
+          body = _pageJson(page, (RemoteFolder e) => e.toJson());
         case LibraryScope.playlists:
           final page = await lib.playlists(query: query, offset: offset, limit: limit);
           body = _pageJson(page, (RemotePlaylist e) => e.toJson());
@@ -1699,7 +1703,7 @@ class PlayerServer {
             conn,
             RemoteMessage.error(
               ErrorCodes.invalidAction,
-              'Library scope must be songs, artists, albums, playlists or onlineHistory.',
+              'Library scope must be songs, artists, albums, folders, playlists or onlineHistory.',
               requestId: msg.requestId,
               sessionId: s.sessionId,
             ),

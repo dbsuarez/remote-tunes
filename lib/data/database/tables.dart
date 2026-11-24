@@ -28,6 +28,9 @@ class Songs extends Table {
   /// When the song last started playing; null if never (schema v3).
   DateTimeColumn get lastPlayedAt => dateTime().nullable()();
 
+  /// How many times the song started playing (schema v5; feeds "Top").
+  IntColumn get playCount => integer().withDefault(const Constant(0))();
+
   /// A song has file_path or url, never both and never neither.
   @override
   List<String> get customConstraints => [

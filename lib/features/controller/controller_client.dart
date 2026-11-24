@@ -774,6 +774,7 @@ class ControllerClient {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
     int offset = 0,
     int limit = 50,
   }) async {
@@ -784,6 +785,7 @@ class ControllerClient {
       if (album != null) 'album': album,
       if (view != null) 'view': view,
       if (playlistId != null) 'playlistId': playlistId,
+      if (folderId != null) 'folderId': folderId,
       'offset': offset,
       'limit': limit,
     });
@@ -813,6 +815,7 @@ class ControllerClient {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
     int offset = 0,
     int limit = 50,
   }) async =>
@@ -823,6 +826,7 @@ class ControllerClient {
             album: album,
             view: view,
             playlistId: playlistId,
+            folderId: folderId,
             offset: offset,
             limit: limit),
         RemoteSong.fromJson,
@@ -902,6 +906,17 @@ class ControllerClient {
 
   Future<void> setFavorite(int songId, bool favorite) => sendCommand(
       RemoteActions.setFavorite, {'songId': songId, 'favorite': favorite});
+
+  Future<LibraryPage<RemoteFolder>> folders({
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async =>
+      _page(
+        await _library(LibraryScope.folders,
+            query: query, offset: offset, limit: limit),
+        RemoteFolder.fromJson,
+      );
 
   Future<LibraryPage<RemoteArtist>> artists({
     String query = '',

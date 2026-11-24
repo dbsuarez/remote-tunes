@@ -170,6 +170,18 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _playCountMeta = const VerificationMeta(
+    'playCount',
+  );
+  @override
+  late final GeneratedColumn<int> playCount = GeneratedColumn<int>(
+    'play_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -187,6 +199,7 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     addedAt,
     favorite,
     lastPlayedAt,
+    playCount,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -306,6 +319,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         ),
       );
     }
+    if (data.containsKey('play_count')) {
+      context.handle(
+        _playCountMeta,
+        playCount.isAcceptableOrUnknown(data['play_count']!, _playCountMeta),
+      );
+    }
     return context;
   }
 
@@ -375,6 +394,10 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_played_at'],
       ),
+      playCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}play_count'],
+      )!,
     );
   }
 
@@ -406,6 +429,9 @@ class Song extends DataClass implements Insertable<Song> {
 
   /// When the song last started playing; null if never (schema v3).
   final DateTime? lastPlayedAt;
+
+  /// How many times the song started playing (schema v5; feeds "Top").
+  final int playCount;
   const Song({
     required this.id,
     required this.title,
@@ -422,6 +448,7 @@ class Song extends DataClass implements Insertable<Song> {
     required this.addedAt,
     required this.favorite,
     this.lastPlayedAt,
+    required this.playCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -461,6 +488,7 @@ class Song extends DataClass implements Insertable<Song> {
     if (!nullToAbsent || lastPlayedAt != null) {
       map['last_played_at'] = Variable<DateTime>(lastPlayedAt);
     }
+    map['play_count'] = Variable<int>(playCount);
     return map;
   }
 
@@ -499,6 +527,7 @@ class Song extends DataClass implements Insertable<Song> {
       lastPlayedAt: lastPlayedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPlayedAt),
+      playCount: Value(playCount),
     );
   }
 
@@ -523,6 +552,7 @@ class Song extends DataClass implements Insertable<Song> {
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       favorite: serializer.fromJson<bool>(json['favorite']),
       lastPlayedAt: serializer.fromJson<DateTime?>(json['lastPlayedAt']),
+      playCount: serializer.fromJson<int>(json['playCount']),
     );
   }
   @override
@@ -544,6 +574,7 @@ class Song extends DataClass implements Insertable<Song> {
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'favorite': serializer.toJson<bool>(favorite),
       'lastPlayedAt': serializer.toJson<DateTime?>(lastPlayedAt),
+      'playCount': serializer.toJson<int>(playCount),
     };
   }
 
@@ -563,6 +594,7 @@ class Song extends DataClass implements Insertable<Song> {
     DateTime? addedAt,
     bool? favorite,
     Value<DateTime?> lastPlayedAt = const Value.absent(),
+    int? playCount,
   }) => Song(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -583,6 +615,7 @@ class Song extends DataClass implements Insertable<Song> {
     addedAt: addedAt ?? this.addedAt,
     favorite: favorite ?? this.favorite,
     lastPlayedAt: lastPlayedAt.present ? lastPlayedAt.value : this.lastPlayedAt,
+    playCount: playCount ?? this.playCount,
   );
   Song copyWithCompanion(SongsCompanion data) {
     return Song(
@@ -611,6 +644,7 @@ class Song extends DataClass implements Insertable<Song> {
       lastPlayedAt: data.lastPlayedAt.present
           ? data.lastPlayedAt.value
           : this.lastPlayedAt,
+      playCount: data.playCount.present ? data.playCount.value : this.playCount,
     );
   }
 
@@ -631,7 +665,8 @@ class Song extends DataClass implements Insertable<Song> {
           ..write('source: $source, ')
           ..write('addedAt: $addedAt, ')
           ..write('favorite: $favorite, ')
-          ..write('lastPlayedAt: $lastPlayedAt')
+          ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('playCount: $playCount')
           ..write(')'))
         .toString();
   }
@@ -653,6 +688,7 @@ class Song extends DataClass implements Insertable<Song> {
     addedAt,
     favorite,
     lastPlayedAt,
+    playCount,
   );
   @override
   bool operator ==(Object other) =>
@@ -672,7 +708,8 @@ class Song extends DataClass implements Insertable<Song> {
           other.source == this.source &&
           other.addedAt == this.addedAt &&
           other.favorite == this.favorite &&
-          other.lastPlayedAt == this.lastPlayedAt);
+          other.lastPlayedAt == this.lastPlayedAt &&
+          other.playCount == this.playCount);
 }
 
 class SongsCompanion extends UpdateCompanion<Song> {
@@ -691,6 +728,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
   final Value<DateTime> addedAt;
   final Value<bool> favorite;
   final Value<DateTime?> lastPlayedAt;
+  final Value<int> playCount;
   const SongsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -707,6 +745,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.addedAt = const Value.absent(),
     this.favorite = const Value.absent(),
     this.lastPlayedAt = const Value.absent(),
+    this.playCount = const Value.absent(),
   });
   SongsCompanion.insert({
     this.id = const Value.absent(),
@@ -724,6 +763,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.addedAt = const Value.absent(),
     this.favorite = const Value.absent(),
     this.lastPlayedAt = const Value.absent(),
+    this.playCount = const Value.absent(),
   }) : title = Value(title),
        source = Value(source);
   static Insertable<Song> custom({
@@ -742,6 +782,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Expression<DateTime>? addedAt,
     Expression<bool>? favorite,
     Expression<DateTime>? lastPlayedAt,
+    Expression<int>? playCount,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -759,6 +800,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       if (addedAt != null) 'added_at': addedAt,
       if (favorite != null) 'favorite': favorite,
       if (lastPlayedAt != null) 'last_played_at': lastPlayedAt,
+      if (playCount != null) 'play_count': playCount,
     });
   }
 
@@ -778,6 +820,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Value<DateTime>? addedAt,
     Value<bool>? favorite,
     Value<DateTime?>? lastPlayedAt,
+    Value<int>? playCount,
   }) {
     return SongsCompanion(
       id: id ?? this.id,
@@ -795,6 +838,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       addedAt: addedAt ?? this.addedAt,
       favorite: favorite ?? this.favorite,
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      playCount: playCount ?? this.playCount,
     );
   }
 
@@ -846,6 +890,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     if (lastPlayedAt.present) {
       map['last_played_at'] = Variable<DateTime>(lastPlayedAt.value);
     }
+    if (playCount.present) {
+      map['play_count'] = Variable<int>(playCount.value);
+    }
     return map;
   }
 
@@ -866,7 +913,8 @@ class SongsCompanion extends UpdateCompanion<Song> {
           ..write('source: $source, ')
           ..write('addedAt: $addedAt, ')
           ..write('favorite: $favorite, ')
-          ..write('lastPlayedAt: $lastPlayedAt')
+          ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('playCount: $playCount')
           ..write(')'))
         .toString();
   }
@@ -4045,6 +4093,7 @@ typedef $$SongsTableCreateCompanionBuilder =
       Value<DateTime> addedAt,
       Value<bool> favorite,
       Value<DateTime?> lastPlayedAt,
+      Value<int> playCount,
     });
 typedef $$SongsTableUpdateCompanionBuilder =
     SongsCompanion Function({
@@ -4063,6 +4112,7 @@ typedef $$SongsTableUpdateCompanionBuilder =
       Value<DateTime> addedAt,
       Value<bool> favorite,
       Value<DateTime?> lastPlayedAt,
+      Value<int> playCount,
     });
 
 final class $$SongsTableReferences
@@ -4186,6 +4236,11 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<DateTime> get lastPlayedAt => $composableBuilder(
     column: $table.lastPlayedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get playCount => $composableBuilder(
+    column: $table.playCount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4323,6 +4378,11 @@ class $$SongsTableOrderingComposer
     column: $table.lastPlayedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongsTableAnnotationComposer
@@ -4388,6 +4448,9 @@ class $$SongsTableAnnotationComposer
     column: $table.lastPlayedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get playCount =>
+      $composableBuilder(column: $table.playCount, builder: (column) => column);
 
   Expression<T> queueItemsRefs<T extends Object>(
     Expression<T> Function($$QueueItemsTableAnnotationComposer a) f,
@@ -4483,6 +4546,7 @@ class $$SongsTableTableManager
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<bool> favorite = const Value.absent(),
                 Value<DateTime?> lastPlayedAt = const Value.absent(),
+                Value<int> playCount = const Value.absent(),
               }) => SongsCompanion(
                 id: id,
                 title: title,
@@ -4499,6 +4563,7 @@ class $$SongsTableTableManager
                 addedAt: addedAt,
                 favorite: favorite,
                 lastPlayedAt: lastPlayedAt,
+                playCount: playCount,
               ),
           createCompanionCallback:
               ({
@@ -4517,6 +4582,7 @@ class $$SongsTableTableManager
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<bool> favorite = const Value.absent(),
                 Value<DateTime?> lastPlayedAt = const Value.absent(),
+                Value<int> playCount = const Value.absent(),
               }) => SongsCompanion.insert(
                 id: id,
                 title: title,
@@ -4533,6 +4599,7 @@ class $$SongsTableTableManager
                 addedAt: addedAt,
                 favorite: favorite,
                 lastPlayedAt: lastPlayedAt,
+                playCount: playCount,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -65,12 +65,18 @@ class FakeMusicSource implements MusicSource {
       String? album,
       String? view,
       int? playlistId,
+      int? folderId,
       int offset = 0,
       int limit = 50}) async {
     if (failWith != null) throw failWith!;
     return _page(_filter(query, artist, album, view: view, playlistId: playlistId),
         offset, limit);
   }
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folders(
+          {String query = '', int offset = 0, int limit = 50}) async =>
+      _page(const <RemoteFolder>[], offset, limit);
 
   @override
   Future<LibraryPage<RemotePlaylist>> playlists(

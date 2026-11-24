@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -53,6 +53,10 @@ class AppDatabase extends _$AppDatabase {
             // Internet tracks in the saved queue, and the Online Library history.
             await m.createTable(queueStreams);
             await m.createTable(onlineHistory);
+          }
+          if (from < 5) {
+            // Play counts, for the "Top" list. Existing songs start at 0.
+            await m.addColumn(songs, songs.playCount);
           }
         },
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).

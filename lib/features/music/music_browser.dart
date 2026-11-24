@@ -9,15 +9,17 @@ import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
 import 'song_art.dart';
 
-enum _Scope { songs, artists, albums, favorites, recent, playlists }
+enum _Scope { songs, artists, albums, favorites, recent, playlists, top, newest, folders }
 
 class _Drill {
-  const _Drill({required this.title, this.artist, this.album, this.playlistId});
+  const _Drill(
+      {required this.title, this.artist, this.album, this.playlistId, this.folderId});
 
   final String title;
   final String? artist;
   final String? album;
   final int? playlistId;
+  final int? folderId;
 }
 
 /// Library browser used on both phones: search, filter chips (Songs, Artists,
@@ -106,6 +108,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
           artist: d.artist,
           album: d.album,
           playlistId: d.playlistId,
+          folderId: d.folderId,
           offset: offset,
           limit: 100);
       ids.addAll([for (final s in page.items) s.id]);
@@ -140,6 +143,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
           album: drill?.album,
           view: view,
           playlistId: drill?.playlistId,
+          folderId: drill?.folderId,
           offset: offset,
           limit: 100);
       ids.addAll([for (final s in page.items) s.id]);
@@ -337,7 +341,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
 
   Widget _songList(_Drill? drill, {String? view}) {
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
-        '${drill?.playlistId}|${widget.refreshToken}|$_generation');
+        '${drill?.playlistId}|${drill?.folderId}|${widget.refreshToken}|$_generation');
     return _PagedList<RemoteSong>(
       key: key,
       emptyMessage: _query.isNotEmpty
@@ -345,6 +349,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
           : switch (view) {
               LibraryView.favorites => 'No favorites yet. Tap the heart on a song.',
               LibraryView.recent => 'Nothing played yet.',
+              LibraryView.top => 'Nothing played yet. Your most played songs show up here.',
+              LibraryView.newest => 'No songs yet.',
               _ => drill?.playlistId != null
                   ? 'This playlist is empty. Use a song\'s menu to add songs.'
                   : widget.emptyMessage,
@@ -355,6 +361,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
         album: drill?.album,
         view: view,
         playlistId: drill?.playlistId,
+        folderId: drill?.folderId,
         offset: offset,
         limit: limit,
       ),
@@ -416,7 +423,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
         '${drill?.playlistId}|${widget.refreshToken}|$_generation');
     // Moving to another list drops the selection.
-    final ctx = '$_scope|${drill?.artist}|${drill?.album}|${drill?.playlistId}';
+    final ctx = '$_scope|${drill?.artist}|${drill?.album}|${drill?.playlistId}|${drill?.folderId}';
     if (ctx != _selectionContext) {
       _selectionContext = ctx;
       _selected.clear();
@@ -426,12 +433,16 @@ class _MusicBrowserState extends State<MusicBrowser> {
         : switch (_scope) {
             _Scope.favorites => LibraryView.favorites,
             _Scope.recent => LibraryView.recent,
+            _Scope.top => LibraryView.top,
+            _Scope.newest => LibraryView.newest,
             _ => null,
           };
     final songsShown = drill != null ||
         _scope == _Scope.songs ||
         _scope == _Scope.favorites ||
-        _scope == _Scope.recent;
+        _scope == _Scope.recent ||
+        _scope == _Scope.top ||
+        _scope == _Scope.newest;
 
     return IgnorePointer(
       ignoring: !widget.enabled,
@@ -477,6 +488,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.albums => 'Albums',
                           _Scope.favorites => 'Favorites',
                           _Scope.recent => 'Recent',
+                          _Scope.top => 'Top',
+                          _Scope.newest => 'New',
+                          _Scope.folders => 'Folders',
                           _Scope.playlists => 'Playlists',
                         }),
                         selected: _scope == s,
@@ -512,6 +526,30 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 _Scope.songs => _songList(drill),
                 _Scope.favorites => _songList(null, view: LibraryView.favorites),
                 _Scope.recent => _songList(null, view: LibraryView.recent),
+                _Scope.top => _songList(null, view: LibraryView.top),
+                _Scope.newest => _songList(null, view: LibraryView.newest),
+                _Scope.folders => _PagedList<RemoteFolder>(
+                    key: key,
+                    emptyMessage: _query.isEmpty ? widget.emptyMessage : 'No matches.',
+                    load: (offset, limit) => widget.source
+                        .folders(query: _query, offset: offset, limit: limit),
+                    itemBuilder: (context, f) => ListTile(
+                      minTileHeight: 64,
+                      leading: const CircleAvatar(child: Icon(Icons.folder_rounded)),
+                      title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                          '${f.parent.isEmpty ? '' : '${f.parent} · '}'
+                          '${f.songCount} song${f.songCount == 1 ? '' : 's'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => setState(() {
+                        _search.clear();
+                        _query = '';
+                        _drill = _Drill(title: f.name, folderId: f.id);
+                      }),
+                    ),
+                  ),
                 _Scope.playlists => Column(
                     children: [
                       Padding(

@@ -17,6 +17,14 @@ abstract class MusicSource {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
+    int offset,
+    int limit,
+  });
+
+  /// The folders the Player's music is in.
+  Future<LibraryPage<RemoteFolder>> folders({
+    String query,
     int offset,
     int limit,
   });
@@ -88,6 +96,7 @@ class RemoteMusicSource implements MusicSource {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
     int offset = 0,
     int limit = 50,
   }) =>
@@ -97,8 +106,14 @@ class RemoteMusicSource implements MusicSource {
           album: album,
           view: view,
           playlistId: playlistId,
+          folderId: folderId,
           offset: offset,
           limit: limit);
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folders(
+          {String query = '', int offset = 0, int limit = 50}) =>
+      _client.folders(query: query, offset: offset, limit: limit);
 
   @override
   Future<LibraryPage<RemotePlaylist>> playlists(

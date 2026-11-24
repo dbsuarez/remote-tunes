@@ -17,6 +17,13 @@ abstract class PlayerLibrary {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
+    int offset,
+    int limit,
+  });
+
+  Future<LibraryPage<RemoteFolder>> folders({
+    String query,
     int offset,
     int limit,
   });
@@ -212,6 +219,7 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
     int offset = 0,
     int limit = 50,
   }) async {
@@ -222,6 +230,7 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       album: album,
       view: view,
       playlistId: playlistId,
+      folderId: folderId,
       offset: offset,
       limit: limit,
     );
@@ -236,6 +245,14 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       offset: page.offset,
     );
   }
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folders({
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _repo.folders(query: query, offset: offset, limit: limit);
 
   @override
   Future<LibraryPage<RemoteArtist>> artists({

@@ -25,6 +25,7 @@ id, url, title, last_used_at.
 ## Schema changes after v1 (current version: 4)
 - **v2:** `paired_controllers.token_hash` (SHA-256 of the session token) and `trusted`, for trusted devices.
 - **v3:** `songs.favorite`, `songs.last_played_at`; tables `playlists(id, name, created_at)` and `playlist_songs(id, playlist_id, song_id, position)` (both cascade on delete).
+- **v5:** `songs.play_count` (default 0; +1 each time a song starts; feeds the Top list). Existing songs keep their data and start at 0.
 - **v4:** `queue_streams(id, position, url, title, artist, album, license_url, image_url)` holds internet tracks in the saved queue; its `position` shares one numbering with `queue_items.position`. `online_history(id, url UNIQUE, title, artist, album, license_url, image_url, played_at)` is the Online Library history (max 200 rows, text and links only). Settings keys added: `queue_current_index`, `queue_position_seconds` (the spot in the current song), `online_history_enabled`, `player_room_code`, `song_list_size`.
 - Upgrades add columns and tables and keep the library (tested for v2 to v3 and v3 to v4).
 

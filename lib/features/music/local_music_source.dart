@@ -24,6 +24,7 @@ class LocalMusicSource implements MusicSource {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
     int offset = 0,
     int limit = 50,
   }) =>
@@ -33,6 +34,7 @@ class LocalMusicSource implements MusicSource {
           album: album,
           view: view,
           playlistId: playlistId,
+          folderId: folderId,
           offset: offset,
           limit: limit);
 
@@ -75,6 +77,14 @@ class LocalMusicSource implements MusicSource {
 
   PlaybackException _gone() =>
       PlaybackException(ErrorCodes.invalidAction, 'That playlist no longer exists.');
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folders({
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _library.folders(query: query, offset: offset, limit: limit);
 
   @override
   Future<LibraryPage<RemoteArtist>> artists({

@@ -15,6 +15,7 @@ class LibraryScope {
   static const songs = 'songs';
   static const artists = 'artists';
   static const albums = 'albums';
+  static const folders = 'folders';
   static const playlists = 'playlists';
 
   /// What was played from the Online Library (kept on the Player).
@@ -27,6 +28,12 @@ class LibraryView {
 
   static const favorites = 'favorites';
   static const recent = 'recent';
+
+  /// Most played first (only songs played at least once).
+  static const top = 'top';
+
+  /// The songs added most recently.
+  static const newest = 'newest';
 }
 
 class RemoteSong {
@@ -95,6 +102,36 @@ class RemoteArtist {
         name: _str(j['name']),
         songCount: _int(j['songCount']),
         albumCount: _int(j['albumCount']),
+      );
+}
+
+/// A folder of the Player's music. The Controller only gets an id and names,
+/// never the path.
+class RemoteFolder {
+  const RemoteFolder({
+    required this.id,
+    required this.name,
+    this.parent = '',
+    required this.songCount,
+  });
+
+  final int id;
+
+  /// The folder's own name (last part of its path).
+  final String name;
+
+  /// The name of the folder it is in, to tell apart folders with the same name.
+  final String parent;
+  final int songCount;
+
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'name': name, 'parent': parent, 'songCount': songCount};
+
+  factory RemoteFolder.fromJson(Map<String, dynamic> j) => RemoteFolder(
+        id: _int(j['id']),
+        name: _str(j['name']),
+        parent: _str(j['parent']),
+        songCount: _int(j['songCount']),
       );
 }
 

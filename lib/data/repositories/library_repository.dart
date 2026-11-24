@@ -69,9 +69,11 @@ class LibraryRepository {
   }
 
   /// Remembers that [songId] just started playing.
-  Future<void> markPlayed(int songId) =>
-      (_db.update(_db.songs)..where((t) => t.id.equals(songId)))
-          .write(SongsCompanion(lastPlayedAt: Value(DateTime.now())));
+  Future<void> markPlayed(int songId) => _db.customUpdate(
+        'UPDATE songs SET last_played_at = ?, play_count = play_count + 1 WHERE id = ?',
+        variables: [Variable<DateTime>(DateTime.now()), Variable<int>(songId)],
+        updates: {_db.songs},
+      );
 
   // ---------------------------------------------------------------- playlists
 
@@ -254,11 +256,24 @@ class LibraryRepository {
     String? album,
     String? view,
     int? playlistId,
+    List<int>? onlyIds,
   }) {
     final clauses = <String>[];
     final vars = <Variable<Object>>[];
     if (view == LibraryView.favorites) clauses.add('favorite = 1');
     if (view == LibraryView.recent) clauses.add('last_played_at IS NOT NULL');
+    if (view == LibraryView.top) {
+      clauses.add('id IN (SELECT id FROM songs WHERE play_count > 0 '
+          'ORDER BY play_count DESC, last_played_at DESC, id LIMIT $autoListSize)');
+    }
+    if (view == LibraryView.newest) {
+      clauses.add('id IN (SELECT id FROM songs ORDER BY added_at DESC, id DESC '
+          'LIMIT $autoListSize)');
+    }
+    if (onlyIds != null) {
+      // Ids are integers we made ourselves, so they are safe to write in.
+      clauses.add('id IN (${onlyIds.isEmpty ? '0' : onlyIds.join(',')})');
+    }
     if (playlistId != null) {
       clauses.add('id IN (SELECT song_id FROM playlist_songs WHERE playlist_id = ?)');
       vars.add(Variable<int>(playlistId));
@@ -285,6 +300,8 @@ class LibraryRepository {
 
   String _songOrder({String? artist, String? album, String? view, int? playlistId}) {
     if (view == LibraryView.recent) return 'ORDER BY last_played_at DESC, id';
+    if (view == LibraryView.top) return 'ORDER BY play_count DESC, last_played_at DESC, id';
+    if (view == LibraryView.newest) return 'ORDER BY added_at DESC, id DESC';
     if (playlistId != null) {
       return 'ORDER BY (SELECT position FROM playlist_songs ps '
           'WHERE ps.playlist_id = $playlistId AND ps.song_id = songs.id), id';
@@ -317,11 +334,17 @@ class LibraryRepository {
     String? album,
     String? view,
     int? playlistId,
+    int? folderId,
     int offset = 0,
     int limit = 50,
   }) async {
     final f = _songFilter(
-        query: query, artist: artist, album: album, view: view, playlistId: playlistId);
+        query: query,
+        artist: artist,
+        album: album,
+        view: view,
+        playlistId: playlistId,
+        onlyIds: folderId == null ? null : (await _folderSongIds())[folderId] ?? const []);
     final total = (await _db
             .customSelect('SELECT COUNT(*) AS c FROM songs ${f.where}',
                 variables: f.vars)
@@ -335,6 +358,76 @@ class LibraryRepository {
     return LibraryPage(
       items: [for (final r in rows) _db.songs.map(r.data)],
       total: total,
+      offset: offset,
+    );
+  }
+
+  /// How many songs the "Top" and "New" lists hold at most.
+  static const autoListSize = 100;
+
+  /// A number for a folder, the same every time for the same path.
+  static int folderIdOf(String dir) {
+    var h = 0x811c9dc5;
+    for (final u in dir.codeUnits) {
+      h = ((h ^ u) * 0x01000193) & 0x7fffffff;
+    }
+    return h;
+  }
+
+  static String _dirOf(String path) {
+    final i = path.replaceAll(r'\', '/').lastIndexOf('/');
+    return i <= 0 ? '/' : path.replaceAll(r'\', '/').substring(0, i);
+  }
+
+  static String _lastPart(String dir) {
+    final parts = dir.split('/').where((p) => p.isNotEmpty).toList();
+    return parts.isEmpty ? '/' : parts.last;
+  }
+
+  /// Song ids per folder id (library songs with a file only).
+  Future<Map<int, List<int>>> _folderSongIds() async {
+    final rows = await _db
+        .customSelect('SELECT id, file_path FROM songs WHERE file_path IS NOT NULL')
+        .get();
+    final byDir = <String, List<int>>{};
+    for (final r in rows) {
+      byDir.putIfAbsent(_dirOf(r.read<String>('file_path')), () => []).add(r.read<int>('id'));
+    }
+    return {for (final e in byDir.entries) folderIdOf(e.key): e.value};
+  }
+
+  /// The folders the music is in, with how many songs each holds.
+  Future<LibraryPage<RemoteFolder>> folders({
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    final rows = await _db
+        .customSelect('SELECT file_path FROM songs WHERE file_path IS NOT NULL')
+        .get();
+    final counts = <String, int>{};
+    for (final r in rows) {
+      final d = _dirOf(r.read<String>('file_path'));
+      counts[d] = (counts[d] ?? 0) + 1;
+    }
+    final q = query.trim().toLowerCase();
+    final all = [
+      for (final e in counts.entries)
+        if (q.isEmpty || _lastPart(e.key).toLowerCase().contains(q))
+          RemoteFolder(
+            id: folderIdOf(e.key),
+            name: _lastPart(e.key),
+            parent: e.key == '/' ? '' : _lastPart(_dirOf(e.key)),
+            songCount: e.value,
+          ),
+    ]..sort((a, b) {
+        final c = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        return c != 0 ? c : a.parent.toLowerCase().compareTo(b.parent.toLowerCase());
+      });
+    final end = (offset + limit) > all.length ? all.length : offset + limit;
+    return LibraryPage(
+      items: offset >= all.length ? const [] : all.sublist(offset, end),
+      total: all.length,
       offset: offset,
     );
   }
