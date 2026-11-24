@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../../core/protocol/library_models.dart';
 import '../../../data/repositories/library_repository.dart';
+import '../../../data/repositories/online_history_repository.dart';
 import '../queue/playable_song.dart';
 import 'art_thumbnail.dart';
 
@@ -44,6 +45,20 @@ abstract class PlayerLibrary {
   /// A small JPEG of the song's album art, or null if it has none.
   Future<Uint8List?> artThumbnail(int songId, {int size});
 
+  // Online Library history (text and links only, on this phone).
+  Future<LibraryPage<RemoteHistoryItem>> onlineHistory({int offset, int limit});
+  Future<bool> historyEnabled();
+  Future<void> setHistoryEnabled(bool enabled);
+
+  /// Remembers an internet track that started playing (only Online Library
+  /// tracks are kept, and only while history is on).
+  Future<void> recordStream(PlayableSong song);
+
+  /// The track behind a history entry, or null if it was removed.
+  Future<PlayableSong?> historySong(int id);
+  Future<void> removeHistory(int id);
+  Future<void> clearHistory();
+
   Future<LibraryPage<RemoteArtist>> artists({
     String query,
     int offset,
@@ -62,8 +77,12 @@ abstract class PlayerLibrary {
 }
 
 class RepositoryPlayerLibrary implements PlayerLibrary {
-  RepositoryPlayerLibrary(this._repo, {bool Function(String path)? fileExists})
-      : _fileExists = fileExists ?? ((p) => File(p).existsSync());
+  RepositoryPlayerLibrary(this._repo,
+      {bool Function(String path)? fileExists, OnlineHistoryRepository? history})
+      : _fileExists = fileExists ?? ((p) => File(p).existsSync()),
+        _history = history;
+
+  final OnlineHistoryRepository? _history;
 
   final LibraryRepository _repo;
   final bool Function(String path) _fileExists;
@@ -76,6 +95,30 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
     _favorites = await _repo.favoriteIds();
     _favoritesLoaded = true;
   }
+
+  @override
+  Future<LibraryPage<RemoteHistoryItem>> onlineHistory({int offset = 0, int limit = 50}) async =>
+      _history?.list(offset: offset, limit: limit) ??
+      const LibraryPage(items: [], total: 0, offset: 0);
+
+  @override
+  Future<bool> historyEnabled() async => await _history?.isEnabled() ?? false;
+
+  @override
+  Future<void> setHistoryEnabled(bool enabled) async =>
+      _history?.setEnabled(enabled);
+
+  @override
+  Future<void> recordStream(PlayableSong song) async => _history?.record(song);
+
+  @override
+  Future<PlayableSong?> historySong(int id) async => _history?.song(id);
+
+  @override
+  Future<void> removeHistory(int id) async => _history?.remove(id);
+
+  @override
+  Future<void> clearHistory() async => _history?.clear();
 
   @override
   bool isFavorite(int songId) => _favorites.contains(songId);

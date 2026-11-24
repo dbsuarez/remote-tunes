@@ -25,6 +25,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
     bool Function(String path)? fileExists,
     UrlChecker? urlChecker,
     this.onSongStarted,
+    this.onStreamStarted,
     this.queueStore,
   })  : _backend = backend,
         _queue = queue ?? QueueController(),
@@ -52,6 +53,10 @@ class QueuePlaybackEngine implements QueueAwareEngine {
   /// Called with the library id when a library song starts playing (used for
   /// "recently played").
   final void Function(int songId)? onSongStarted;
+
+  /// Called when an internet track (Online Library) starts playing (used for
+  /// the Online Library history).
+  final void Function(PlayableSong song)? onStreamStarted;
   final QueueController _queue;
   final bool Function(String path) _fileExists;
   final UrlChecker _urlChecker;
@@ -143,19 +148,10 @@ class QueuePlaybackEngine implements QueueAwareEngine {
     _saveTimer?.cancel();
     _saveTimer = null;
     final revision = _queue.revision;
-    final entries = _queue.entries;
-    final current = _queue.current;
-    final songs = <PlayableSong>[];
-    var index = 0;
-    for (final e in entries) {
-      if (e.song.isUrl) continue;
-      if (current != null && e.id == current.id) index = songs.length;
-      songs.add(e.song);
-    }
-    // A current internet stream is not saved: resume at the next saved song.
+    final songs = [for (final e in _queue.entries) e.song];
     final currentIndex = _queue.currentIndex;
     try {
-      await store.save(songs, index);
+      await store.save(songs, currentIndex < 0 ? 0 : currentIndex);
       _savedRevision = revision;
       _savedIndex = currentIndex;
     } catch (_) {
@@ -250,6 +246,7 @@ class QueuePlaybackEngine implements QueueAwareEngine {
             _playing = true;
             final id = song.libraryId;
             if (id != null) onSongStarted?.call(id);
+            if (song.isUrl) onStreamStarted?.call(song);
           }
           _emit();
           return;
@@ -452,8 +449,8 @@ class QueuePlaybackEngine implements QueueAwareEngine {
   /// Checks the link and builds the queue entry. The network check can take
   /// seconds, so it runs outside the command queue: other commands (pause,
   /// volume) stay responsive meanwhile.
-  Future<PlayableSong> _prepareStream(
-      String url, String? title, String? artist, String? album) async {
+  Future<PlayableSong> _prepareStream(String url, String? title, String? artist,
+      String? album, String? licenseUrl, String? imageUrl) async {
     final check = validateAudioUrl(url);
     if (!check.isValid) {
       throw PlaybackException(ErrorCodes.invalidUrl, check.error!);
@@ -468,12 +465,19 @@ class QueuePlaybackEngine implements QueueAwareEngine {
       title: clean(title, titleFromUrl(uri)),
       artist: clean(artist, 'Internet'),
       album: clean(album, 'Web audio'),
+      licenseUrl: licenseUrl,
+      imageUrl: imageUrl,
     );
   }
 
   @override
-  Future<void> playUrl(String url, {String? title, String? artist, String? album}) async {
-    final song = await _prepareStream(url, title, artist, album);
+  Future<void> playUrl(String url,
+      {String? title,
+      String? artist,
+      String? album,
+      String? licenseUrl,
+      String? imageUrl}) async {
+    final song = await _prepareStream(url, title, artist, album, licenseUrl, imageUrl);
     return _serial(() async {
       _queue.replace([song]);
       await _startEntry(_queue.current!, autoplay: true);
@@ -481,8 +485,13 @@ class QueuePlaybackEngine implements QueueAwareEngine {
   }
 
   @override
-  Future<void> enqueueUrl(String url, {String? title, String? artist, String? album}) async {
-    final song = await _prepareStream(url, title, artist, album);
+  Future<void> enqueueUrl(String url,
+      {String? title,
+      String? artist,
+      String? album,
+      String? licenseUrl,
+      String? imageUrl}) async {
+    final song = await _prepareStream(url, title, artist, album, licenseUrl, imageUrl);
     return _serial(() async {
       _queue.add([song]);
       // Show it as current if nothing was, so Play knows where to start.

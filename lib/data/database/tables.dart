@@ -102,3 +102,30 @@ class PlaylistSongs extends Table {
       integer().references(Songs, #id, onDelete: KeyAction.cascade)();
   IntColumn get position => integer()();
 }
+
+/// Internet tracks (Online Library) in the saved queue (schema v4). `position`
+/// is the track's place in the WHOLE queue, shared with `queue_items`, so
+/// library songs and internet tracks keep their mixed order.
+class QueueStreams extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get position => integer()();
+  TextColumn get url => text()();
+  TextColumn get title => text()();
+  TextColumn get artist => text()();
+  TextColumn get album => text()();
+  TextColumn get licenseUrl => text().nullable()();
+  TextColumn get imageUrl => text().nullable()();
+}
+
+/// What was played from the Online Library (schema v4): text and links only,
+/// never audio. Kept on the Player, never uploaded.
+class OnlineHistory extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get url => text().unique()();
+  TextColumn get title => text()();
+  TextColumn get artist => text()();
+  TextColumn get album => text()();
+  TextColumn get licenseUrl => text().nullable()();
+  TextColumn get imageUrl => text().nullable()();
+  DateTimeColumn get playedAt => dateTime().clientDefault(DateTime.now)();
+}

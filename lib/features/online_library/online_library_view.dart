@@ -7,6 +7,8 @@ import '../../core/widgets/playback_widgets.dart';
 import '../music/music_source.dart' show friendlyError;
 import 'jamendo_api.dart';
 import 'jamendo_key_store.dart';
+import 'online_history_source.dart';
+import 'online_history_view.dart';
 
 /// Plays or queues a track on the Player. Throws on failure; the screen shows
 /// the reason.
@@ -19,9 +21,17 @@ typedef TrackAction = Future<void> Function(JamendoTrack track, {required bool q
 /// which is kept on this device only. Nothing is downloaded or stored, and no
 /// history or analytics are kept.
 class OnlineLibraryView extends ConsumerStatefulWidget {
-  const OnlineLibraryView({super.key, required this.onTrack, this.enabled = true});
+  const OnlineLibraryView({
+    super.key,
+    required this.onTrack,
+    this.history,
+    this.enabled = true,
+  });
 
   final TrackAction onTrack;
+
+  /// The history kept on the Player. When given, a History button is shown.
+  final OnlineHistorySource? history;
 
   /// False while the Controller is reconnecting.
   final bool enabled;
@@ -34,6 +44,7 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
   final _search = TextEditingController();
   final _keyField = TextEditingController();
   JamendoSearchMode _mode = JamendoSearchMode.keyword;
+  bool _showHistory = false;
 
   bool _keyLoaded = false;
   String? _clientId;
@@ -188,6 +199,14 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
 
   @override
   Widget build(BuildContext context) {
+    final history = widget.history;
+    if (_showHistory && history != null) {
+      return OnlineHistoryView(
+        source: history,
+        enabled: widget.enabled,
+        onBack: () => setState(() => _showHistory = false),
+      );
+    }
     if (!_keyLoaded) return const Center(child: CircularProgressIndicator());
     if (_clientId == null) return _setup(context);
     return _browser(context);
@@ -225,6 +244,14 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
         ),
         const SizedBox(height: 12),
         FilledButton(onPressed: _saveKey, child: const Text('Save client ID')),
+        if (widget.history != null) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => setState(() => _showHistory = true),
+            icon: const Icon(Icons.history_rounded),
+            label: const Text('History'),
+          ),
+        ],
       ],
     );
   }
@@ -252,6 +279,12 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
                       ),
                     ),
                   ),
+                  if (widget.history != null)
+                    IconButton(
+                      tooltip: 'History',
+                      icon: const Icon(Icons.history_rounded),
+                      onPressed: () => setState(() => _showHistory = true),
+                    ),
                   PopupMenuButton<String>(
                     tooltip: 'Jamendo options',
                     onSelected: (v) => v == 'change'

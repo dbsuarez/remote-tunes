@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../core/jamendo_url.dart';
+
 /// What to search Jamendo for.
 enum JamendoSearchMode {
   keyword('Keyword', 'Song, artist, album or tag'),
@@ -87,14 +89,7 @@ class JamendoTrack {
   }
 
   /// Only https links on jamendo.com are accepted, whatever the response says.
-  static String? _jamendoUrl(String url) {
-    if (url.isEmpty) return null;
-    final uri = Uri.tryParse(url);
-    if (uri == null || uri.scheme != 'https') return null;
-    final host = uri.host.toLowerCase();
-    if (host != 'jamendo.com' && !host.endsWith('.jamendo.com')) return null;
-    return uri.toString();
-  }
+  static String? _jamendoUrl(String url) => jamendoHttpsUrl(url);
 }
 
 /// "https://creativecommons.org/licenses/by-nc-sa/3.0/" -> "CC BY-NC-SA 3.0".

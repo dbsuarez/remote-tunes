@@ -12,6 +12,8 @@ class PlayableSong {
     this.durationSeconds = 0,
     this.trackNumber,
     this.albumArtPath,
+    this.licenseUrl,
+    this.imageUrl,
   }) : assert((filePath == null) != (url == null),
             'A song has either a file path or a url, not both.');
 
@@ -21,6 +23,8 @@ class PlayableSong {
     required this.title,
     this.artist = 'Internet',
     this.album = 'Web audio',
+    this.licenseUrl,
+    this.imageUrl,
   })  : id = 0,
         filePath = null,
         durationSeconds = 0,
@@ -37,6 +41,11 @@ class PlayableSong {
   final int durationSeconds;
   final int? trackNumber;
   final String? albumArtPath;
+
+  /// Online Library tracks: the Creative Commons licence link and the artwork
+  /// link (always on jamendo.com / creativecommons.org). Null otherwise.
+  final String? licenseUrl;
+  final String? imageUrl;
 
   bool get isUrl => url != null;
 

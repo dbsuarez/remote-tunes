@@ -2978,6 +2978,1002 @@ class PlaylistSongsCompanion extends UpdateCompanion<PlaylistSong> {
   }
 }
 
+class $QueueStreamsTable extends QueueStreams
+    with TableInfo<$QueueStreamsTable, QueueStream> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $QueueStreamsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _artistMeta = const VerificationMeta('artist');
+  @override
+  late final GeneratedColumn<String> artist = GeneratedColumn<String>(
+    'artist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumMeta = const VerificationMeta('album');
+  @override
+  late final GeneratedColumn<String> album = GeneratedColumn<String>(
+    'album',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _licenseUrlMeta = const VerificationMeta(
+    'licenseUrl',
+  );
+  @override
+  late final GeneratedColumn<String> licenseUrl = GeneratedColumn<String>(
+    'license_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _imageUrlMeta = const VerificationMeta(
+    'imageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> imageUrl = GeneratedColumn<String>(
+    'image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    position,
+    url,
+    title,
+    artist,
+    album,
+    licenseUrl,
+    imageUrl,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'queue_streams';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<QueueStream> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_urlMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('artist')) {
+      context.handle(
+        _artistMeta,
+        artist.isAcceptableOrUnknown(data['artist']!, _artistMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_artistMeta);
+    }
+    if (data.containsKey('album')) {
+      context.handle(
+        _albumMeta,
+        album.isAcceptableOrUnknown(data['album']!, _albumMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_albumMeta);
+    }
+    if (data.containsKey('license_url')) {
+      context.handle(
+        _licenseUrlMeta,
+        licenseUrl.isAcceptableOrUnknown(data['license_url']!, _licenseUrlMeta),
+      );
+    }
+    if (data.containsKey('image_url')) {
+      context.handle(
+        _imageUrlMeta,
+        imageUrl.isAcceptableOrUnknown(data['image_url']!, _imageUrlMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  QueueStream map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return QueueStream(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      artist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist'],
+      )!,
+      album: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album'],
+      )!,
+      licenseUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}license_url'],
+      ),
+      imageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_url'],
+      ),
+    );
+  }
+
+  @override
+  $QueueStreamsTable createAlias(String alias) {
+    return $QueueStreamsTable(attachedDatabase, alias);
+  }
+}
+
+class QueueStream extends DataClass implements Insertable<QueueStream> {
+  final int id;
+  final int position;
+  final String url;
+  final String title;
+  final String artist;
+  final String album;
+  final String? licenseUrl;
+  final String? imageUrl;
+  const QueueStream({
+    required this.id,
+    required this.position,
+    required this.url,
+    required this.title,
+    required this.artist,
+    required this.album,
+    this.licenseUrl,
+    this.imageUrl,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['position'] = Variable<int>(position);
+    map['url'] = Variable<String>(url);
+    map['title'] = Variable<String>(title);
+    map['artist'] = Variable<String>(artist);
+    map['album'] = Variable<String>(album);
+    if (!nullToAbsent || licenseUrl != null) {
+      map['license_url'] = Variable<String>(licenseUrl);
+    }
+    if (!nullToAbsent || imageUrl != null) {
+      map['image_url'] = Variable<String>(imageUrl);
+    }
+    return map;
+  }
+
+  QueueStreamsCompanion toCompanion(bool nullToAbsent) {
+    return QueueStreamsCompanion(
+      id: Value(id),
+      position: Value(position),
+      url: Value(url),
+      title: Value(title),
+      artist: Value(artist),
+      album: Value(album),
+      licenseUrl: licenseUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(licenseUrl),
+      imageUrl: imageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageUrl),
+    );
+  }
+
+  factory QueueStream.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return QueueStream(
+      id: serializer.fromJson<int>(json['id']),
+      position: serializer.fromJson<int>(json['position']),
+      url: serializer.fromJson<String>(json['url']),
+      title: serializer.fromJson<String>(json['title']),
+      artist: serializer.fromJson<String>(json['artist']),
+      album: serializer.fromJson<String>(json['album']),
+      licenseUrl: serializer.fromJson<String?>(json['licenseUrl']),
+      imageUrl: serializer.fromJson<String?>(json['imageUrl']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'position': serializer.toJson<int>(position),
+      'url': serializer.toJson<String>(url),
+      'title': serializer.toJson<String>(title),
+      'artist': serializer.toJson<String>(artist),
+      'album': serializer.toJson<String>(album),
+      'licenseUrl': serializer.toJson<String?>(licenseUrl),
+      'imageUrl': serializer.toJson<String?>(imageUrl),
+    };
+  }
+
+  QueueStream copyWith({
+    int? id,
+    int? position,
+    String? url,
+    String? title,
+    String? artist,
+    String? album,
+    Value<String?> licenseUrl = const Value.absent(),
+    Value<String?> imageUrl = const Value.absent(),
+  }) => QueueStream(
+    id: id ?? this.id,
+    position: position ?? this.position,
+    url: url ?? this.url,
+    title: title ?? this.title,
+    artist: artist ?? this.artist,
+    album: album ?? this.album,
+    licenseUrl: licenseUrl.present ? licenseUrl.value : this.licenseUrl,
+    imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
+  );
+  QueueStream copyWithCompanion(QueueStreamsCompanion data) {
+    return QueueStream(
+      id: data.id.present ? data.id.value : this.id,
+      position: data.position.present ? data.position.value : this.position,
+      url: data.url.present ? data.url.value : this.url,
+      title: data.title.present ? data.title.value : this.title,
+      artist: data.artist.present ? data.artist.value : this.artist,
+      album: data.album.present ? data.album.value : this.album,
+      licenseUrl: data.licenseUrl.present
+          ? data.licenseUrl.value
+          : this.licenseUrl,
+      imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('QueueStream(')
+          ..write('id: $id, ')
+          ..write('position: $position, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('licenseUrl: $licenseUrl, ')
+          ..write('imageUrl: $imageUrl')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    position,
+    url,
+    title,
+    artist,
+    album,
+    licenseUrl,
+    imageUrl,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is QueueStream &&
+          other.id == this.id &&
+          other.position == this.position &&
+          other.url == this.url &&
+          other.title == this.title &&
+          other.artist == this.artist &&
+          other.album == this.album &&
+          other.licenseUrl == this.licenseUrl &&
+          other.imageUrl == this.imageUrl);
+}
+
+class QueueStreamsCompanion extends UpdateCompanion<QueueStream> {
+  final Value<int> id;
+  final Value<int> position;
+  final Value<String> url;
+  final Value<String> title;
+  final Value<String> artist;
+  final Value<String> album;
+  final Value<String?> licenseUrl;
+  final Value<String?> imageUrl;
+  const QueueStreamsCompanion({
+    this.id = const Value.absent(),
+    this.position = const Value.absent(),
+    this.url = const Value.absent(),
+    this.title = const Value.absent(),
+    this.artist = const Value.absent(),
+    this.album = const Value.absent(),
+    this.licenseUrl = const Value.absent(),
+    this.imageUrl = const Value.absent(),
+  });
+  QueueStreamsCompanion.insert({
+    this.id = const Value.absent(),
+    required int position,
+    required String url,
+    required String title,
+    required String artist,
+    required String album,
+    this.licenseUrl = const Value.absent(),
+    this.imageUrl = const Value.absent(),
+  }) : position = Value(position),
+       url = Value(url),
+       title = Value(title),
+       artist = Value(artist),
+       album = Value(album);
+  static Insertable<QueueStream> custom({
+    Expression<int>? id,
+    Expression<int>? position,
+    Expression<String>? url,
+    Expression<String>? title,
+    Expression<String>? artist,
+    Expression<String>? album,
+    Expression<String>? licenseUrl,
+    Expression<String>? imageUrl,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (position != null) 'position': position,
+      if (url != null) 'url': url,
+      if (title != null) 'title': title,
+      if (artist != null) 'artist': artist,
+      if (album != null) 'album': album,
+      if (licenseUrl != null) 'license_url': licenseUrl,
+      if (imageUrl != null) 'image_url': imageUrl,
+    });
+  }
+
+  QueueStreamsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? position,
+    Value<String>? url,
+    Value<String>? title,
+    Value<String>? artist,
+    Value<String>? album,
+    Value<String?>? licenseUrl,
+    Value<String?>? imageUrl,
+  }) {
+    return QueueStreamsCompanion(
+      id: id ?? this.id,
+      position: position ?? this.position,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      licenseUrl: licenseUrl ?? this.licenseUrl,
+      imageUrl: imageUrl ?? this.imageUrl,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (artist.present) {
+      map['artist'] = Variable<String>(artist.value);
+    }
+    if (album.present) {
+      map['album'] = Variable<String>(album.value);
+    }
+    if (licenseUrl.present) {
+      map['license_url'] = Variable<String>(licenseUrl.value);
+    }
+    if (imageUrl.present) {
+      map['image_url'] = Variable<String>(imageUrl.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('QueueStreamsCompanion(')
+          ..write('id: $id, ')
+          ..write('position: $position, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('licenseUrl: $licenseUrl, ')
+          ..write('imageUrl: $imageUrl')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $OnlineHistoryTable extends OnlineHistory
+    with TableInfo<$OnlineHistoryTable, OnlineHistoryData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OnlineHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _artistMeta = const VerificationMeta('artist');
+  @override
+  late final GeneratedColumn<String> artist = GeneratedColumn<String>(
+    'artist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumMeta = const VerificationMeta('album');
+  @override
+  late final GeneratedColumn<String> album = GeneratedColumn<String>(
+    'album',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _licenseUrlMeta = const VerificationMeta(
+    'licenseUrl',
+  );
+  @override
+  late final GeneratedColumn<String> licenseUrl = GeneratedColumn<String>(
+    'license_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _imageUrlMeta = const VerificationMeta(
+    'imageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> imageUrl = GeneratedColumn<String>(
+    'image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _playedAtMeta = const VerificationMeta(
+    'playedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> playedAt = GeneratedColumn<DateTime>(
+    'played_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: DateTime.now,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    url,
+    title,
+    artist,
+    album,
+    licenseUrl,
+    imageUrl,
+    playedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'online_history';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<OnlineHistoryData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_urlMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('artist')) {
+      context.handle(
+        _artistMeta,
+        artist.isAcceptableOrUnknown(data['artist']!, _artistMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_artistMeta);
+    }
+    if (data.containsKey('album')) {
+      context.handle(
+        _albumMeta,
+        album.isAcceptableOrUnknown(data['album']!, _albumMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_albumMeta);
+    }
+    if (data.containsKey('license_url')) {
+      context.handle(
+        _licenseUrlMeta,
+        licenseUrl.isAcceptableOrUnknown(data['license_url']!, _licenseUrlMeta),
+      );
+    }
+    if (data.containsKey('image_url')) {
+      context.handle(
+        _imageUrlMeta,
+        imageUrl.isAcceptableOrUnknown(data['image_url']!, _imageUrlMeta),
+      );
+    }
+    if (data.containsKey('played_at')) {
+      context.handle(
+        _playedAtMeta,
+        playedAt.isAcceptableOrUnknown(data['played_at']!, _playedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  OnlineHistoryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OnlineHistoryData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      artist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist'],
+      )!,
+      album: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album'],
+      )!,
+      licenseUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}license_url'],
+      ),
+      imageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_url'],
+      ),
+      playedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}played_at'],
+      )!,
+    );
+  }
+
+  @override
+  $OnlineHistoryTable createAlias(String alias) {
+    return $OnlineHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class OnlineHistoryData extends DataClass
+    implements Insertable<OnlineHistoryData> {
+  final int id;
+  final String url;
+  final String title;
+  final String artist;
+  final String album;
+  final String? licenseUrl;
+  final String? imageUrl;
+  final DateTime playedAt;
+  const OnlineHistoryData({
+    required this.id,
+    required this.url,
+    required this.title,
+    required this.artist,
+    required this.album,
+    this.licenseUrl,
+    this.imageUrl,
+    required this.playedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['url'] = Variable<String>(url);
+    map['title'] = Variable<String>(title);
+    map['artist'] = Variable<String>(artist);
+    map['album'] = Variable<String>(album);
+    if (!nullToAbsent || licenseUrl != null) {
+      map['license_url'] = Variable<String>(licenseUrl);
+    }
+    if (!nullToAbsent || imageUrl != null) {
+      map['image_url'] = Variable<String>(imageUrl);
+    }
+    map['played_at'] = Variable<DateTime>(playedAt);
+    return map;
+  }
+
+  OnlineHistoryCompanion toCompanion(bool nullToAbsent) {
+    return OnlineHistoryCompanion(
+      id: Value(id),
+      url: Value(url),
+      title: Value(title),
+      artist: Value(artist),
+      album: Value(album),
+      licenseUrl: licenseUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(licenseUrl),
+      imageUrl: imageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageUrl),
+      playedAt: Value(playedAt),
+    );
+  }
+
+  factory OnlineHistoryData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OnlineHistoryData(
+      id: serializer.fromJson<int>(json['id']),
+      url: serializer.fromJson<String>(json['url']),
+      title: serializer.fromJson<String>(json['title']),
+      artist: serializer.fromJson<String>(json['artist']),
+      album: serializer.fromJson<String>(json['album']),
+      licenseUrl: serializer.fromJson<String?>(json['licenseUrl']),
+      imageUrl: serializer.fromJson<String?>(json['imageUrl']),
+      playedAt: serializer.fromJson<DateTime>(json['playedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'url': serializer.toJson<String>(url),
+      'title': serializer.toJson<String>(title),
+      'artist': serializer.toJson<String>(artist),
+      'album': serializer.toJson<String>(album),
+      'licenseUrl': serializer.toJson<String?>(licenseUrl),
+      'imageUrl': serializer.toJson<String?>(imageUrl),
+      'playedAt': serializer.toJson<DateTime>(playedAt),
+    };
+  }
+
+  OnlineHistoryData copyWith({
+    int? id,
+    String? url,
+    String? title,
+    String? artist,
+    String? album,
+    Value<String?> licenseUrl = const Value.absent(),
+    Value<String?> imageUrl = const Value.absent(),
+    DateTime? playedAt,
+  }) => OnlineHistoryData(
+    id: id ?? this.id,
+    url: url ?? this.url,
+    title: title ?? this.title,
+    artist: artist ?? this.artist,
+    album: album ?? this.album,
+    licenseUrl: licenseUrl.present ? licenseUrl.value : this.licenseUrl,
+    imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
+    playedAt: playedAt ?? this.playedAt,
+  );
+  OnlineHistoryData copyWithCompanion(OnlineHistoryCompanion data) {
+    return OnlineHistoryData(
+      id: data.id.present ? data.id.value : this.id,
+      url: data.url.present ? data.url.value : this.url,
+      title: data.title.present ? data.title.value : this.title,
+      artist: data.artist.present ? data.artist.value : this.artist,
+      album: data.album.present ? data.album.value : this.album,
+      licenseUrl: data.licenseUrl.present
+          ? data.licenseUrl.value
+          : this.licenseUrl,
+      imageUrl: data.imageUrl.present ? data.imageUrl.value : this.imageUrl,
+      playedAt: data.playedAt.present ? data.playedAt.value : this.playedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OnlineHistoryData(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('licenseUrl: $licenseUrl, ')
+          ..write('imageUrl: $imageUrl, ')
+          ..write('playedAt: $playedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    url,
+    title,
+    artist,
+    album,
+    licenseUrl,
+    imageUrl,
+    playedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OnlineHistoryData &&
+          other.id == this.id &&
+          other.url == this.url &&
+          other.title == this.title &&
+          other.artist == this.artist &&
+          other.album == this.album &&
+          other.licenseUrl == this.licenseUrl &&
+          other.imageUrl == this.imageUrl &&
+          other.playedAt == this.playedAt);
+}
+
+class OnlineHistoryCompanion extends UpdateCompanion<OnlineHistoryData> {
+  final Value<int> id;
+  final Value<String> url;
+  final Value<String> title;
+  final Value<String> artist;
+  final Value<String> album;
+  final Value<String?> licenseUrl;
+  final Value<String?> imageUrl;
+  final Value<DateTime> playedAt;
+  const OnlineHistoryCompanion({
+    this.id = const Value.absent(),
+    this.url = const Value.absent(),
+    this.title = const Value.absent(),
+    this.artist = const Value.absent(),
+    this.album = const Value.absent(),
+    this.licenseUrl = const Value.absent(),
+    this.imageUrl = const Value.absent(),
+    this.playedAt = const Value.absent(),
+  });
+  OnlineHistoryCompanion.insert({
+    this.id = const Value.absent(),
+    required String url,
+    required String title,
+    required String artist,
+    required String album,
+    this.licenseUrl = const Value.absent(),
+    this.imageUrl = const Value.absent(),
+    this.playedAt = const Value.absent(),
+  }) : url = Value(url),
+       title = Value(title),
+       artist = Value(artist),
+       album = Value(album);
+  static Insertable<OnlineHistoryData> custom({
+    Expression<int>? id,
+    Expression<String>? url,
+    Expression<String>? title,
+    Expression<String>? artist,
+    Expression<String>? album,
+    Expression<String>? licenseUrl,
+    Expression<String>? imageUrl,
+    Expression<DateTime>? playedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (url != null) 'url': url,
+      if (title != null) 'title': title,
+      if (artist != null) 'artist': artist,
+      if (album != null) 'album': album,
+      if (licenseUrl != null) 'license_url': licenseUrl,
+      if (imageUrl != null) 'image_url': imageUrl,
+      if (playedAt != null) 'played_at': playedAt,
+    });
+  }
+
+  OnlineHistoryCompanion copyWith({
+    Value<int>? id,
+    Value<String>? url,
+    Value<String>? title,
+    Value<String>? artist,
+    Value<String>? album,
+    Value<String?>? licenseUrl,
+    Value<String?>? imageUrl,
+    Value<DateTime>? playedAt,
+  }) {
+    return OnlineHistoryCompanion(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      licenseUrl: licenseUrl ?? this.licenseUrl,
+      imageUrl: imageUrl ?? this.imageUrl,
+      playedAt: playedAt ?? this.playedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (artist.present) {
+      map['artist'] = Variable<String>(artist.value);
+    }
+    if (album.present) {
+      map['album'] = Variable<String>(album.value);
+    }
+    if (licenseUrl.present) {
+      map['license_url'] = Variable<String>(licenseUrl.value);
+    }
+    if (imageUrl.present) {
+      map['image_url'] = Variable<String>(imageUrl.value);
+    }
+    if (playedAt.present) {
+      map['played_at'] = Variable<DateTime>(playedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OnlineHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('licenseUrl: $licenseUrl, ')
+          ..write('imageUrl: $imageUrl, ')
+          ..write('playedAt: $playedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2989,6 +3985,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RecentUrlsTable recentUrls = $RecentUrlsTable(this);
   late final $PlaylistsTable playlists = $PlaylistsTable(this);
   late final $PlaylistSongsTable playlistSongs = $PlaylistSongsTable(this);
+  late final $QueueStreamsTable queueStreams = $QueueStreamsTable(this);
+  late final $OnlineHistoryTable onlineHistory = $OnlineHistoryTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3001,6 +3999,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     recentUrls,
     playlists,
     playlistSongs,
+    queueStreams,
+    onlineHistory,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -5213,6 +6213,516 @@ typedef $$PlaylistSongsTableProcessedTableManager =
       PlaylistSong,
       PrefetchHooks Function({bool playlistId, bool songId})
     >;
+typedef $$QueueStreamsTableCreateCompanionBuilder =
+    QueueStreamsCompanion Function({
+      Value<int> id,
+      required int position,
+      required String url,
+      required String title,
+      required String artist,
+      required String album,
+      Value<String?> licenseUrl,
+      Value<String?> imageUrl,
+    });
+typedef $$QueueStreamsTableUpdateCompanionBuilder =
+    QueueStreamsCompanion Function({
+      Value<int> id,
+      Value<int> position,
+      Value<String> url,
+      Value<String> title,
+      Value<String> artist,
+      Value<String> album,
+      Value<String?> licenseUrl,
+      Value<String?> imageUrl,
+    });
+
+class $$QueueStreamsTableFilterComposer
+    extends Composer<_$AppDatabase, $QueueStreamsTable> {
+  $$QueueStreamsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get licenseUrl => $composableBuilder(
+    column: $table.licenseUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageUrl => $composableBuilder(
+    column: $table.imageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$QueueStreamsTableOrderingComposer
+    extends Composer<_$AppDatabase, $QueueStreamsTable> {
+  $$QueueStreamsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get licenseUrl => $composableBuilder(
+    column: $table.licenseUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imageUrl => $composableBuilder(
+    column: $table.imageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$QueueStreamsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $QueueStreamsTable> {
+  $$QueueStreamsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get artist =>
+      $composableBuilder(column: $table.artist, builder: (column) => column);
+
+  GeneratedColumn<String> get album =>
+      $composableBuilder(column: $table.album, builder: (column) => column);
+
+  GeneratedColumn<String> get licenseUrl => $composableBuilder(
+    column: $table.licenseUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get imageUrl =>
+      $composableBuilder(column: $table.imageUrl, builder: (column) => column);
+}
+
+class $$QueueStreamsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $QueueStreamsTable,
+          QueueStream,
+          $$QueueStreamsTableFilterComposer,
+          $$QueueStreamsTableOrderingComposer,
+          $$QueueStreamsTableAnnotationComposer,
+          $$QueueStreamsTableCreateCompanionBuilder,
+          $$QueueStreamsTableUpdateCompanionBuilder,
+          (
+            QueueStream,
+            BaseReferences<_$AppDatabase, $QueueStreamsTable, QueueStream>,
+          ),
+          QueueStream,
+          PrefetchHooks Function()
+        > {
+  $$QueueStreamsTableTableManager(_$AppDatabase db, $QueueStreamsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$QueueStreamsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$QueueStreamsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$QueueStreamsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<String> url = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> artist = const Value.absent(),
+                Value<String> album = const Value.absent(),
+                Value<String?> licenseUrl = const Value.absent(),
+                Value<String?> imageUrl = const Value.absent(),
+              }) => QueueStreamsCompanion(
+                id: id,
+                position: position,
+                url: url,
+                title: title,
+                artist: artist,
+                album: album,
+                licenseUrl: licenseUrl,
+                imageUrl: imageUrl,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int position,
+                required String url,
+                required String title,
+                required String artist,
+                required String album,
+                Value<String?> licenseUrl = const Value.absent(),
+                Value<String?> imageUrl = const Value.absent(),
+              }) => QueueStreamsCompanion.insert(
+                id: id,
+                position: position,
+                url: url,
+                title: title,
+                artist: artist,
+                album: album,
+                licenseUrl: licenseUrl,
+                imageUrl: imageUrl,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$QueueStreamsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $QueueStreamsTable,
+      QueueStream,
+      $$QueueStreamsTableFilterComposer,
+      $$QueueStreamsTableOrderingComposer,
+      $$QueueStreamsTableAnnotationComposer,
+      $$QueueStreamsTableCreateCompanionBuilder,
+      $$QueueStreamsTableUpdateCompanionBuilder,
+      (
+        QueueStream,
+        BaseReferences<_$AppDatabase, $QueueStreamsTable, QueueStream>,
+      ),
+      QueueStream,
+      PrefetchHooks Function()
+    >;
+typedef $$OnlineHistoryTableCreateCompanionBuilder =
+    OnlineHistoryCompanion Function({
+      Value<int> id,
+      required String url,
+      required String title,
+      required String artist,
+      required String album,
+      Value<String?> licenseUrl,
+      Value<String?> imageUrl,
+      Value<DateTime> playedAt,
+    });
+typedef $$OnlineHistoryTableUpdateCompanionBuilder =
+    OnlineHistoryCompanion Function({
+      Value<int> id,
+      Value<String> url,
+      Value<String> title,
+      Value<String> artist,
+      Value<String> album,
+      Value<String?> licenseUrl,
+      Value<String?> imageUrl,
+      Value<DateTime> playedAt,
+    });
+
+class $$OnlineHistoryTableFilterComposer
+    extends Composer<_$AppDatabase, $OnlineHistoryTable> {
+  $$OnlineHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get licenseUrl => $composableBuilder(
+    column: $table.licenseUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageUrl => $composableBuilder(
+    column: $table.imageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get playedAt => $composableBuilder(
+    column: $table.playedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$OnlineHistoryTableOrderingComposer
+    extends Composer<_$AppDatabase, $OnlineHistoryTable> {
+  $$OnlineHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get licenseUrl => $composableBuilder(
+    column: $table.licenseUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imageUrl => $composableBuilder(
+    column: $table.imageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get playedAt => $composableBuilder(
+    column: $table.playedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$OnlineHistoryTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OnlineHistoryTable> {
+  $$OnlineHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get artist =>
+      $composableBuilder(column: $table.artist, builder: (column) => column);
+
+  GeneratedColumn<String> get album =>
+      $composableBuilder(column: $table.album, builder: (column) => column);
+
+  GeneratedColumn<String> get licenseUrl => $composableBuilder(
+    column: $table.licenseUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get imageUrl =>
+      $composableBuilder(column: $table.imageUrl, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get playedAt =>
+      $composableBuilder(column: $table.playedAt, builder: (column) => column);
+}
+
+class $$OnlineHistoryTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $OnlineHistoryTable,
+          OnlineHistoryData,
+          $$OnlineHistoryTableFilterComposer,
+          $$OnlineHistoryTableOrderingComposer,
+          $$OnlineHistoryTableAnnotationComposer,
+          $$OnlineHistoryTableCreateCompanionBuilder,
+          $$OnlineHistoryTableUpdateCompanionBuilder,
+          (
+            OnlineHistoryData,
+            BaseReferences<
+              _$AppDatabase,
+              $OnlineHistoryTable,
+              OnlineHistoryData
+            >,
+          ),
+          OnlineHistoryData,
+          PrefetchHooks Function()
+        > {
+  $$OnlineHistoryTableTableManager(_$AppDatabase db, $OnlineHistoryTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OnlineHistoryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$OnlineHistoryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$OnlineHistoryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> url = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> artist = const Value.absent(),
+                Value<String> album = const Value.absent(),
+                Value<String?> licenseUrl = const Value.absent(),
+                Value<String?> imageUrl = const Value.absent(),
+                Value<DateTime> playedAt = const Value.absent(),
+              }) => OnlineHistoryCompanion(
+                id: id,
+                url: url,
+                title: title,
+                artist: artist,
+                album: album,
+                licenseUrl: licenseUrl,
+                imageUrl: imageUrl,
+                playedAt: playedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String url,
+                required String title,
+                required String artist,
+                required String album,
+                Value<String?> licenseUrl = const Value.absent(),
+                Value<String?> imageUrl = const Value.absent(),
+                Value<DateTime> playedAt = const Value.absent(),
+              }) => OnlineHistoryCompanion.insert(
+                id: id,
+                url: url,
+                title: title,
+                artist: artist,
+                album: album,
+                licenseUrl: licenseUrl,
+                imageUrl: imageUrl,
+                playedAt: playedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$OnlineHistoryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $OnlineHistoryTable,
+      OnlineHistoryData,
+      $$OnlineHistoryTableFilterComposer,
+      $$OnlineHistoryTableOrderingComposer,
+      $$OnlineHistoryTableAnnotationComposer,
+      $$OnlineHistoryTableCreateCompanionBuilder,
+      $$OnlineHistoryTableUpdateCompanionBuilder,
+      (
+        OnlineHistoryData,
+        BaseReferences<_$AppDatabase, $OnlineHistoryTable, OnlineHistoryData>,
+      ),
+      OnlineHistoryData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5231,4 +6741,8 @@ class $AppDatabaseManager {
       $$PlaylistsTableTableManager(_db, _db.playlists);
   $$PlaylistSongsTableTableManager get playlistSongs =>
       $$PlaylistSongsTableTableManager(_db, _db.playlistSongs);
+  $$QueueStreamsTableTableManager get queueStreams =>
+      $$QueueStreamsTableTableManager(_db, _db.queueStreams);
+  $$OnlineHistoryTableTableManager get onlineHistory =>
+      $$OnlineHistoryTableTableManager(_db, _db.onlineHistory);
 }

@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/data/database/app_database.dart';
@@ -29,7 +29,10 @@ void main() {
   tearDown(() => db.close());
 
   QueuePlaybackEngine newEngine(FakeAudioBackend b) => QueuePlaybackEngine(
-      backend: b, fileExists: (_) => true, queueStore: store);
+      backend: b,
+      fileExists: (_) => true,
+      queueStore: store,
+      urlChecker: FakeUrlChecker());
 
   Future<List<PlayableSong>> songs(List<String> titles) async =>
       repo.songsByIds([for (final t in titles) ids[t]!]).then(
@@ -72,17 +75,86 @@ void main() {
     await b.dispose();
   });
 
-  test('internet links are not kept, library songs around them are', () async {
+  const jam = 'https://prod-1.storage.jamendo.com/?trackid=11&format=mp32';
+  const art = 'https://usercontent.jamendo.com?type=album&id=1&width=200';
+  const cc = 'http://creativecommons.org/licenses/by-nc-nd/3.0/';
+
+  test('internet tracks are kept too, in their place among library songs', () async {
     final a = newEngine(FakeAudioBackend());
     await a.playSongs(await songs(['One']));
-    await a.enqueue([const PlayableSong.stream(url: 'https://x.test/a.mp3', title: 'Web')]);
+    await a.enqueue([
+      const PlayableSong.stream(
+          url: jam, title: 'Web', artist: 'Band', album: 'Rec', licenseUrl: cc, imageUrl: art),
+    ]);
     await a.enqueue(await songs(['Two']));
+    await a.next(); // now on the internet track
     await afterSave();
     await a.dispose();
 
+    final backend = FakeAudioBackend();
+    final b = newEngine(backend);
+    await b.restoreQueue();
+    final q = b.queueSnapshot();
+    expect([for (final i in q.items) i.song.title], ['One', 'Web', 'Two']);
+    expect(q.items[q.currentIndex].song.title, 'Web');
+    expect(b.state.artist, 'Band');
+    expect(b.state.album, 'Rec');
+    expect(b.state.source, 'url');
+    expect(backend.loadedUrls, isEmpty, reason: 'it does not start by itself');
+
+    await b.play(); // the saved link plays
+    expect(backend.loadedUrls, [jam]);
+    await b.dispose();
+  });
+
+  test('only audio-free text and links are stored for internet tracks', () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playUrl(jam, title: 'Web', artist: 'Band', album: 'Rec');
+    await afterSave();
+    await a.dispose();
+    final row = await db.select(db.queueStreams).getSingle();
+    expect(row.url, jam);
+    expect(row.title, 'Web');
+    // Nothing that looks like a file path or audio is stored.
+    expect(row.toString().toLowerCase(), isNot(contains('.mp3')));
+  });
+
+  test('links read back from the database are re-checked', () async {
+    await db.into(db.queueStreams).insert(QueueStreamsCompanion.insert(
+          position: 0,
+          url: jam,
+          title: 'Web',
+          artist: 'A',
+          album: 'B',
+          licenseUrl: const Value('https://evil.example/licence'),
+          imageUrl: const Value('https://evil.example/pic.jpg'),
+        ));
     final b = newEngine(FakeAudioBackend());
     await b.restoreQueue();
-    expect([for (final i in b.queueSnapshot().items) i.song.title], ['One', 'Two']);
+    final song = b.queueSnapshot().items.single.song;
+    expect(song.title, 'Web');
+    final entry = (await store.load()).songs.single;
+    expect(entry.licenseUrl, isNull);
+    expect(entry.imageUrl, isNull);
+    await b.dispose();
+  });
+
+  test('deleting a library song before the current one keeps the right song current',
+      () async {
+    final a = newEngine(FakeAudioBackend());
+    await a.playSongs(await songs(['One', 'Two']));
+    await a.enqueue([const PlayableSong.stream(url: jam, title: 'Web')]);
+    await a.next();
+    await a.next(); // on Web, the third entry
+    await afterSave();
+    await a.dispose();
+    await repo.removeSong(ids['One']!);
+
+    final b = newEngine(FakeAudioBackend());
+    await b.restoreQueue();
+    final q = b.queueSnapshot();
+    expect([for (final i in q.items) i.song.title], ['Two', 'Web']);
+    expect(q.items[q.currentIndex].song.title, 'Web');
     await b.dispose();
   });
 

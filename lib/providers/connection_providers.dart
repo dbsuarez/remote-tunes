@@ -7,6 +7,7 @@ import '../core/online/room_code.dart';
 import '../core/protocol/protocol.dart';
 import '../core/transport/local_websocket_transport.dart';
 import '../data/repositories/drift_queue_store.dart';
+import '../data/repositories/online_history_repository.dart';
 import '../data/repositories/paired_controllers_store.dart';
 import '../data/repositories/settings_repository.dart';
 import '../features/controller/controller_client.dart';
@@ -42,11 +43,15 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
   final settings = await ref.watch(settingsRepositoryProvider).load();
   final plan = PlayerOnlinePlan.forMode(settings.connectionMode, settings);
 
-  final library = RepositoryPlayerLibrary(ref.watch(libraryRepositoryProvider));
+  final library = RepositoryPlayerLibrary(
+    ref.watch(libraryRepositoryProvider),
+    history: OnlineHistoryRepository(ref.watch(databaseProvider)),
+  );
   final localEngine = QueuePlaybackEngine(
     backend: JustAudioBackend(),
     initialVolume: settings.defaultVolume,
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
+    onStreamStarted: (s) => unawaited(library.recordStream(s).catchError((Object _) {})),
     queueStore: DriftQueueStore(ref.watch(databaseProvider)),
   );
   // The queue is kept between runs: pick up where it was, paused.

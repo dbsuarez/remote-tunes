@@ -107,6 +107,7 @@ Added while building Phase 1. All are optional fields or values that older peers
 - `library_request` scope `songs` accepts `view` (`favorites` or `recent`) and `playlistId`; new scope `playlists` returns `{id, name, songCount}`. Songs carry `favorite: true` when set.
 - Commands: `setFavorite {songId, favorite}`, `createPlaylist {name}` (returns `playlistId`), `renamePlaylist`, `deletePlaylist`, `addToPlaylist {playlistId, songIds}` (returns `added`), `removeFromPlaylist {playlistId, songId}`, `setSpeed {speed}` (0.5 to 2.0), `getArt {songId, size?}` (returns `art`, a base64 JPEG thumbnail with longest side `size`, 48 to 256, default 256, or nothing).
 - `state.payload` may carry `speed` (when not 1.0) and `favorite` (current song).
+- Online history (docs/18): `library_request` scope `onlineHistory` (items without stream links, plus `enabled`); commands `playHistory {historyId, queue?}`, `removeHistory {historyId}`, `clearHistory`, `setHistoryEnabled {enabled}`. `playUrl` also accepts `license` (creativecommons.org) and `art` (jamendo.com), otherwise ignored.
 - `playUrl` accepts `artist`, `album` (shown on the Player and in the queue) and `queue: true` (add to the end of the queue instead of playing at once). Used by the Online Library (docs/18).
 - `playSong` accepts `keepQueue: true`: the songs are inserted after the current one and the first plays, without clearing the queue.
 - A Controller that receives `SESSION_REPLACED` or `INVALID_SESSION` while connected does not forget the Player; only a refused `hello` (resume) does.

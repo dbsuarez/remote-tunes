@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../core/constants.dart';
+import '../../../core/jamendo_url.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/protocol/protocol.dart';
 import '../../../data/repositories/paired_controllers_store.dart';
@@ -1121,14 +1122,63 @@ class PlayerServer {
           final v = p[k];
           return v is String && v.length <= 200 ? v : null;
         }
+        // Licence and artwork links are shown later (queue, history), so only
+        // links on creativecommons.org / jamendo.com are kept.
+        String? link(String k) {
+          final v = p[k];
+          return v is String && v.length <= 500 ? v : null;
+        }
+        final license = creativeCommonsUrl(link('license'));
+        final art = jamendoHttpsUrl(link('art'));
         // `queue: true` adds it to the end of the queue instead of playing it.
         if (p['queue'] == true) {
           await _queueEngine.enqueueUrl(url,
-              title: text('title'), artist: text('artist'), album: text('album'));
+              title: text('title'),
+              artist: text('artist'),
+              album: text('album'),
+              licenseUrl: license,
+              imageUrl: art);
         } else {
           await _queueEngine.playUrl(url,
-              title: text('title'), artist: text('artist'), album: text('album'));
+              title: text('title'),
+              artist: text('artist'),
+              album: text('album'),
+              licenseUrl: license,
+              imageUrl: art);
         }
+
+      // ---- Online Library history (the link never leaves the Player) ----
+      case RemoteActions.playHistory:
+        final entry = await _library.historySong(_requiredInt(p, 'historyId'));
+        if (entry == null) {
+          throw PlaybackException(
+              ErrorCodes.invalidAction, 'That track is no longer in the history.');
+        }
+        if (p['queue'] == true) {
+          await _queueEngine.enqueueUrl(entry.url!,
+              title: entry.title,
+              artist: entry.artist,
+              album: entry.album,
+              licenseUrl: entry.licenseUrl,
+              imageUrl: entry.imageUrl);
+        } else {
+          await _queueEngine.playUrl(entry.url!,
+              title: entry.title,
+              artist: entry.artist,
+              album: entry.album,
+              licenseUrl: entry.licenseUrl,
+              imageUrl: entry.imageUrl);
+        }
+      case RemoteActions.removeHistory:
+        await _library.removeHistory(_requiredInt(p, 'historyId'));
+      case RemoteActions.clearHistory:
+        await _library.clearHistory();
+      case RemoteActions.setHistoryEnabled:
+        if (p['enabled'] is! bool) {
+          throw PlaybackException(ErrorCodes.invalidAction,
+              'setHistoryEnabled needs enabled: true or false.');
+        }
+        await _library.setHistoryEnabled(p['enabled'] as bool);
 
       // ---- Phase 2: queue and library (need a queue-aware engine) ----
       case RemoteActions.playSong:
@@ -1309,6 +1359,13 @@ class PlayerServer {
         case LibraryScope.playlists:
           final page = await lib.playlists(query: query, offset: offset, limit: limit);
           body = _pageJson(page, (RemotePlaylist e) => e.toJson());
+        case LibraryScope.onlineHistory:
+          final page = await lib.onlineHistory(offset: offset, limit: limit);
+          body = {
+            ..._pageJson(page, (RemoteHistoryItem e) => e.toJson()),
+            // So the screen can show the on/off switch in the right position.
+            'enabled': await lib.historyEnabled(),
+          };
         case LibraryScope.artists:
           final page = await lib.artists(query: query, offset: offset, limit: limit);
           body = _pageJson(page, (RemoteArtist e) => e.toJson());
@@ -1325,7 +1382,7 @@ class PlayerServer {
             conn,
             RemoteMessage.error(
               ErrorCodes.invalidAction,
-              'Library scope must be songs, artists, albums or playlists.',
+              'Library scope must be songs, artists, albums, playlists or onlineHistory.',
               requestId: msg.requestId,
               sessionId: s.sessionId,
             ),

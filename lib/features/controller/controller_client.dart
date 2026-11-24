@@ -664,6 +664,8 @@ class ControllerClient {
     String? title,
     String? artist,
     String? album,
+    String? licenseUrl,
+    String? imageUrl,
     bool queue = false,
   }) async {
     String? clean(String? v) => v != null && v.trim().isNotEmpty ? v.trim() : null;
@@ -674,6 +676,8 @@ class ControllerClient {
         if (clean(title) != null) 'title': clean(title),
         if (clean(artist) != null) 'artist': clean(artist),
         if (clean(album) != null) 'album': clean(album),
+        if (clean(licenseUrl) != null) 'license': clean(licenseUrl),
+        if (clean(imageUrl) != null) 'art': clean(imageUrl),
         if (queue) 'queue': true,
       },
       const Duration(seconds: 30),
@@ -772,6 +776,31 @@ class ControllerClient {
             query: query, offset: offset, limit: limit),
         RemotePlaylist.fromJson,
       );
+
+  /// The Online Library history kept on the Player, newest first, and whether
+  /// the Player is recording it.
+  Future<({LibraryPage<RemoteHistoryItem> page, bool enabled})> onlineHistory({
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    final p = await _library(LibraryScope.onlineHistory, offset: offset, limit: limit);
+    return (page: _page(p, RemoteHistoryItem.fromJson), enabled: p['enabled'] != false);
+  }
+
+  /// Plays a history entry again (or queues it). The link stays on the Player.
+  Future<void> playHistory(int historyId, {bool queue = false}) => sendCommandForResult(
+        RemoteActions.playHistory,
+        {'historyId': historyId, if (queue) 'queue': true},
+        const Duration(seconds: 30),
+      );
+
+  Future<void> removeHistory(int historyId) =>
+      sendCommand(RemoteActions.removeHistory, {'historyId': historyId});
+
+  Future<void> clearHistory() => sendCommand(RemoteActions.clearHistory);
+
+  Future<void> setHistoryEnabled(bool enabled) =>
+      sendCommand(RemoteActions.setHistoryEnabled, {'enabled': enabled});
 
   /// Album art for a library song, as a small JPEG, or null if it has none.
   /// Remembered, so each song's art is fetched once.

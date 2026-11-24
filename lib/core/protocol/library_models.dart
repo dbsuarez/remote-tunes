@@ -16,6 +16,9 @@ class LibraryScope {
   static const artists = 'artists';
   static const albums = 'albums';
   static const playlists = 'playlists';
+
+  /// What was played from the Online Library (kept on the Player).
+  static const onlineHistory = 'onlineHistory';
 }
 
 /// Extra song filters for `library_request` (scope `songs`).
@@ -134,6 +137,50 @@ class RemotePlaylist {
         id: _int(j['id']),
         name: _str(j['name']),
         songCount: _int(j['songCount']),
+      );
+}
+
+/// One entry of the Online Library history. The stream link stays on the
+/// Player: a Controller plays an entry again by [id].
+class RemoteHistoryItem {
+  const RemoteHistoryItem({
+    required this.id,
+    required this.title,
+    required this.artist,
+    required this.album,
+    this.licenseUrl,
+    this.imageUrl,
+    this.playedAtSeconds = 0,
+  });
+
+  final int id;
+  final String title;
+  final String artist;
+  final String album;
+  final String? licenseUrl;
+  final String? imageUrl;
+
+  /// When it was last played, seconds since 1970.
+  final int playedAtSeconds;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'artist': artist,
+        'album': album,
+        if (licenseUrl != null) 'licenseUrl': licenseUrl,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+        'playedAt': playedAtSeconds,
+      };
+
+  factory RemoteHistoryItem.fromJson(Map<String, dynamic> j) => RemoteHistoryItem(
+        id: _int(j['id']),
+        title: _str(j['title']),
+        artist: _str(j['artist']),
+        album: _str(j['album']),
+        licenseUrl: j['licenseUrl'] is String ? j['licenseUrl'] as String : null,
+        imageUrl: j['imageUrl'] is String ? j['imageUrl'] as String : null,
+        playedAtSeconds: _int(j['playedAt']),
       );
 }
 

@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/playback_widgets.dart';
 import '../../core/widgets/status_pill.dart';
 import '../external/external_limits.dart';
+import '../online_library/online_history_source.dart';
 import '../online_library/online_library_view.dart';
 import '../music/music_browser.dart';
 import '../music/music_source.dart';
@@ -247,6 +248,7 @@ class ControllerDashboard extends StatelessWidget {
                       ? _ExternalNotice(app: p.externalApp)
                       : OnlineLibraryView(
                           enabled: enabled,
+                          history: ClientHistorySource(client),
                           // The Player streams the track itself: only the link
                           // and the title go to it.
                           onTrack: (t, {required queue}) => client.playUrl(
@@ -254,6 +256,8 @@ class ControllerDashboard extends StatelessWidget {
                             title: t.title,
                             artist: t.artist,
                             album: t.album,
+                            licenseUrl: t.licenseUrl,
+                            imageUrl: t.imageUrl,
                             queue: queue,
                           ),
                         ),

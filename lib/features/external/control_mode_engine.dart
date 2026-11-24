@@ -137,16 +137,36 @@ class ControlModeEngine implements QueueAwareEngine, ControlModeCapable {
       _isExternal ? Future.error(_unavailable()) : _local.playNow(songs);
 
   @override
-  Future<void> playUrl(String url, {String? title, String? artist, String? album}) =>
+  Future<void> playUrl(String url,
+          {String? title,
+          String? artist,
+          String? album,
+          String? licenseUrl,
+          String? imageUrl}) =>
       _isExternal
           ? Future.error(_unavailable())
-          : _local.playUrl(url, title: title, artist: artist, album: album);
+          : _local.playUrl(url,
+              title: title,
+              artist: artist,
+              album: album,
+              licenseUrl: licenseUrl,
+              imageUrl: imageUrl);
 
   @override
-  Future<void> enqueueUrl(String url, {String? title, String? artist, String? album}) =>
+  Future<void> enqueueUrl(String url,
+          {String? title,
+          String? artist,
+          String? album,
+          String? licenseUrl,
+          String? imageUrl}) =>
       _isExternal
           ? Future.error(_unavailable())
-          : _local.enqueueUrl(url, title: title, artist: artist, album: album);
+          : _local.enqueueUrl(url,
+              title: title,
+              artist: artist,
+              album: album,
+              licenseUrl: licenseUrl,
+              imageUrl: imageUrl);
 
   @override
   Future<void> enqueue(List<PlayableSong> songs, {bool playNext = false}) =>

@@ -19,6 +19,8 @@ part 'app_database.g.dart';
     RecentUrls,
     Playlists,
     PlaylistSongs,
+    QueueStreams,
+    OnlineHistory,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -29,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -46,6 +48,11 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(songs, songs.lastPlayedAt);
             await m.createTable(playlists);
             await m.createTable(playlistSongs);
+          }
+          if (from < 4) {
+            // Internet tracks in the saved queue, and the Online Library history.
+            await m.createTable(queueStreams);
+            await m.createTable(onlineHistory);
           }
         },
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).

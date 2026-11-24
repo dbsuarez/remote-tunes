@@ -85,6 +85,14 @@ class RemoteActions {
   static const removeFromPlaylist = 'removeFromPlaylist';
   static const setSpeed = 'setSpeed';
   static const getArt = 'getArt';
+
+  // Online Library history (kept on the Player):
+  //  playHistory {historyId, queue?}; removeHistory {historyId};
+  //  clearHistory {}; setHistoryEnabled {enabled}.
+  static const playHistory = 'playHistory';
+  static const removeHistory = 'removeHistory';
+  static const clearHistory = 'clearHistory';
+  static const setHistoryEnabled = 'setHistoryEnabled';
 }
 
 class ErrorCodes {
