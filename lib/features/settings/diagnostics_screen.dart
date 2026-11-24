@@ -4,9 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:record/record.dart';
+
 import '../../core/constants.dart';
+import '../../data/repositories/online_history_repository.dart';
 import '../../providers/connection_providers.dart';
 import '../../providers/providers.dart';
+import '../group/group_models.dart';
+import '../group/group_native.dart';
+import '../group/group_providers.dart';
+import '../online_library/jamendo_key_store.dart';
 
 /// Everything the Diagnostics screen shows. Holds no secrets: no keys, no
 /// session tokens, no room codes, no file names.
@@ -27,6 +34,15 @@ class DiagnosticsInfo {
     required this.favorites,
     required this.playlists,
     required this.trustedControllers,
+    this.jamendoClientIdSet = false,
+    this.onlineHistoryEnabled = true,
+    this.onlineHistoryCount = 0,
+    this.savedQueueSongs = 0,
+    this.savedQueueStreams = 0,
+    this.outputRoute = 'unknown',
+    this.outputLatencyMs,
+    this.microphonePermission,
+    this.group,
   });
 
   final String appVersion;
@@ -46,6 +62,43 @@ class DiagnosticsInfo {
   final int favorites;
   final int playlists;
   final int trustedControllers;
+
+  // Online Library and the queue (never the Jamendo ID itself).
+  final bool jamendoClientIdSet;
+  final bool onlineHistoryEnabled;
+  final int onlineHistoryCount;
+  final int savedQueueSongs;
+  final int savedQueueStreams;
+
+  // Group play.
+  /// Where the sound goes right now: speaker, wired, bluetooth, unknown.
+  final String outputRoute;
+
+  /// The phone's own estimate of its audio delay, when it tells.
+  final int? outputLatencyMs;
+
+  /// Null if it could not be checked.
+  final bool? microphonePermission;
+
+  /// What group play is doing right now; null when this phone is not playing
+  /// along (the normal state).
+  final GroupStatus? group;
+
+  List<String> _groupLines() {
+    final g = group;
+    if (g == null) return ['  Playing along: no'];
+    String ms(double? v) => v == null ? 'n/a' : '${v.toStringAsFixed(1)} ms';
+    return [
+      '  Playing along: ${g.phase.name}${g.message.isEmpty ? '' : ' (${g.message})'}',
+      '  Off by (this phone vs Player): ${ms(g.driftMs)}',
+      '  Round trip: ${ms(g.rttMs)}',
+      '  Clock spread: ${ms(g.spreadMs)}',
+      '  Clock offset: ${ms(g.offsetMs)}',
+      '  Fine-tune (${g.route}): ${g.nudgeMs} ms',
+      if (g.warning.isNotEmpty) '  Warning: ${g.warning.replaceAll('\n', ' ')}',
+      if (g.calibration.isNotEmpty) '  Last Auto-align: ${g.calibration}',
+    ];
+  }
 
   /// Plain text for pasting into a bug report.
   String toReport() {
@@ -76,6 +129,18 @@ class DiagnosticsInfo {
       '  Songs: $songs',
       '  Favorites: $favorites',
       '  Playlists: $playlists',
+      '  Saved queue: $savedQueueSongs songs, $savedQueueStreams internet tracks',
+      '',
+      'Online Library',
+      '  Jamendo client ID set: ${yn(jamendoClientIdSet)}',
+      '  History: ${onlineHistoryEnabled ? 'on' : 'off'}, $onlineHistoryCount entries',
+      '',
+      'Group play',
+      '  Sound output: $outputRoute',
+      '  Phone\'s own audio delay: ${outputLatencyMs == null ? 'not reported' : '$outputLatencyMs ms'}',
+      '  Microphone permission (Auto-align): '
+          '${microphonePermission == null ? 'unknown' : yn(microphonePermission!)}',
+      ..._groupLines(),
     ];
     return lines.join('\n');
   }
@@ -114,7 +179,28 @@ final diagnosticsProvider = FutureProvider.autoDispose<DiagnosticsInfo>((ref) as
   final trusted =
       await count('SELECT COUNT(*) AS c FROM paired_controllers WHERE trusted = 1');
 
+  final native = MethodChannelGroupNative();
+  bool? mic;
+  try {
+    mic = await AudioRecorder().hasPermission(request: false);
+  } catch (_) {
+    mic = null;
+  }
+  final jamendo = await PrefsJamendoKeyStore().load();
+  final history = OnlineHistoryRepository(db);
+
   return DiagnosticsInfo(
+    jamendoClientIdSet: jamendo != null,
+    onlineHistoryEnabled: await history.isEnabled(),
+    onlineHistoryCount: await count('SELECT COUNT(*) AS c FROM online_history'),
+    savedQueueSongs: await count('SELECT COUNT(*) AS c FROM queue_items'),
+    savedQueueStreams: await count('SELECT COUNT(*) AS c FROM queue_streams'),
+    outputRoute: await native.outputRoute(),
+    outputLatencyMs: await native.outputLatencyMs(),
+    microphonePermission: mic,
+    group: ref.read(groupFollowerProvider)?.status.isOn == true
+        ? ref.read(groupFollowerProvider)!.status
+        : null,
     appVersion: AppConstants.appVersion,
     protocolVersion: AppConstants.protocolVersion,
     platform: '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',

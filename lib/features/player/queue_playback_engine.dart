@@ -50,6 +50,12 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   Timer? _saveTimer;
   int _savedRevision = -1;
   int _savedIndex = -2;
+  int _savedPositionSeconds = 0;
+
+  /// After a restart: carry on from this spot when the restored song is first
+  /// played.
+  int _resumeSeconds = 0;
+  int? _resumeEntryId;
 
   /// Called with the library id when a library song starts playing (used for
   /// "recently played").
@@ -152,7 +158,15 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   /// changes is one write.
   void _scheduleSave() {
     if (queueStore == null || _disposed) return;
-    if (_queue.revision == _savedRevision && _queue.currentIndex == _savedIndex) {
+    // The spot in the song is saved every ten seconds while playing, and as soon
+    // as it stops, not every second.
+    final positionStale = _loadedEntryId != null &&
+        (_playing
+            ? (_positionSeconds - _savedPositionSeconds).abs() >= 10
+            : _positionSeconds != _savedPositionSeconds);
+    if (_queue.revision == _savedRevision &&
+        _queue.currentIndex == _savedIndex &&
+        !positionStale) {
       return;
     }
     _saveTimer?.cancel();
@@ -167,10 +181,17 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     final revision = _queue.revision;
     final songs = [for (final e in _queue.entries) e.song];
     final currentIndex = _queue.currentIndex;
+    // (Only songs with a known length can be resumed: not live internet streams.)
+    final position = (_loadedEntryId != null || _resumeEntryId != null) &&
+            _durationSeconds > 0
+        ? _positionSeconds
+        : 0;
     try {
-      await store.save(songs, currentIndex < 0 ? 0 : currentIndex);
+      await store.save(songs, currentIndex < 0 ? 0 : currentIndex,
+          positionSeconds: position);
       _savedRevision = revision;
       _savedIndex = currentIndex;
+      _savedPositionSeconds = position;
     } catch (_) {
       // The queue just will not be remembered this time.
     }
@@ -186,6 +207,15 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         _queue.replace(saved.songs, startIndex: saved.currentIndex);
         _savedRevision = _queue.revision;
         _savedIndex = _queue.currentIndex;
+        // Show where it was, and carry on from there when it is played.
+        final current = _queue.current;
+        if (current != null && saved.positionSeconds > 0 && current.song.durationSeconds > 0) {
+          _resumeEntryId = current.id;
+          _resumeSeconds = saved.positionSeconds;
+          _positionSeconds = saved.positionSeconds;
+          _durationSeconds = current.song.durationSeconds;
+          _savedPositionSeconds = saved.positionSeconds;
+        }
         _emit();
       });
 
@@ -258,6 +288,18 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
           _error = '';
           _loading = false;
           if (_speed != 1.0) await _backend.setSpeed(_speed);
+          // First play after a restart: carry on from the saved spot (a little
+          // before the end at most, so it does not finish at once).
+          if (_resumeEntryId == current.id && _resumeSeconds > 0) {
+            final limit = _durationSeconds > 3 ? _durationSeconds - 2 : 0;
+            final at = _resumeSeconds > limit ? limit : _resumeSeconds;
+            if (at > 0) {
+              await _backend.seek(Duration(seconds: at));
+              _positionSeconds = at;
+            }
+          }
+          _resumeEntryId = null;
+          _resumeSeconds = 0;
           if (autoplay) {
             await _backend.play();
             _playing = true;
@@ -620,7 +662,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
 
   @override
   Future<void> dispose() async {
-    if (_saveTimer != null) await _saveQueue(); // keep the latest changes
+    if (_saveTimer != null || _playing) await _saveQueue(); // keep the latest changes
     _disposed = true;
     for (final s in _subs) {
       await s.cancel();

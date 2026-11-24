@@ -63,6 +63,9 @@ class GroupCalibrator {
   Future<void> _command(String step) =>
       host.client.sendCommand(RemoteActions.groupCalibrate, {'step': step});
 
+  /// Waits until the click track is loaded and has played to [seconds]. The
+  /// song must really be the click track: an earlier song that happens to be
+  /// past that position does not count.
   Future<void> _defaultWait(double seconds, {required Duration limit}) async {
     final end = DateTime.now().add(limit);
     var lastPlaying = DateTime.now();
@@ -73,7 +76,11 @@ class GroupCalibrator {
         throw CalibrationFailed('Group play stopped during the test.');
       }
       if (core.isPlayingAlong) lastPlaying = DateTime.now();
-      if (core.isPlayingAlong && core.positionMs / 1000.0 >= seconds) return;
+      if (core.isPlayingAlong &&
+          core.loadedSongId == CalibrationTrack.songId &&
+          core.positionMs / 1000.0 >= seconds) {
+        return;
+      }
       if (DateTime.now().difference(lastPlaying) > const Duration(seconds: 6) &&
           seconds > 0.1) {
         throw CalibrationFailed(

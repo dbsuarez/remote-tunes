@@ -7,6 +7,8 @@ import '../core/online/room_code.dart';
 import '../core/protocol/protocol.dart';
 import '../core/transport/local_websocket_transport.dart';
 import '../data/repositories/drift_queue_store.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../features/group/group_native.dart';
 import '../data/repositories/online_history_repository.dart';
 import '../data/repositories/paired_controllers_store.dart';
@@ -74,6 +76,8 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     store: DriftPairedControllersStore(ref.watch(databaseProvider)),
     advertiser: plan.runLocal ? BonsoirPlayerAdvertiser() : null,
     library: library,
+    // Where group play's Auto-align click track is written.
+    scratchDir: await getTemporaryDirectory(),
     enableLocal: plan.runLocal,
     // If the local port is busy but online is on, carry on online.
     continueWithoutLocal: plan.runOnline,

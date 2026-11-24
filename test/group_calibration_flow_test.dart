@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -97,6 +98,7 @@ void main() {
     FakeMic? mic,
     Future<SyncMeasurement> Function(Float64List)? analyze,
     Future<void> Function(double)? waitForMedia,
+    bool realWait = false,
   }) =>
       GroupFollowerService(
         client: client,
@@ -109,7 +111,8 @@ void main() {
         native: native,
         makeRecorder: () => mic ?? FakeMic(),
         analyze: analyze,
-        waitForMedia: waitForMedia ?? (s) async {},
+        // (Tests skip the waiting unless they ask for the real thing.)
+        waitForMedia: realWait ? null : (waitForMedia ?? (s) async {}),
         resyncEvery: const Duration(seconds: 30),
       );
 
@@ -382,6 +385,44 @@ void main() {
     expect(r.ok, isFalse);
     expect(r.message, contains('Play on this phone too'));
   });
+
+  test('with real waiting: the Player is muted only when the click track has played to the '
+      'right place, not while an earlier song is at minute one', () async {
+    // The Player is already deep into a song when the test starts.
+    playerBackend.position = const Duration(seconds: 70);
+    playerBackend.emitPosition(const Duration(seconds: 70));
+    // Both fake speakers keep time while they "play".
+    final ticker = Timer.periodic(const Duration(milliseconds: 20), (_) {
+      for (final b in [playerBackend, follower]) {
+        if (b.playing) b.position += Duration(milliseconds: (20 * b.speed).round());
+      }
+    });
+    addTearDown(ticker.cancel);
+
+    final s = makeService(
+      mic: FakeMic(recording: syntheticRecording(playerLatencyMs: 90, followerLatencyMs: 120)),
+      realWait: true,
+    );
+    await s.join();
+    await waitFor(() => follower.playing, reason: 'follower playing the song');
+
+    final started = DateTime.now();
+    DateTime? mutedAt;
+    final poll = Timer.periodic(const Duration(milliseconds: 20), (_) {
+      if (mutedAt == null && engine.state.volume == 0.0) mutedAt = DateTime.now();
+    });
+    addTearDown(poll.cancel);
+
+    final r = await s.autoAlign();
+    poll.cancel();
+    expect(r.ok, isTrue, reason: r.message);
+    expect(r.offsetMs!, closeTo(30, 1));
+    final mutedAfter = mutedAt!.difference(started).inMilliseconds;
+    expect(mutedAfter, greaterThan(7500),
+        reason: 'the Player must be muted around media time 8.6 s of the click '
+            'track, not straight away because an earlier song was past that point');
+    expect(DateTime.now().difference(started).inSeconds, greaterThan(13));
+  }, timeout: const Timeout(Duration(seconds: 90)));
 
   group('the Player side', () {
     test('refuses the commands when the Controller has not joined', () async {

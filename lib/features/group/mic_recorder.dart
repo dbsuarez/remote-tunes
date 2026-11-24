@@ -31,25 +31,34 @@ class RecordMicRecorder implements MicRecorder {
   @override
   Future<bool> ensurePermission() => _rec.hasPermission();
 
+  RecordConfig _config(AndroidAudioSource source) => RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: CalibrationTrack.sampleRate,
+        numChannels: 1,
+        // Any "improvement" by the phone (echo cancelling, noise suppression,
+        // automatic gain) would change the very timing being measured.
+        autoGain: false,
+        echoCancel: false,
+        noiseSuppress: false,
+        androidConfig: AndroidRecordConfig(
+          audioSource: source,
+          manageBluetooth: false,
+          // Do not silence the music this phone is playing.
+          muteAudio: false,
+        ),
+      );
+
   @override
   Future<void> start() async {
     _bytes.clear();
-    final stream = await _rec.startStream(const RecordConfig(
-      encoder: AudioEncoder.pcm16bits,
-      sampleRate: CalibrationTrack.sampleRate,
-      numChannels: 1,
-      // Any "improvement" by the phone (echo cancelling, noise suppression,
-      // automatic gain) would change the very timing being measured.
-      autoGain: false,
-      echoCancel: false,
-      noiseSuppress: false,
-      androidConfig: AndroidRecordConfig(
-        audioSource: AndroidAudioSource.unprocessed,
-        manageBluetooth: false,
-        // Do not silence the music this phone is playing.
-        muteAudio: false,
-      ),
-    ));
+    Stream<Uint8List> stream;
+    try {
+      // The unprocessed microphone is the most honest one...
+      stream = await _rec.startStream(_config(AndroidAudioSource.unprocessed));
+    } catch (_) {
+      // ...but some phones refuse it: the ordinary microphone will do.
+      stream = await _rec.startStream(_config(AndroidAudioSource.mic));
+    }
     _sub = stream.listen(_bytes.add);
   }
 

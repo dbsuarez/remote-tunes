@@ -121,6 +121,15 @@ Same setup as section 10 (**P** = Player, **C** = the phone that plays along, si
 - [ ] After Auto-align the song really **sounds together** now. If it doesn't, nudge it by ear and tell me how far off it still was, and which way (this tells me how accurate the measurement is on your phones).
 - [ ] Deny the microphone permission: Auto-align says so and changes nothing.
 
+## 12. Smaller new things
+Both phones now run the **release build** (faster than debug; same app).
+- [ ] The app opens quickly and your data is all still there (songs, playlists, trusted devices).
+- [ ] **Queue search:** Queue tab > the search button. Type part of a title, an artist or an album: the list narrows and says "N of M". Tap an entry to play it, tap the cross to remove it. Close the search: the whole queue is back and dragging works again.
+- [ ] **Carry on where it was:** play a song to about the middle, pause, close the app completely and open it as Player. The bar shows where it was. Press Play: it continues from there, not from the start. A different song chosen instead starts from its beginning.
+- [ ] Play a song, close the app **without pausing**, reopen: it is within about 10 seconds of where you left it.
+- [ ] **Settings > Diagnostics:** there are now sections for the saved queue, Online Library, and **Group play** (sound output, the phone's own audio delay, microphone permission). While playing along, it also shows the live "Off by", round trip and fine-tune numbers. **Copy** works, and the text contains no Jamendo ID.
+- [ ] Auto-align (section 11) works on the release build too. If it is **muted at the wrong time** (the Player goes quiet before the first clicks finish, or this phone never gets loud), tell me what you heard.
+
 ---
 
 ## How to report

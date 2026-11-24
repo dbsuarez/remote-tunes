@@ -7,7 +7,11 @@ import 'playable_song.dart';
 abstract class QueueStore {
   /// Replaces the saved queue. [currentIndex] is the position of the current
   /// song within [songs] (clamped on load).
-  Future<void> save(List<PlayableSong> songs, int currentIndex);
+  ///
+  /// [positionSeconds] is how far into the current song it was, so playing
+  /// again carries on from there.
+  Future<void> save(List<PlayableSong> songs, int currentIndex,
+      {int positionSeconds = 0});
 
-  Future<({List<PlayableSong> songs, int currentIndex})> load();
+  Future<({List<PlayableSong> songs, int currentIndex, int positionSeconds})> load();
 }

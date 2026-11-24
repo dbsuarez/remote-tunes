@@ -93,9 +93,11 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 - **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
 - The database moved to version 3; upgrading keeps the library.
 - **Save the queue as a playlist:** the playlist button in the Queue view (Controller and Player) asks for a name (default "Queue 24 Nov") and saves the queue as a new playlist, in queue order. A song queued twice is listed once; internet tracks (Jamendo, links) are left out and counted in the message.
+- **Search the queue:** the search button in the Queue view filters the queue by title, artist or album. While filtering, tap plays that entry and the cross removes it; dragging is off until the search is closed.
 - **Multi-select:** long-press a song to start selecting; tap to pick more, then *Select all*, *Add to queue* or *Add to playlist*.
 - **Song list text size:** Settings > Song list > Small (default), Normal or Large.
 - **Play now keeps the queue:** tapping a single song inserts it after the current one and plays it, leaving the rest of the queue. *Play all*, and tapping a song inside an album, playlist, Favorites or Recent, still replace the queue.
+- **Carries on where it was:** the position within the current song is saved too (every ten seconds while playing, at once on pause, and when the app closes), so after a restart the bar shows where it was and Play carries on from there (not for live internet streams).
 - **The queue survives restarts:** library songs are saved in `queue_items` and Online Library tracks in `queue_streams` (links and text only), in their mixed order; the Player comes back paused on the same song.
 - The web Controller remembers its name as you type it (per browser) and says which name it is connecting as.
 - Sliders (progress bar, volume) hold the released value until the Player confirms, so they no longer snap back.
@@ -121,6 +123,10 @@ The Controller (phone and web) has an **Online** tab that searches [Jamendo](htt
 - **Auto-align:** if the two phones sound a few milliseconds apart (speakers differ), tap **Auto-align (uses the microphone)** with the phones side by side. The Player plays clicks first alone, then this phone alone; the microphone measures the exact difference and sets the fine-tune. Run it again to check. It needs the microphone permission, listens for about 15 seconds, and saves and sends nothing.
 - Bluetooth output breaks sync (large, changing delay): the card warns. The fine-tune is remembered separately for speaker, wired and Bluetooth.
 - Two phones for now. See [docs/16](docs/16_GROUP_MODE.md) for how it works and what is left.
+
+## Release build
+
+`powershell -File tool\build_release.ps1` builds one release APK per CPU type (arm64 is about 32 MB, against 83 MB for the all-in-one debug build) and prints how to install it. It uses `docs\jamendo.json` if present. Without `android\key.properties` the APK is signed with the debug key, so it installs over a debug build **and keeps the app's data**. If you ever create your own signing key (`android/key.properties`, git-ignored), a build signed with it will NOT install over one signed with the debug key: Android requires uninstalling first, which erases the app's data on that phone. Release builds were tried on both Infinix phones: they launch and keep their data.
 
 ## Automated checks
 

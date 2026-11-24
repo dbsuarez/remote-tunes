@@ -653,8 +653,10 @@ class PlayerServer {
     if (cal == null) return;
     _calibration = null;
     cal.watchdog?.cancel();
+    // Silent while things are moved around (the song that was playing is
+    // briefly started again to put it back), and the volume comes back last.
     try {
-      await engine.setVolume(cal.savedVolume);
+      await engine.setVolume(0.0);
     } catch (_) {}
     try {
       await engine.pause();
@@ -678,9 +680,14 @@ class PlayerServer {
               await e.seek(cal.origPositionSeconds);
             } catch (_) {}
           }
-          if (cal.wasPlaying) await e.play();
         }
       }
+    } catch (_) {}
+    try {
+      await engine.setVolume(cal.savedVolume);
+    } catch (_) {}
+    try {
+      if (cal.wasPlaying) await engine.play();
     } catch (_) {}
   }
 

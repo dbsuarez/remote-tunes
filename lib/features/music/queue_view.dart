@@ -39,6 +39,26 @@ class _QueueViewState extends State<QueueView> {
   bool _loaded = false;
   Object? _error;
 
+  /// The search box above the list (matches title, artist and album).
+  bool _searchOpen = false;
+  String _query = '';
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  bool _matches(RemoteQueueItem item) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    final s = item.song;
+    return s.title.toLowerCase().contains(q) ||
+        s.artist.toLowerCase().contains(q) ||
+        s.album.toLowerCase().contains(q);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -196,6 +216,22 @@ class _QueueViewState extends State<QueueView> {
                   Text('${_items.length} in queue',
                       style: theme.textTheme.bodySmall),
                   IconButton(
+                    tooltip: _searchOpen ? 'Close search' : 'Search the queue',
+                    isSelected: _searchOpen,
+                    icon: const Icon(Icons.search_rounded),
+                    selectedIcon: Icon(Icons.search_off_rounded,
+                        color: theme.colorScheme.primary),
+                    onPressed: _items.isEmpty
+                        ? null
+                        : () => setState(() {
+                              _searchOpen = !_searchOpen;
+                              if (!_searchOpen) {
+                                _search.clear();
+                                _query = '';
+                              }
+                            }),
+                  ),
+                  IconButton(
                     tooltip: 'Save queue as a playlist',
                     icon: const Icon(Icons.playlist_add_rounded),
                     onPressed: _items.isEmpty ? null : _saveAsPlaylist,
@@ -209,6 +245,30 @@ class _QueueViewState extends State<QueueView> {
                 ],
               ),
             ),
+            if (_searchOpen)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: TextField(
+                  controller: _search,
+                  autofocus: true,
+                  onChanged: (v) => setState(() => _query = v),
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search the queue',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => setState(() {
+                              _search.clear();
+                              _query = '';
+                            }),
+                          ),
+                  ),
+                ),
+              ),
             Expanded(child: _body(theme)),
           ],
         ),
@@ -247,15 +307,58 @@ class _QueueViewState extends State<QueueView> {
       );
     }
 
+    final filtering = _query.trim().isNotEmpty;
+    if (filtering) {
+      final matches = [
+        for (var i = 0; i < _items.length; i++)
+          if (_matches(_items[i])) i,
+      ];
+      if (matches.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text('No matches in the queue.',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ),
+        );
+      }
+      // While searching the list is not reorderable (positions would be
+      // confusing); tap plays, the cross removes.
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('${matches.length} of ${_items.length}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: matches.length,
+              itemBuilder: (context, k) => _tile(theme, matches[k], draggable: false),
+            ),
+          ),
+        ],
+      );
+    }
+
     return ReorderableListView.builder(
       buildDefaultDragHandles: false,
       itemCount: _items.length,
       onReorder: _onReorder,
-      itemBuilder: (context, i) {
+      itemBuilder: (context, i) => _tile(theme, i, draggable: true),
+    );
+  }
+
+  Widget _tile(ThemeData theme, int i, {required bool draggable}) {
         final item = _items[i];
         final song = item.song;
         final isCurrent = i == widget.currentIndex;
-        return ListTile(
+    return ListTile(
           key: ValueKey(item.queueItemId),
           minTileHeight: 64,
           selected: isCurrent,
@@ -289,18 +392,17 @@ class _QueueViewState extends State<QueueView> {
                 onPressed: () =>
                     _run(() => widget.source.removeQueueItem(item.queueItemId)),
               ),
-              ReorderableDragStartListener(
-                index: i,
-                child: const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Icon(Icons.drag_handle_rounded),
+              if (draggable)
+                ReorderableDragStartListener(
+                  index: i,
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(Icons.drag_handle_rounded),
+                  ),
                 ),
-              ),
             ],
           ),
         );
-      },
-    );
   }
 }

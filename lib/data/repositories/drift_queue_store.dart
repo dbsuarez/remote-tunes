@@ -18,9 +18,11 @@ class DriftQueueStore implements QueueStore {
 
   final AppDatabase _db;
   static const _currentKey = 'queue_current_index';
+  static const _positionKey = 'queue_position_seconds';
 
   @override
-  Future<void> save(List<PlayableSong> songs, int currentIndex) async {
+  Future<void> save(List<PlayableSong> songs, int currentIndex,
+      {int positionSeconds = 0}) async {
     await _db.transaction(() async {
       await _db.delete(_db.queueItems).go();
       await _db.delete(_db.queueStreams).go();
@@ -52,11 +54,16 @@ class DriftQueueStore implements QueueStore {
             value: currentIndex.toString(),
             updatedAt: Value(DateTime.now()),
           ));
+      await _db.into(_db.settings).insertOnConflictUpdate(SettingsCompanion.insert(
+            key: _positionKey,
+            value: positionSeconds.toString(),
+            updatedAt: Value(DateTime.now()),
+          ));
     });
   }
 
   @override
-  Future<({List<PlayableSong> songs, int currentIndex})> load() async {
+  Future<({List<PlayableSong> songs, int currentIndex, int positionSeconds})> load() async {
     final entries = <({int position, PlayableSong song})>[];
 
     final libraryRows = await _db.customSelect(
@@ -96,6 +103,17 @@ class DriftQueueStore implements QueueStore {
     // next one if it is gone).
     var index = entries.indexWhere((e) => e.position >= savedPosition);
     if (index < 0) index = entries.isEmpty ? 0 : entries.length - 1;
-    return (songs: [for (final e in entries) e.song], currentIndex: index);
+    // The spot in the song only makes sense if the same song is still current
+    // (a deleted library song moves the current one on).
+    final stillSame = entries.isNotEmpty &&
+        entries[index].position == savedPosition;
+    final pos = await (_db.select(_db.settings)
+          ..where((t) => t.key.equals(_positionKey)))
+        .getSingleOrNull();
+    return (
+      songs: [for (final e in entries) e.song],
+      currentIndex: index,
+      positionSeconds: stillSame ? (int.tryParse(pos?.value ?? '') ?? 0) : 0,
+    );
   }
 }

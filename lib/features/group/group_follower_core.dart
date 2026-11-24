@@ -110,6 +110,9 @@ class GroupFollowerCore {
   /// The newest filtered error in ms (positive = this phone is ahead).
   double? get filteredErrorMs => _errs.isEmpty ? null : _median(_errs);
 
+  /// The library id of the song loaded on this phone (null if none).
+  int? get loadedSongId => _loadedId;
+
   /// Where this phone's audio is right now, in ms (for calibration).
   int get positionMs => backend.position.inMilliseconds;
 

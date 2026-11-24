@@ -40,6 +40,9 @@ void main() {
 
   Future<void> afterSave() => Future<void>.delayed(const Duration(milliseconds: 700));
 
+  /// Lets the engine handle position updates.
+  Future<void> settleEngine() => Future<void>.delayed(const Duration(milliseconds: 30));
+
   test('the queue and current song come back after a restart, paused', () async {
     final a = newEngine(FakeAudioBackend());
     await a.playSongs(await songs(['One', 'Two', 'Three']), startIndex: 1);
@@ -197,5 +200,177 @@ void main() {
     await b.restoreQueue();
     expect([for (final i in b.queueSnapshot().items) i.song.title], ['Three']);
     await b.dispose();
+  });
+
+  group('carrying on from where the song was', () {
+    test('after a restart it shows the spot, and playing carries on from there', () async {
+      final backendA = FakeAudioBackend();
+      final one = newEngine(backendA);
+      await one.playSongs(await songs(['One', 'Two']));
+      backendA.emitPosition(const Duration(seconds: 42));
+      await settleEngine();
+      await one.pause(); // pausing saves the spot at once
+      await afterSave();
+      await one.dispose();
+
+      final backend = FakeAudioBackend();
+      final b = newEngine(backend);
+      await b.restoreQueue();
+      expect(b.state.title, 'One');
+      expect(b.state.positionSeconds, 42, reason: 'the bar shows where it was');
+      expect(b.state.durationSeconds, 100);
+      expect(backend.loaded, isEmpty);
+
+      await b.play();
+      expect(backend.loaded, ['/m/One.mp3']);
+      expect(backend.position.inSeconds, 42, reason: 'it carried on from there');
+      expect(b.state.isPlaying, isTrue);
+      await b.dispose();
+    });
+
+    test('only the first play uses the saved spot; the next song starts at the beginning',
+        () async {
+      final backendA = FakeAudioBackend();
+      final a = newEngine(backendA);
+      await a.playSongs(await songs(['One', 'Two']));
+      backendA.emitPosition(const Duration(seconds: 30));
+      await settleEngine();
+      await a.pause();
+      await afterSave();
+      await a.dispose();
+
+      final backend = FakeAudioBackend();
+      final b = newEngine(backend);
+      await b.restoreQueue();
+      await b.play();
+      expect(backend.position.inSeconds, 30);
+      await b.next();
+      expect(backend.loaded.last, '/m/Two.mp3');
+      expect(backend.position.inSeconds, 0, reason: 'a different song: from the start');
+      await b.dispose();
+    });
+
+    test('choosing another song after a restart does not seek it to the old spot', () async {
+      final backendA = FakeAudioBackend();
+      final a = newEngine(backendA);
+      await a.playSongs(await songs(['One', 'Two']));
+      backendA.emitPosition(const Duration(seconds: 55));
+      await settleEngine();
+      await a.pause();
+      await afterSave();
+      await a.dispose();
+
+      final backend = FakeAudioBackend();
+      final b = newEngine(backend);
+      await b.restoreQueue();
+      final two = b.queueSnapshot().items.last.queueItemId;
+      await b.playQueueItem(two);
+      expect(backend.loaded, ['/m/Two.mp3']);
+      expect(backend.position.inSeconds, 0);
+      await b.dispose();
+    });
+
+    test('while playing it saves about every ten seconds, not every second', () async {
+      final backend = FakeAudioBackend();
+      final a = newEngine(backend);
+      await a.playSongs(await songs(['One']));
+      await afterSave(); // the song start itself is saved
+      final before = (await store.load()).positionSeconds;
+      expect(before, 0);
+
+      backend.emitPosition(const Duration(seconds: 4));
+      await settleEngine();
+      await afterSave();
+      expect((await store.load()).positionSeconds, 0, reason: 'only 4 s: not worth a write yet');
+
+      backend.emitPosition(const Duration(seconds: 11));
+      await settleEngine();
+      await afterSave();
+      expect((await store.load()).positionSeconds, 11);
+      await a.dispose();
+    });
+
+    test('closing the app while playing saves the latest spot', () async {
+      final backend = FakeAudioBackend();
+      final a = newEngine(backend);
+      await a.playSongs(await songs(['One']));
+      await afterSave();
+      backend.emitPosition(const Duration(seconds: 7));
+      await settleEngine();
+      await a.dispose(); // no waiting
+
+      final b = newEngine(FakeAudioBackend());
+      await b.restoreQueue();
+      expect(b.state.positionSeconds, 7);
+      await b.dispose();
+    });
+
+    test('a spot too close to the end is pulled back so it does not finish at once',
+        () async {
+      final backendA = FakeAudioBackend();
+      final a = newEngine(backendA);
+      await a.playSongs(await songs(['One']));
+      backendA.emitPosition(const Duration(seconds: 99));
+      await settleEngine();
+      await a.pause();
+      await afterSave();
+      await a.dispose();
+
+      final backend = FakeAudioBackend();
+      final b = newEngine(backend);
+      await b.restoreQueue();
+      await b.play();
+      expect(backend.position.inSeconds, 98);
+      await b.dispose();
+    });
+
+    test('if the saved song was deleted, the next one starts from the beginning', () async {
+      final backendA = FakeAudioBackend();
+      final a = newEngine(backendA);
+      await a.playSongs(await songs(['One', 'Two']), startIndex: 1);
+      backendA.emitPosition(const Duration(seconds: 33));
+      await settleEngine();
+      await a.pause();
+      await afterSave();
+      await a.dispose();
+      await repo.removeSong(ids['Two']!);
+
+      final backend = FakeAudioBackend();
+      final b = newEngine(backend);
+      await b.restoreQueue();
+      expect(b.state.positionSeconds, 0, reason: 'a different song is current now');
+      await b.play();
+      expect(backend.position.inSeconds, 0);
+      await b.dispose();
+    });
+
+    test('clearing the queue forgets the spot', () async {
+      final backendA = FakeAudioBackend();
+      final a = newEngine(backendA);
+      await a.playSongs(await songs(['One']));
+      backendA.emitPosition(const Duration(seconds: 20));
+      await settleEngine();
+      await a.pause();
+      await afterSave();
+      await a.clearQueue();
+      await afterSave();
+      await a.dispose();
+      final loaded = await store.load();
+      expect(loaded.songs, isEmpty);
+      expect(loaded.positionSeconds, 0);
+    });
+
+    test('internet streams (no known length) are not resumed', () async {
+      final backendA = FakeAudioBackend();
+      final a = newEngine(backendA);
+      await a.playUrl('https://prod-1.storage.jamendo.com/?trackid=11&format=mp32',
+          title: 'Web');
+      backendA.emitPosition(const Duration(seconds: 40));
+      await settleEngine();
+      await a.pause();
+      await afterSave();
+      await a.dispose();
+      expect((await store.load()).positionSeconds, 0);
+    });
   });
 }
