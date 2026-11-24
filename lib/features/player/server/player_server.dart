@@ -24,6 +24,7 @@ import '../group_sync_source.dart';
 import '../playback_engine.dart';
 import '../queue/playable_song.dart';
 import '../queue_aware_engine.dart';
+import '../save_queue.dart';
 import 'player_advertiser.dart';
 import 'player_library.dart';
 import 'server_channel.dart';
@@ -1204,6 +1205,24 @@ class PlayerServer {
               ErrorCodes.invalidAction, 'setFavorite needs favorite: true or false.');
         }
         await _library.setFavorite(_requiredInt(p, 'songId'), p['favorite'] as bool);
+      case RemoteActions.saveQueueAsPlaylist:
+        final name = p['name'];
+        if (name is! String) {
+          throw PlaybackException(ErrorCodes.invalidAction, 'Give the playlist a name.');
+        }
+        final lib = _library;
+        final saved = await saveQueueAsPlaylist(
+          queue: _queueEngine.queueSnapshot(),
+          name: name,
+          createPlaylist: lib.createPlaylist,
+          addToPlaylist: lib.addToPlaylist,
+          deletePlaylist: lib.deletePlaylist,
+        );
+        return {
+          'playlistId': saved.playlistId,
+          'added': saved.added,
+          'skipped': saved.skipped,
+        };
       case RemoteActions.createPlaylist:
         final name = p['name'];
         if (name is! String) {

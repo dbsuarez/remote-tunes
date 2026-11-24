@@ -97,6 +97,9 @@ class RemoteActions {
   static const setSpeed = 'setSpeed';
   static const getArt = 'getArt';
 
+  // `{"action":"saveQueueAsPlaylist","name":"..."}` -> {playlistId, added, skipped}
+  static const saveQueueAsPlaylist = 'saveQueueAsPlaylist';
+
   // Group play: `{"action":"groupJoin","enabled":true}` starts (or stops) the
   // Player sending `group_sync` messages to this Controller.
   static const groupJoin = 'groupJoin';

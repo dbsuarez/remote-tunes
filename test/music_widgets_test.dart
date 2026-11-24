@@ -175,6 +175,14 @@ class FakeMusicSource implements MusicSource {
   }
 
   @override
+  Future<({int added, int skipped})> saveQueueAsPlaylist(String name) async {
+    calls.add('saveQueue $name');
+    if (failWith != null) throw failWith!;
+    final lib = queue.where((i) => i.song.id > 0).length;
+    return (added: lib, skipped: queue.length - lib);
+  }
+
+  @override
   Future<void> clearQueue() async {
     calls.add('clear');
     queue.clear();

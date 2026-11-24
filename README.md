@@ -92,6 +92,7 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 - **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path. Now Playing and the mini bar use the big one; song rows (Library, Queue, Favorites, playlists, on both phones) ask for a 96 px one, a few at a time, and show a music note when the song has no art.
 - **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
 - The database moved to version 3; upgrading keeps the library.
+- **Save the queue as a playlist:** the playlist button in the Queue view (Controller and Player) asks for a name (default "Queue 24 Nov") and saves the queue as a new playlist, in queue order. A song queued twice is listed once; internet tracks (Jamendo, links) are left out and counted in the message.
 - **Multi-select:** long-press a song to start selecting; tap to pick more, then *Select all*, *Add to queue* or *Add to playlist*.
 - **Song list text size:** Settings > Song list > Small (default), Normal or Large.
 - **Play now keeps the queue:** tapping a single song inserts it after the current one and plays it, leaving the rest of the queue. *Play all*, and tapping a song inside an album, playlist, Favorites or Recent, still replace the queue.

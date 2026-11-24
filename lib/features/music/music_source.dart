@@ -70,6 +70,9 @@ abstract class MusicSource {
   Future<void> playQueueItem(int queueItemId);
   Future<void> setShuffle(bool enabled);
   Future<void> setRepeat(RepeatMode mode);
+
+  /// Saves the current queue as a new playlist (library songs only).
+  Future<({int added, int skipped})> saveQueueAsPlaylist(String name);
 }
 
 /// Controller side: every call is a protocol request to the Player.
@@ -178,6 +181,14 @@ class RemoteMusicSource implements MusicSource {
   @override
   Future<void> moveQueueItem(int id, int newIndex) => _client.sendCommand(
       RemoteActions.moveQueueItem, {'queueItemId': id, 'newIndex': newIndex});
+
+  @override
+  Future<({int added, int skipped})> saveQueueAsPlaylist(String name) async {
+    final r = await _client
+        .sendCommandForResult(RemoteActions.saveQueueAsPlaylist, {'name': name});
+    int n(Object? v) => v is num ? v.toInt() : 0;
+    return (added: n(r['added']), skipped: n(r['skipped']));
+  }
 
   @override
   Future<void> clearQueue() => _client.sendCommand(RemoteActions.clearQueue);

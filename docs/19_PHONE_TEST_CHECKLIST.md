@@ -88,20 +88,20 @@ First switch on GitHub Pages (repo Settings > Pages > Source: **GitHub Actions**
 
 ## 10. Group play (the Controller plays along with the Player)
 Put the two phones side by side, same Wi-Fi, music with a clear beat. **C** is connected to **P** locally (not via the internet).
-- [ ] **C** Now Playing > **Play on this phone too** > switch on. The status goes "Joining…", then "Getting the song from the Player…", then **"Playing in sync"**.
-- [ ] You hear the song from **both** phones, and it sounds like **one** song (no echo or flam). It may take a few seconds to settle after starting.
-- [ ] The card shows **Off by** a small number (ideally under 30 ms, shown in teal) and a connection delay of a few ms.
-- [ ] **Fine-tune:** if one phone is consistently ahead, move the slider (+ if **C** sounds late, - if early) until they line up by ear. Close the app and reopen it: the setting is remembered.
-- [ ] **P** pause and play: **C** pauses and resumes with it.
-- [ ] Drag the progress bar on **C** (a seek): both phones jump and stay together within a couple of seconds.
-- [ ] Next song: **C** keeps up (it fetched the next song ahead of time, so there should be no gap).
-- [ ] Play on **P** at 1.5x speed: both follow.
+- [x] **C** Now Playing > **Play on this phone too** > switch on. The status goes "Joining…", then "Getting the song from the Player…", then **"Playing in sync"**.
+- [x] You hear the song from **both** phones, and it sounds like **one** song (no echo or flam). It may take a few seconds to settle after starting.
+- [x] The card shows **Off by** a small number (ideally under 30 ms, shown in teal) and a connection delay of a few ms.
+- [x] **Fine-tune:** if one phone is consistently ahead, move the slider (+ if **C** sounds late, - if early) until they line up by ear. Close the app and reopen it: the setting is remembered.
+- [x] **P** pause and play: **C** pauses and resumes with it.
+- [x] Drag the progress bar on **C** (a seek): both phones jump and stay together within a couple of seconds.
+- [x] Next song: **C** keeps up (it fetched the next song ahead of time, so there should be no gap).
+- [x] Play on **P** at 1.5x speed: both follow.
 - [ ] Walk the phones to different rooms, or put **C** in your pocket with the screen on: it stays in step. (Screen off or app in the background may stop it: tell me what happens.)
-- [ ] Switch the Wi-Fi off on **C**: the card shows reconnecting and **C** goes quiet. Switch it back on: it rejoins by itself.
-- [ ] Play a **Jamendo** track: **C** says it can't follow ("Waiting for the Player to play a song from its library"), the Player plays alone. Back to a library song: it rejoins the sound.
-- [ ] Switch it off: **C** goes silent. (It also deletes the temporary song files.)
-- [ ] **C** connected through the internet only (mobile data, Auto mode): the switch is disabled and says it needs the same Wi-Fi.
-- [ ] Note the **round-trip** and **clock spread** numbers and whether the sound ever drifts apart over a whole song. This is the most useful thing to report.
+- [x] Switch the Wi-Fi off on **C**: the card shows reconnecting and **C** goes quiet. Switch it back on: it rejoins by itself.
+- [x] Play a **Jamendo** track: **C** says it can't follow ("Waiting for the Player to play a song from its library"), the Player plays alone. Back to a library song: it rejoins the sound.
+- [x] Switch it off: **C** goes silent. (It also deletes the temporary song files.)
+- [x] **C** connected through the internet only (mobile data, Auto mode): the switch is disabled and says it needs the same Wi-Fi.
+- [x] Note the **round-trip** and **clock spread** numbers and whether the sound ever drifts apart over a whole song. This is the most useful thing to report.
 
 ---
 

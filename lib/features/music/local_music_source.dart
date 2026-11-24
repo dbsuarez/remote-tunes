@@ -7,6 +7,7 @@ import '../player/playback_engine.dart';
 import '../player/queue/playable_song.dart';
 import '../player/queue_aware_engine.dart';
 import '../player/server/player_library.dart';
+import '../player/save_queue.dart' as save_queue;
 import 'music_source.dart';
 
 /// Player side: direct calls into the library and the engine.
@@ -131,6 +132,18 @@ class LocalMusicSource implements MusicSource {
   @override
   Future<void> moveQueueItem(int id, int newIndex) =>
       _engine.moveQueueItem(id, newIndex);
+
+  @override
+  Future<({int added, int skipped})> saveQueueAsPlaylist(String name) async {
+    final saved = await save_queue.saveQueueAsPlaylist(
+      queue: _engine.queueSnapshot(),
+      name: name,
+      createPlaylist: _library.createPlaylist,
+      addToPlaylist: _library.addToPlaylist,
+      deletePlaylist: _library.deletePlaylist,
+    );
+    return (added: saved.added, skipped: saved.skipped);
+  }
 
   @override
   Future<void> clearQueue() => _engine.clearQueue();

@@ -101,6 +101,55 @@ class _QueueViewState extends State<QueueView> {
     await _run(() => widget.source.moveQueueItem(moved.queueItemId, newIndex));
   }
 
+  /// Asks for a name, then saves the queue as a new playlist.
+  Future<void> _saveAsPlaylist() async {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final c = TextEditingController(text: 'Queue ${now.day} ${months[now.month - 1]}');
+        c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
+        return AlertDialog(
+          title: const Text('Save queue as a playlist'),
+          content: TextField(
+            controller: c,
+            autofocus: true,
+            maxLength: 60,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(hintText: 'Playlist name'),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(c.text),
+                child: const Text('Save')),
+          ],
+        );
+      },
+    );
+    if (name == null || !mounted) return;
+    try {
+      final r = await widget.source.saveQueueAsPlaylist(name);
+      if (!mounted) return;
+      final songs = '${r.added} song${r.added == 1 ? '' : 's'}';
+      final left = r.skipped == 0
+          ? ''
+          : ' (${r.skipped} internet track${r.skipped == 1 ? '' : 's'} left out)';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Saved $songs as "${name.trim()}"$left')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
   RepeatMode _nextRepeat(RepeatMode m) => switch (m) {
         RepeatMode.off => RepeatMode.queue,
         RepeatMode.queue => RepeatMode.one,
@@ -146,7 +195,11 @@ class _QueueViewState extends State<QueueView> {
                   const Spacer(),
                   Text('${_items.length} in queue',
                       style: theme.textTheme.bodySmall),
-                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Save queue as a playlist',
+                    icon: const Icon(Icons.playlist_add_rounded),
+                    onPressed: _items.isEmpty ? null : _saveAsPlaylist,
+                  ),
                   TextButton(
                     onPressed: _items.isEmpty
                         ? null
