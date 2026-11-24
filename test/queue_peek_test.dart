@@ -5,6 +5,7 @@ import 'package:remote_tunes/core/protocol/library_models.dart';
 import 'package:remote_tunes/core/protocol/protocol.dart';
 import 'package:remote_tunes/features/controller/controller_client.dart';
 import 'package:remote_tunes/features/controller/controller_views.dart';
+import 'package:remote_tunes/features/group/group_card.dart';
 import 'package:remote_tunes/features/music/queue_peek.dart';
 
 import 'music_widgets_test.dart' show FakeMusicSource, settleUi;
@@ -241,10 +242,10 @@ void main() {
       await screen(tester, client, connected(2));
       await tester.drag(find.byType(ListView).first, const Offset(0, -2000));
       await tester.pump();
-      // The Sleep timer card (near the bottom of the page) is reachable.
-      expect(find.text('Sleep timer'), findsOneWidget);
+      // The last card of the page (the group card) is reachable.
+      expect(find.byType(GroupCard), findsOneWidget);
       final sheetTop = tester.getTopLeft(find.text('Up next')).dy;
-      final cardBottom = tester.getBottomLeft(find.text('Sleep timer')).dy;
+      final cardBottom = tester.getBottomLeft(find.byType(GroupCard)).dy;
       expect(cardBottom, lessThan(sheetTop), reason: 'the sheet does not cover it');
     });
 

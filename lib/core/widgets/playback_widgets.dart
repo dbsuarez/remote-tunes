@@ -246,7 +246,8 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
     );
   }
 
-  Widget _seekBar(ThemeData theme, PlaybackState s, double position, int duration, bool canSeek) {
+  Widget _seekBar(ThemeData theme, PlaybackState s, double position, int duration, bool canSeek,
+      {bool showFormat = false}) {
     return Column(
       children: [
         Slider(
@@ -275,6 +276,17 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(formatDuration(position.round()), style: theme.textTheme.bodySmall),
+              if (showFormat && s.format.isNotEmpty)
+                Expanded(
+                  child: Text(
+                    s.format,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ),
               Text(formatDuration(s.durationSeconds), style: theme.textTheme.bodySmall),
             ],
           ),
@@ -353,7 +365,7 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
           widget.actions!,
         ],
         const SizedBox(height: 4),
-        _seekBar(theme, s, position, duration, canSeek),
+        _seekBar(theme, s, position, duration, canSeek, showFormat: true),
       ],
     );
   }

@@ -28,6 +28,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     this.onSongStarted,
     this.onStreamStarted,
     this.queueStore,
+    this.formatReader,
   })  : _backend = backend,
         _queue = queue ?? QueueController(),
         _volume = initialVolume.clamp(0.0, 1.0),
@@ -47,6 +48,11 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   }
 
   final AudioBackend _backend;
+
+  /// Reads what a file is (sample rate, bitrate, type) for the Now Playing
+  /// line; null: not shown.
+  final Future<String?> Function(String path)? formatReader;
+  String _format = '';
 
   /// Saves the queue so it survives a restart (null: not saved).
   final QueueStore? queueStore;
@@ -130,7 +136,27 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
       error: _error,
       localArtPath: song?.albumArtPath,
       speed: _speed,
+      format: _format,
     );
+  }
+
+  /// Looks up what the file that just started is, without holding anything up.
+  void _readFormat(QueueEntry entry) {
+    _format = '';
+    final reader = formatReader;
+    final path = entry.song.filePath;
+    if (reader == null || path == null) return;
+    unawaited(() async {
+      String? f;
+      try {
+        f = await reader(path);
+      } catch (_) {
+        f = null;
+      }
+      if (_disposed || f == null || f.isEmpty || _loadedEntryId != entry.id) return;
+      _format = f;
+      _emit();
+    }());
   }
 
   @override
@@ -217,6 +243,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     }
     final song = next.song;
     _loadedEntryId = next.id;
+    _readFormat(next);
     _positionSeconds = 0;
     _durationSeconds = song.durationSeconds;
     _error = '';
@@ -356,6 +383,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
               : await _backend.load(path!);
           _loadedEntryId = current.id;
           // Loading cleared whatever was lined up behind the old track.
+          _readFormat(current);
           _preloadedEntryId = null;
           _preloadKey = null;
           _positionSeconds = 0;

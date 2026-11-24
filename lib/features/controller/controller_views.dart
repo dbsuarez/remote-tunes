@@ -505,6 +505,17 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
               : null,
           icon: Icon(repeatIcon, color: p.repeatMode == RepeatMode.off ? null : primary),
         ),
+        _SpeedButton(
+          speed: p.speed,
+          enabled: enabled,
+          onSet: (v) => _send(context, RemoteActions.setSpeed, {'speed': v}),
+        ),
+        _SleepTimerRow(
+          compact: true,
+          secondsLeft: p.sleepTimerSeconds,
+          enabled: enabled,
+          onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
+        ),
       ],
     );
   }
@@ -621,20 +632,16 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
           enabled: enabled,
           onChanged: (v) => _send(context, RemoteActions.setVolume, {'volume': v}),
         ),
-        if (!p.isExternal) ...[
+        // Speed and the sleep timer are in the row of quick actions under the
+        // title; when another music app is controlled they keep their card.
+        if (p.isExternal) ...[
           const SizedBox(height: 8),
-          _SpeedRow(
-            speed: p.speed,
+          _SleepTimerRow(
+            secondsLeft: p.sleepTimerSeconds,
             enabled: enabled,
-            onSet: (v) => _send(context, RemoteActions.setSpeed, {'speed': v}),
+            onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
           ),
         ],
-        const SizedBox(height: 8),
-        _SleepTimerRow(
-          secondsLeft: p.sleepTimerSeconds,
-          enabled: enabled,
-          onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
-        ),
         // Only on the phone app: this phone plays the same song, in sync.
         if (!p.isExternal) GroupCard(enabled: enabled),
       ],
@@ -657,6 +664,45 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
 }
 
 /// Playback speed picker (0.5x to 2x).
+/// Speed as an icon in the quick-action row: the icon lights up (and says the
+/// speed) when it is not normal.
+class _SpeedButton extends StatelessWidget {
+  const _SpeedButton({required this.speed, required this.enabled, required this.onSet});
+
+  final double speed;
+  final bool enabled;
+  final ValueChanged<double> onSet;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final changed = speed != 1.0;
+    return PopupMenuButton<double>(
+      tooltip: 'Set playback speed',
+      enabled: enabled,
+      onSelected: (v) {
+        Haptics.selection();
+        onSet(v);
+      },
+      itemBuilder: (_) => [
+        for (final v in _SpeedRow.speeds)
+          CheckedPopupMenuItem(
+            value: v,
+            checked: v == speed,
+            child: Text(v == 1.0 ? 'Normal (1\u00d7)' : _SpeedRow.label(v)),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: changed
+            ? Text(_SpeedRow.label(speed),
+                style: theme.textTheme.titleSmall?.copyWith(color: RtColors.violet))
+            : Icon(Icons.speed_rounded, color: theme.colorScheme.onSurfaceVariant),
+      ),
+    );
+  }
+}
+
 class _SpeedRow extends StatelessWidget {
   const _SpeedRow({required this.speed, required this.enabled, required this.onSet});
 
@@ -795,11 +841,16 @@ class _SleepTimerRow extends StatefulWidget {
     required this.secondsLeft,
     required this.enabled,
     required this.onSet,
+    this.compact = false,
   });
 
   final int secondsLeft;
   final bool enabled;
   final ValueChanged<int> onSet;
+
+  /// An icon for the quick-action row (shows the time left while it runs)
+  /// instead of the full card.
+  final bool compact;
 
   @override
   State<_SleepTimerRow> createState() => _SleepTimerRowState();
@@ -850,6 +901,31 @@ class _SleepTimerRowState extends State<_SleepTimerRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final active = _endsAt != null;
+    if (widget.compact) {
+      return PopupMenuButton<int>(
+        tooltip: 'Set sleep timer',
+        enabled: widget.enabled,
+        onSelected: (m) {
+          Haptics.selection();
+          widget.onSet(m);
+        },
+        itemBuilder: (_) => [
+          if (active) PopupMenuItem(value: 0, child: Text('Cancel (pauses in ${_left()})')),
+          const PopupMenuItem(value: 15, child: Text('15 minutes')),
+          const PopupMenuItem(value: 30, child: Text('30 minutes')),
+          const PopupMenuItem(value: 45, child: Text('45 minutes')),
+          const PopupMenuItem(value: 60, child: Text('1 hour')),
+          const PopupMenuItem(value: 120, child: Text('2 hours')),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: active
+              ? Text(_left(),
+                  style: theme.textTheme.titleSmall?.copyWith(color: RtColors.violet))
+              : Icon(Icons.bedtime_rounded, color: theme.colorScheme.onSurfaceVariant),
+        ),
+      );
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),

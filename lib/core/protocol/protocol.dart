@@ -290,7 +290,11 @@ class PlaybackState {
     this.sleepTimerSeconds = 0,
     this.speed = 1.0,
     this.favorite = false,
+    this.format = '',
   });
+
+  /// What the file is, e.g. "48 kHz · 256 kbps · MP3" (empty when unknown).
+  final String format;
 
   /// Playback speed (1.0 = normal).
   final double speed;
@@ -379,6 +383,7 @@ class PlaybackState {
     String? localArtPath,
     int? sleepTimerSeconds,
     double? speed,
+    String? format,
     bool? favorite,
   }) =>
       PlaybackState(
@@ -405,6 +410,7 @@ class PlaybackState {
         localArtPath: localArtPath ?? this.localArtPath,
         sleepTimerSeconds: sleepTimerSeconds ?? this.sleepTimerSeconds,
         speed: speed ?? this.speed,
+        format: format ?? this.format,
         favorite: favorite ?? this.favorite,
       );
 
@@ -432,6 +438,7 @@ class PlaybackState {
         if (!canSkip) 'canSkip': false,
         if (sleepTimerSeconds > 0) 'sleepTimerSeconds': sleepTimerSeconds,
         if (speed != 1.0) 'speed': speed,
+        if (format.isNotEmpty) 'format': format,
         if (favorite) 'favorite': true,
         // localArtPath is intentionally NOT included.
       };
@@ -468,6 +475,7 @@ class PlaybackState {
           ? (j['speed'] as num).toDouble().clamp(0.5, 2.0)
           : 1.0,
       favorite: j['favorite'] == true,
+      format: j['format'] is String ? j['format'] as String : '',
     );
   }
 }

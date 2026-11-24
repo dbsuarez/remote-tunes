@@ -25,6 +25,7 @@ import '../features/online/online_status.dart';
 import '../features/online/online_transport.dart';
 import '../features/online/supabase_relay.dart';
 import '../features/player/audio/audio_backend.dart';
+import '../features/player/audio/audio_format.dart';
 import '../features/player/audio/player_audio_handler.dart';
 import '../features/player/player_host.dart';
 import '../features/player/queue_playback_engine.dart';
@@ -57,6 +58,7 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
     onStreamStarted: (s) => unawaited(library.recordStream(s).catchError((Object _) {})),
     queueStore: DriftQueueStore(ref.watch(databaseProvider)),
+    formatReader: AudioFormatReader().describe,
   );
   // The queue is kept between runs: pick up where it was, paused.
   try {

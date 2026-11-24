@@ -184,6 +184,78 @@ void main() {
     expect(log, ['HapticFeedbackType.selectionClick']);
   });
 
+  testWidgets('the speed and the sleep timer are icons in the same row', (tester) async {
+    await open(tester, state());
+    expect(find.byTooltip('Set playback speed'), findsOneWidget);
+    expect(find.byTooltip('Set sleep timer'), findsOneWidget);
+    expect(find.text('Sleep timer'), findsNothing, reason: 'no separate card any more');
+
+    await tester.tap(find.byTooltip('Set playback speed'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1.5×'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Set sleep timer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30 minutes'));
+    await tester.pumpAndSettle();
+    expect(client.sent, [RemoteActions.setSpeed, RemoteActions.setSleepTimer]);
+    expect(client.params[0]['speed'], 1.5);
+    expect(client.params[1]['minutes'], 30);
+  });
+
+  testWidgets('a speed that is not normal is shown in the row', (tester) async {
+    await open(
+        tester,
+        ControllerClientState(
+          status: ControllerStatus.connected,
+          playerName: 'P',
+          playback: state().playback.copyWith(speed: 1.25),
+        ));
+    expect(find.text('1.25×'), findsOneWidget);
+  });
+
+  testWidgets('a running sleep timer shows its time and can be cancelled', (tester) async {
+    await open(
+        tester,
+        ControllerClientState(
+          status: ControllerStatus.connected,
+          playerName: 'P',
+          playback: state().playback.copyWith(sleepTimerSeconds: 600),
+        ));
+    expect(find.textContaining(RegExp(r'^(10:00|9:59)$')), findsOneWidget);
+    await tester.tap(find.byTooltip('Set sleep timer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Cancel'));
+    await tester.pumpAndSettle();
+    expect(client.params.last['minutes'], 0);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('the file format shows between the times', (tester) async {
+    await open(
+        tester,
+        ControllerClientState(
+          status: ControllerStatus.connected,
+          playerName: 'P',
+          playback: state().playback.copyWith(format: '48 kHz · 256 kbps · MP3'),
+        ));
+    expect(find.text('48 kHz · 256 kbps · MP3'), findsOneWidget);
+  });
+
+  testWidgets('controlling another app keeps the sleep timer card', (tester) async {
+    await open(
+      tester,
+      ControllerClientState(
+        status: ControllerStatus.connected,
+        playerName: 'P',
+        playback: const PlaybackState(
+            title: 'T', source: 'external', externalApp: 'X', externalEnabled: true),
+      ),
+    );
+    expect(find.text('Sleep timer'), findsOneWidget);
+  });
+
   testWidgets('an internet track has no favorite, but still has the other actions',
       (tester) async {
     await open(tester, state(songId: -1, source: 'url'));
