@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../haptics.dart';
 import '../protocol/protocol.dart';
+import 'haptic_button.dart';
 
 String formatDuration(int seconds) {
   final s = seconds < 0 ? 0 : seconds;
@@ -199,6 +201,7 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
               onChanged: canSeek ? (v) => setState(() => _dragging = v) : null,
               onChangeEnd: canSeek
                   ? (v) {
+                      Haptics.selection();
                       widget.onSeek!(v.round());
                       setState(() {
                         _dragging = null;
@@ -293,7 +296,8 @@ class TransportControls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        IconButton(
+        HapticButton(
+          kind: HapticKind.light,
           tooltip: 'Previous',
           iconSize: 36,
           constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
@@ -301,7 +305,9 @@ class TransportControls extends StatelessWidget {
           icon: const Icon(Icons.skip_previous_rounded),
         ),
         const SizedBox(width: 12),
-        IconButton.filled(
+        HapticButton(
+          kind: HapticKind.medium,
+          filled: true,
           tooltip: isPlaying ? 'Pause' : 'Play',
           iconSize: 40,
           constraints: const BoxConstraints(minWidth: 72, minHeight: 72),
@@ -309,7 +315,8 @@ class TransportControls extends StatelessWidget {
           icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
         ),
         const SizedBox(width: 12),
-        IconButton(
+        HapticButton(
+          kind: HapticKind.light,
           tooltip: 'Next',
           iconSize: 36,
           constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
@@ -376,6 +383,7 @@ class _VolumeSliderState extends State<VolumeSlider> {
 
   void _onEnd(double v) {
     _debounce?.cancel();
+    Haptics.selection();
     widget.onChanged(v);
     setState(() {
       _dragging = null;

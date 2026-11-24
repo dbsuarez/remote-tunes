@@ -35,6 +35,7 @@ dependencies:
   image: ^4.13.1
   http: ^1.6.0
   record: ^6.2.1
+  material_color_utilities: ^0.11.1
 
 dev_dependencies:
   flutter_test:

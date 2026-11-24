@@ -6,9 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
 import '../../core/models/enums.dart';
+import '../../core/haptics.dart';
 import '../../core/protocol/protocol.dart';
 import '../../core/song_list_style.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/accent_scope.dart';
+import '../../core/widgets/haptic_button.dart';
 import '../../core/widgets/playback_widgets.dart';
 import '../../core/widgets/status_pill.dart';
 import '../external/external_limits.dart';
@@ -16,6 +19,7 @@ import '../online_library/online_history_source.dart';
 import '../online_library/online_library_view.dart';
 import '../group/group_card.dart';
 import '../music/music_browser.dart';
+import '../music/queue_peek.dart';
 import '../music/music_source.dart';
 import '../music/queue_view.dart';
 import '../music/url_player_view.dart';
@@ -143,7 +147,11 @@ class ControllerDashboard extends StatelessWidget {
 
     return DefaultTabController(
       length: 5,
-      child: Column(
+      // The playing song's cover tints the whole Controller (when it has one).
+      child: AccentScope(
+        songId: p.isExternal ? null : p.songId,
+        loadArt: (id) => client.artFor(id, size: 96),
+        child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -208,7 +216,7 @@ class ControllerDashboard extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _NowPlayingTab(client: client, state: state),
+                _NowPlayingTab(client: client, state: state, source: source),
                 _KeepAlive(
                   child: p.isExternal
                       ? _ExternalNotice(app: p.externalApp)
@@ -282,6 +290,7 @@ class ControllerDashboard extends StatelessWidget {
             );
           }),
         ],
+        ),
       ),
     );
   }
@@ -355,19 +364,23 @@ class _MiniControls extends StatelessWidget {
                 ),
               ),
             ),
-            IconButton(
+            HapticButton(
+              kind: HapticKind.light,
               tooltip: 'Previous',
               iconSize: 28,
               onPressed: enabled && p.canSkip ? () => _send(context, RemoteActions.previous) : null,
               icon: const Icon(Icons.skip_previous_rounded),
             ),
-            IconButton.filled(
+            HapticButton(
+              kind: HapticKind.medium,
+              filled: true,
               tooltip: p.isPlaying ? 'Pause' : 'Play',
               iconSize: 28,
               onPressed: enabled ? () => _send(context, RemoteActions.toggle) : null,
               icon: Icon(p.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
             ),
-            IconButton(
+            HapticButton(
+              kind: HapticKind.light,
               tooltip: 'Next',
               iconSize: 28,
               onPressed: enabled && p.canSkip ? () => _send(context, RemoteActions.next) : null,
@@ -404,10 +417,13 @@ class _KeepAliveState extends State<_KeepAlive>
 }
 
 class _NowPlayingTab extends StatelessWidget {
-  const _NowPlayingTab({required this.client, required this.state});
+  const _NowPlayingTab({required this.client, required this.state, required this.source});
 
   final ControllerClient client;
   final ControllerClientState state;
+
+  /// The queue, for the peek sheet.
+  final MusicSource source;
 
   Future<void> _send(
     BuildContext context,
@@ -441,8 +457,13 @@ class _NowPlayingTab extends StatelessWidget {
     final enabled = state.isConnected;
     final p = state.playback;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+    // The queue peek rests along the bottom; the page scrolls clear of it.
+    return LayoutBuilder(builder: (context, box) {
+      final peekSpace = p.isExternal ? 0.0 : box.maxHeight * QueuePeekSheet.peekSize + 12;
+      return Stack(
+        children: [
+          ListView(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
       children: [
         // Only offered when the Player turned External App Control on.
         if (p.externalEnabled) ...[
@@ -463,7 +484,8 @@ class _NowPlayingTab extends StatelessWidget {
               size: 64),
           trailing: p.songId == null || p.songId! <= 0 || p.isExternal
               ? null
-              : IconButton(
+              : HapticButton(
+                  kind: HapticKind.selection,
                   tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
                   onPressed: enabled
                       ? () => _send(context, RemoteActions.setFavorite,
@@ -507,7 +529,19 @@ class _NowPlayingTab extends StatelessWidget {
         // Only on the phone app: this phone plays the same song, in sync.
         if (!p.isExternal) GroupCard(enabled: enabled),
       ],
-    );
+          ),
+          if (!p.isExternal)
+            Positioned.fill(
+              child: QueuePeekSheet(
+                source: source,
+                revision: p.queueRevision,
+                currentIndex: p.queueIndex,
+                enabled: enabled,
+              ),
+            ),
+        ],
+      );
+    });
   }
 }
 

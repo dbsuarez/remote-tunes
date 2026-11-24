@@ -158,6 +158,23 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              const _SectionHeader('Look and feel'),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Haptic feedback'),
+                subtitle: const Text('A short vibration when you tap play, skip or pick something.'),
+                value: s.hapticsEnabled,
+                onChanged: repo.setHapticsEnabled,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Colors from album art'),
+                subtitle: const Text(
+                    'The Controller takes its accent color from the playing song\'s cover.'),
+                value: s.accentFromArt,
+                onChanged: repo.setAccentFromArt,
+              ),
+              const SizedBox(height: 16),
               const _SectionHeader('Advanced'),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

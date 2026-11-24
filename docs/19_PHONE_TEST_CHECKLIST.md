@@ -130,6 +130,12 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Settings > Diagnostics:** there are now sections for the saved queue, Online Library, and **Group play** (sound output, the phone's own audio delay, microphone permission). While playing along, it also shows the live "Off by", round trip and fine-tune numbers. **Copy** works, and the text contains no Jamendo ID.
 - [ ] Auto-align (section 11) works on the release build too. If it is **muted at the wrong time** (the Player goes quiet before the first clicks finish, or this phone never gets loud), tell me what you heard.
 
+## 13. Feel and color (docs/handoff.md)
+- [ ] **Haptics:** on the Controller, Play/Pause gives a firmer tap; Previous/Next a light one; letting go of the volume or seek slider, hearts, long-press to select and picking a song give a small click. **Settings > Look and feel > Haptic feedback** off: all silent.
+- [ ] **Album-art colors:** play songs with different covers. The Controller's accent (progress bar, play button, highlights) fades to the cover's color in about half a second. Covers that are grey or missing keep the normal teal. The accent is never Spotify-green and stays readable on the dark background. **Colors from album art** off: always teal.
+- [ ] **Queue Peek:** on Now Playing a small sheet rests at the bottom showing the song playing. Drag it up: the next 3 songs appear, further up the whole queue. Tap a song: it plays. Drag down: it tucks away. The player controls above are never covered, and you can still scroll the page to its last card.
+- [ ] Nothing queued, or playing an internet track: no sheet is shown.
+
 ---
 
 ## How to report

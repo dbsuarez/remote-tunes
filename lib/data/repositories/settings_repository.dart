@@ -22,6 +22,8 @@ class SettingKeys {
   static const supabaseAnonKey = 'supabase_anon_key';
   static const playerRoomCode = 'player_room_code';
   static const songListSize = 'song_list_size';
+  static const hapticsEnabled = 'haptics_enabled';
+  static const accentFromArt = 'accent_from_art';
 }
 
 /// Immutable snapshot of all settings, with defaults for missing keys.
@@ -38,6 +40,8 @@ class AppSettings {
     this.externalAppControlEnabled = false,
     this.lastPlayerPort = AppConstants.defaultPlayerPort,
     this.songListSize = SongListSize.small,
+    this.hapticsEnabled = true,
+    this.accentFromArt = true,
   });
 
   final String deviceName;
@@ -53,6 +57,12 @@ class AppSettings {
   final bool externalAppControlEnabled;
   final int lastPlayerPort;
   final SongListSize songListSize;
+
+  /// A short vibration on taps (play, skip, picking things).
+  final bool hapticsEnabled;
+
+  /// Tint the Controller with a color from the album art.
+  final bool accentFromArt;
 
   factory AppSettings.fromMap(Map<String, String> m) {
     final name = m[SettingKeys.deviceName]?.trim();
@@ -76,6 +86,9 @@ class AppSettings {
       lastPlayerPort: int.tryParse(m[SettingKeys.lastPlayerPort] ?? '') ??
           AppConstants.defaultPlayerPort,
       songListSize: SongListSize.parse(m[SettingKeys.songListSize]),
+      // On unless switched off.
+      hapticsEnabled: m[SettingKeys.hapticsEnabled] != 'false',
+      accentFromArt: m[SettingKeys.accentFromArt] != 'false',
     );
   }
 }
@@ -166,6 +179,12 @@ class SettingsRepository {
 
   Future<void> setExternalAppControlEnabled(bool v) =>
       _put(SettingKeys.externalAppControlEnabled, v.toString());
+
+  Future<void> setHapticsEnabled(bool v) =>
+      _put(SettingKeys.hapticsEnabled, v.toString());
+
+  Future<void> setAccentFromArt(bool v) =>
+      _put(SettingKeys.accentFromArt, v.toString());
 
   Future<void> setSongListSize(SongListSize v) =>
       _put(SettingKeys.songListSize, v.name);

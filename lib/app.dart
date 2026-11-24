@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/accent.dart';
 import 'core/constants.dart';
+import 'core/haptics.dart';
 import 'core/router/app_router.dart';
 import 'core/song_list_style.dart';
 import 'core/theme/app_theme.dart';
@@ -22,8 +24,11 @@ class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> {
   Widget build(BuildContext context) {
     // Song list text size follows the saved setting.
     ref.listen(settingsProvider, (_, next) {
-      final size = next.valueOrNull?.songListSize;
-      if (size != null) ref.read(songListSizeProvider.notifier).state = size;
+      final settings = next.valueOrNull;
+      if (settings == null) return;
+      ref.read(songListSizeProvider.notifier).state = settings.songListSize;
+      Haptics.enabled = settings.hapticsEnabled;
+      ref.read(accentFromArtProvider.notifier).state = settings.accentFromArt;
     });
     return MaterialApp.router(
       title: AppConstants.appName,

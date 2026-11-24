@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/haptics.dart';
 import '../../core/protocol/library_models.dart';
 import '../../core/song_list_style.dart';
 import '../../core/widgets/playback_widgets.dart';
@@ -148,9 +149,12 @@ class _MusicBrowserState extends State<MusicBrowser> {
     return ids;
   }
 
-  void _toggleSelected(int id) => setState(() {
-        if (!_selected.remove(id)) _selected.add(id);
-      });
+  void _toggleSelected(int id) {
+    Haptics.selection();
+    setState(() {
+      if (!_selected.remove(id)) _selected.add(id);
+    });
+  }
 
   Widget _selectionBar(_Drill? drill, String? view) {
     final n = _selected.length;
@@ -476,7 +480,10 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.playlists => 'Playlists',
                         }),
                         selected: _scope == s,
-                        onSelected: (_) => setState(() => _scope = s),
+                        onSelected: (_) {
+                          Haptics.selection();
+                          setState(() => _scope = s);
+                        },
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -729,7 +736,10 @@ class _SongTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 14 * k)),
-      onLongPress: onSelect,
+      onLongPress: () {
+        Haptics.medium(); // starting a selection feels like picking something up
+        onSelect();
+      },
       trailing: selecting
           ? null
           : Row(
@@ -786,6 +796,7 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
   late bool _fav = widget.initial;
 
   Future<void> _toggle() async {
+    Haptics.selection();
     final next = !_fav;
     setState(() => _fav = next);
     try {
