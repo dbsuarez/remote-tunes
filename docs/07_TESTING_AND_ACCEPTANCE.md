@@ -59,5 +59,8 @@ Test both Infinix phones in both roles.
 ### Phase 6 Web Controller
 See the acceptance criteria in docs/17_WEB_CONTROLLER.md.
 
+### Phase 8 Online Library
+See the acceptance criteria in docs/18_PHASE_8_ONLINE_LIBRARY.md.
+
 ### Phase 7 Polish
 - Album art, playlists, favorites, search, sleep timer, speed, diagnostics.

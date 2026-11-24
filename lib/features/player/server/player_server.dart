@@ -1117,8 +1117,18 @@ class PlayerServer {
           throw PlaybackException(
               ErrorCodes.invalidUrl, 'Send a link to an audio file.');
         }
-        final title = p['title'];
-        await _queueEngine.playUrl(url, title: title is String ? title : null);
+        String? text(String k) {
+          final v = p[k];
+          return v is String && v.length <= 200 ? v : null;
+        }
+        // `queue: true` adds it to the end of the queue instead of playing it.
+        if (p['queue'] == true) {
+          await _queueEngine.enqueueUrl(url,
+              title: text('title'), artist: text('artist'), album: text('album'));
+        } else {
+          await _queueEngine.playUrl(url,
+              title: text('title'), artist: text('artist'), album: text('album'));
+        }
 
       // ---- Phase 2: queue and library (need a queue-aware engine) ----
       case RemoteActions.playSong:

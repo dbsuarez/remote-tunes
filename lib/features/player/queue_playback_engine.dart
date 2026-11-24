@@ -449,23 +449,45 @@ class QueuePlaybackEngine implements QueueAwareEngine {
         await _startEntry(added.first, autoplay: true);
       });
 
-  @override
-  Future<void> playUrl(String url, {String? title}) async {
+  /// Checks the link and builds the queue entry. The network check can take
+  /// seconds, so it runs outside the command queue: other commands (pause,
+  /// volume) stay responsive meanwhile.
+  Future<PlayableSong> _prepareStream(
+      String url, String? title, String? artist, String? album) async {
     final check = validateAudioUrl(url);
     if (!check.isValid) {
       throw PlaybackException(ErrorCodes.invalidUrl, check.error!);
     }
     final uri = check.uri!;
-    // The network check can take seconds, so it runs outside the command
-    // queue: other commands (pause, volume) stay responsive meanwhile.
     await _urlChecker.check(uri);
 
-    final name = (title != null && title.trim().isNotEmpty)
-        ? title.trim()
-        : titleFromUrl(uri);
+    String clean(String? v, String fallback) =>
+        (v != null && v.trim().isNotEmpty) ? v.trim() : fallback;
+    return PlayableSong.stream(
+      url: uri.toString(),
+      title: clean(title, titleFromUrl(uri)),
+      artist: clean(artist, 'Internet'),
+      album: clean(album, 'Web audio'),
+    );
+  }
+
+  @override
+  Future<void> playUrl(String url, {String? title, String? artist, String? album}) async {
+    final song = await _prepareStream(url, title, artist, album);
     return _serial(() async {
-      _queue.replace([PlayableSong.stream(url: uri.toString(), title: name)]);
+      _queue.replace([song]);
       await _startEntry(_queue.current!, autoplay: true);
+    });
+  }
+
+  @override
+  Future<void> enqueueUrl(String url, {String? title, String? artist, String? album}) async {
+    final song = await _prepareStream(url, title, artist, album);
+    return _serial(() async {
+      _queue.add([song]);
+      // Show it as current if nothing was, so Play knows where to start.
+      _queue.current ?? _queue.advance(auto: false);
+      _emit();
     });
   }
 

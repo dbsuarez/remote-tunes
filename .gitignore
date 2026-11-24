@@ -50,3 +50,6 @@ app.*.map.json
 /.fvm/
 
 .playwright-mcp/
+
+# Local API credentials (never commit)
+docs/jamendo.txt

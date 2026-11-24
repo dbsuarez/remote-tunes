@@ -16,7 +16,11 @@ abstract class QueueAwareEngine implements PlaybackEngine {
 
   /// Plays an internet audio URL now, replacing the queue. Throws a
   /// [PlaybackException] with a plain-language reason if the link can't work.
-  Future<void> playUrl(String url, {String? title});
+  Future<void> playUrl(String url, {String? title, String? artist, String? album});
+
+  /// Adds an internet audio URL to the end of the queue (after the same checks
+  /// as [playUrl]). Does not start playback unless nothing is loaded.
+  Future<void> enqueueUrl(String url, {String? title, String? artist, String? album});
 
   /// Appends songs (or inserts them after the current one). Does not start
   /// playback.

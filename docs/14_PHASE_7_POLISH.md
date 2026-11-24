@@ -1,6 +1,6 @@
 # Phase 7 — Polish
 
-> Renumbered: Polish now comes after the Web Controller (docs/17), so it is Phase 7. The file name is unchanged.
+> Phase 7. (This file was called `14_PHASE_6_POLISH.md` before Polish was renumbered to come after the Web Controller; it was renamed to match.)
 
 ## Scope
 - Album art.

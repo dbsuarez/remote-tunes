@@ -19,9 +19,9 @@ class PlayableSong {
   const PlayableSong.stream({
     required String this.url,
     required this.title,
+    this.artist = 'Internet',
+    this.album = 'Web audio',
   })  : id = 0,
-        artist = 'Internet',
-        album = 'Web audio',
         filePath = null,
         durationSeconds = 0,
         trackNumber = null,

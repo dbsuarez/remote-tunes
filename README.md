@@ -31,8 +31,9 @@ Build **one phase at a time**. Do not implement later phases early. The specs li
 | 4 | Online remote control via Supabase Realtime | **Built; automated tests pass (fake relay); NOT yet tried against a real Supabase project** |
 | 5 | Spotify / YouTube Music external control | **Built; Dart logic tested with a fake; the Android side compiles but has NEVER run on a phone** |
 | 6 | Web Controller: browser Controller over Supabase Realtime ([docs/17](docs/17_WEB_CONTROLLER.md)) | **Built; verified in a real browser against a simulated Player on the real Supabase relay; NOT yet tried against a real phone Player** |
-| 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_6_POLISH.md), file name predates the renumbering) | **Built:** search, sleep timer, shorter screens, favorites, recently played, playlists, playback speed, album art on the Controller, diagnostics, app icon. Not yet tried on phones: everything after the sleep timer |
-| 8 | Group Mode: same song in sync on several phones in one room ([draft spec](docs/16_GROUP_MODE.md), not approved) | Draft only |
+| 7 | Polish: album art, playlists, favorites, search, sleep timer, speed, diagnostics ([docs/14](docs/14_PHASE_7_POLISH.md)) | **Built:** search, sleep timer, shorter screens, favorites, recently played, playlists, playback speed, album art on the Controller, diagnostics, app icon. Not yet tried on phones: everything after the sleep timer |
+| 8 | Online Library: search Jamendo's free Creative Commons music from the Controller (and web Controller) and play or queue it on the Player ([docs/18](docs/18_PHASE_8_ONLINE_LIBRARY.md)) | **Built; automated tests pass (fake Jamendo); NOT yet tried with a real Jamendo client ID or on phones** |
+| 9 | Group Mode: same song in sync on several phones in one room ([draft spec](docs/16_GROUP_MODE.md), not approved) | Draft only |
 
 Phase 0 deliberately does **not** initialize Supabase, audio, networking, or discovery.
 
@@ -44,7 +45,7 @@ Phase 2 replaces the Phase 1 silent simulated engine (kept for tests) with real 
 - **Controller:** tabs Now Playing / Queue / Library. File paths never leave the Player; the Controller only gets ids and metadata. Album art is extracted on the Player; the Controller gets a small thumbnail (Phase 7).
 - **Background:** an `audio_service` media session keeps a foreground service (and the network server) alive while Player mode is open. This is unverified on real phones; Wi-Fi sleep may still need native work.
 
-Phase order follows `docs/17` §12: Web Controller is Phase 6, Polish is Phase 7, and Group Mode is Phase 8. Do not implement Phases 7–8 early. Shared Controller code (`core/protocol`, `core/transport/remote_transport.dart`, `features/controller/controller_client.dart`) is deliberately kept free of `dart:io` so a web Controller could reuse it.
+Phase order follows `docs/17` §12: Web Controller is Phase 6, Polish is Phase 7, Online Library is Phase 8 and Group Mode is Phase 9. Do not implement Phase 9 early. Shared Controller code (`core/protocol`, `core/transport/remote_transport.dart`, `features/controller/controller_client.dart`) is deliberately kept free of `dart:io` so a web Controller could reuse it.
 
 ## Phase 6: Web Controller
 
@@ -96,6 +97,14 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 - **Play now keeps the queue:** tapping a single song inserts it after the current one and plays it, leaving the rest of the queue. *Play all*, and tapping a song inside an album, playlist, Favorites or Recent, still replace the queue.
 - **The queue survives restarts:** library songs are saved in `queue_items` (internet links are not); the Player comes back paused on the same song.
 - Sliders (progress bar, volume) hold the released value until the Player confirms, so they no longer snap back.
+
+## Online Library (Phase 8)
+
+The Controller (phone and web) has an **Online** tab that searches [Jamendo](https://www.jamendo.com)'s free, Creative Commons catalogue by keyword, genre, artist or album. Each result shows title, artist, album, length, artwork and its licence (tap the licence to read it). **Play on Player** sends the track's stream link to the Player with the existing `playUrl` command; **Add to queue** is the same command with `queue: true`.
+
+- **Needs your own free Jamendo client ID** (developer.jamendo.com > create an application). Paste it in the Online tab. It is kept on that device only (never in the repository, never sent to the Player).
+- **The search runs on the Controller**, so that device needs internet; with none, the tab says so and nothing else is affected. The Player needs internet to stream. Local mode and your own music work without Jamendo or any ID.
+- **Nothing is downloaded or stored**, there is no download button, and RemoteTunes keeps no history and sends no telemetry. The only network calls are to `api.jamendo.com` (and Jamendo's image server for artwork). Tracks streamed this way are not saved in the queue across restarts.
 
 ## License
 

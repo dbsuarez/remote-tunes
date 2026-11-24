@@ -253,6 +253,8 @@ Phase 4 — Online remote control
 Phase 5 — Spotify / YouTube Music external control
 Phase 6 — Web Controller
 Phase 7 — Polish
+Phase 8 — Online Library (Jamendo), see docs/18
+Phase 9 — Group Mode (draft), see docs/16
 ```
 
 ## 13. AI agent instruction

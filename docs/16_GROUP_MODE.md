@@ -1,4 +1,6 @@
-# RemoteTunes — Group Mode (Phase 8, DRAFT)
+# RemoteTunes — Group Mode (Phase 9, DRAFT)
+
+> Renumbered: it was Phase 8 until the Online Library (docs/18) took that number.
 
 Status: draft for review. Not approved. Do not implement before Phases 0–7 are done and this doc is approved.
 
@@ -77,7 +79,7 @@ New error codes: `GROUP_FULL`, `FILE_NOT_READY`, `SYNC_UNAVAILABLE`, `TRANSFER_F
 - Reconnecting banner per member.
 - Must not copy Spotify branding or UI.
 
-## Phased build plan (inside Phase 8)
+## Phased build plan (inside Phase 9)
 - 8a Multi-session fan-out: one Host controls N Players with simple commands (no sync guarantees).
 - 8b File distribution with progress and checksums.
 - 8c Clock sync service + measurable offset readout (diagnostics screen).

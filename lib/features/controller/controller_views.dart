@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/playback_widgets.dart';
 import '../../core/widgets/status_pill.dart';
 import '../external/external_limits.dart';
+import '../online_library/online_library_view.dart';
 import '../music/music_browser.dart';
 import '../music/music_source.dart';
 import '../music/queue_view.dart';
@@ -139,7 +140,7 @@ class ControllerDashboard extends StatelessWidget {
     final source = RemoteMusicSource(client);
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         children: [
           Padding(
@@ -192,11 +193,14 @@ class ControllerDashboard extends StatelessWidget {
             ),
           ),
           const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: 'Now Playing'),
               Tab(text: 'Queue'),
               Tab(text: 'Library'),
               Tab(text: 'URL'),
+              Tab(text: 'Online'),
             ],
           ),
           Expanded(
@@ -236,6 +240,22 @@ class ControllerDashboard extends StatelessWidget {
                           target: 'the Player',
                           initialUrl: AppConstants.sampleAudioUrl,
                           onPlay: (url, title) => client.playUrl(url, title: title),
+                        ),
+                ),
+                _KeepAlive(
+                  child: p.isExternal
+                      ? _ExternalNotice(app: p.externalApp)
+                      : OnlineLibraryView(
+                          enabled: enabled,
+                          // The Player streams the track itself: only the link
+                          // and the title go to it.
+                          onTrack: (t, {required queue}) => client.playUrl(
+                            t.audioUrl,
+                            title: t.title,
+                            artist: t.artist,
+                            album: t.album,
+                            queue: queue,
+                          ),
                         ),
                 ),
               ],

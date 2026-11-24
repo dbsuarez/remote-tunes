@@ -656,10 +656,26 @@ class ControllerClient {
   /// Sends an internet audio link to the Player. The Player checks the link
   /// and buffers the stream, which can take several seconds, so this waits
   /// longer than normal commands.
-  Future<void> playUrl(String url, {String? title}) async {
+  ///
+  /// With [queue] the link is added to the end of the queue instead of playing
+  /// at once. [artist] and [album] are shown on the Player and in the queue.
+  Future<void> playUrl(
+    String url, {
+    String? title,
+    String? artist,
+    String? album,
+    bool queue = false,
+  }) async {
+    String? clean(String? v) => v != null && v.trim().isNotEmpty ? v.trim() : null;
     await sendCommandForResult(
       RemoteActions.playUrl,
-      {'url': url, if (title != null && title.trim().isNotEmpty) 'title': title.trim()},
+      {
+        'url': url,
+        if (clean(title) != null) 'title': clean(title),
+        if (clean(artist) != null) 'artist': clean(artist),
+        if (clean(album) != null) 'album': clean(album),
+        if (queue) 'queue': true,
+      },
       const Duration(seconds: 30),
     );
   }
