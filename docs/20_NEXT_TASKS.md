@@ -24,6 +24,17 @@ Ideas queued by the project owner. Nothing here is built unless ticked.
 - [x] Gesture: edge-swipe on the Controller's Now Playing: in from the right edge raises the queue (middle, then full), in from the left edge opens the Library. Not on the Player screen. With Android gesture navigation the very edge is also "back": start the swipe a finger-width in.
 - [x] Rich MediaSession: lock screen / Android 13+ media controls show the cover, length, shuffle, repeat and speed and can change them; a loading state is shown. (A favorite button on the lock screen is not done.)
 
+## From the Poweramp screenshots (`docs/poweramp_screens/`)
+
+Layout ideas only. Keep our own look (dark charcoal, teal/violet, connection status first) and do not copy Poweramp's icons, colors or skin.
+
+- [ ] **Now Playing v2 (Controller):** big rounded cover, centered title in the accent color with "Artist - Album", a quick-action row (sleep timer, speed, repeat, shuffle), a large round play button with previous / next and seek back / forward 10 s, thin seek bar with times and a format line ("48 kHz 256 kbps mp3", needs the Player to read bitrate and sample rate).
+- [ ] **Library home as a list:** one row per category with a colored icon (All Songs, Folders, Albums, Artists, Playlists...) instead of chips. New categories need tags we don't read yet: Album Artists, Genres, Years, Composers, plus a Folders hierarchy (tree) next to the flat Folders list.
+- [ ] **Search as its own screen:** search box with scope chips (All, Albums, Artists, Album Artists, Folders), a Shuffle / Play / Select row, and a search history with a cross per entry and "Clear search history".
+- [ ] **EQ screen:** vertical sliders (preamp + 10 bands from 31 Hz to 16 kHz), a response-curve preview, Equ / Tone / Limit switches, a preset chip, Bass and Treble knobs. Android's built-in equalizer often has only 5 bands, so a true 10-band EQ needs our own audio processing.
+- [ ] **Persistent mini player** with a progress line under every screen, including Now Playing's neighbors, and a **bottom bar** (Library, EQ, Search, Queue). Our Controller already has a mini bar under the tabs; the bottom bar would replace the top tabs, which is a big navigation change.
+- [ ] **Menu with shortcuts** (Settings, Lyrics, Playlists, Skin settings, Library, Changelog, Help) and named skins (relates to the skinning engine).
+
 ## Lyrics (Poweramp-style synced lyrics)
 
 **Providers:** primary LRCLIB (lrclib.net: free, no key, time-synced LRC, CORS enabled). Fallbacks: lyrics.ovh (plain text), Megalobiz (synced; requires attribution).
