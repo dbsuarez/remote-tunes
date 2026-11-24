@@ -156,6 +156,37 @@ void main() {
     });
   });
 
+  group('the name this browser uses', () {
+    testWidgets('typing a name remembers it even if you never connect', (tester) async {
+      await openWeb(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Your name (shown on the Player)'), 'Living room laptop');
+      await tester.pump();
+      expect(storage.deviceName, 'Living room laptop');
+      expect(find.text('Remembered on this browser'), findsOneWidget);
+    });
+
+    testWidgets('a scan of the Player QR code connects with the remembered name',
+        (tester) async {
+      await openWeb(tester,
+          prefs: {'rt.web.device_name': 'Kitchen tablet'},
+          link: const PairingQr(ticket: 'ABCDEFGH23', roomCode: 'ABCD2345'));
+      expect(client.lastName, 'Kitchen tablet');
+    });
+
+    testWidgets('the connecting message says which name is being used', (tester) async {
+      await openWeb(tester, prefs: {'rt.web.device_name': 'Kitchen tablet'});
+      client.update(const ControllerClientState(status: ControllerStatus.connecting));
+      await settleUi(tester);
+      expect(find.textContaining('as "Kitchen tablet"'), findsOneWidget);
+    });
+
+    testWidgets('with nothing saved it uses the plain default', (tester) async {
+      await openWeb(tester,
+          link: const PairingQr(ticket: 'ABCDEFGH23', roomCode: 'ABCD2345'));
+      expect(client.lastName, 'Web Controller');
+    });
+  });
+
   group('connect page', () {
     testWidgets('explains what to do and shows no recent rooms at first', (tester) async {
       await openWeb(tester);

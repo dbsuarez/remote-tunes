@@ -205,7 +205,7 @@ class _WebHomeState extends ConsumerState<WebHome> {
               ControllerStatus.connecting => _Connecting(
                   text: _resuming
                       ? 'Reconnecting to your Player…'
-                      : 'Connecting to the Player…',
+                      : 'Connecting to the Player as "${_storage.deviceName}"…',
                   onCancel: _disconnect,
                 ),
               ControllerStatus.disconnected => _resuming
@@ -361,8 +361,12 @@ class _ConnectPanelState extends State<ConnectPanel> {
         TextField(
           controller: _name,
           maxLength: 40,
+          // Remembered as you type, so it is also used when this page is opened
+          // from a Player's QR code (which has no name box).
+          onChanged: widget.storage.setDeviceName,
           decoration: const InputDecoration(
             labelText: 'Your name (shown on the Player)',
+            helperText: 'Remembered on this browser',
             counterText: '',
           ),
         ),

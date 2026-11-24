@@ -53,3 +53,4 @@ app.*.map.json
 
 # Local API credentials (never commit)
 docs/jamendo.txt
+docs/jamendo.json

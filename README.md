@@ -96,6 +96,7 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 - **Song list text size:** Settings > Song list > Small (default), Normal or Large.
 - **Play now keeps the queue:** tapping a single song inserts it after the current one and plays it, leaving the rest of the queue. *Play all*, and tapping a song inside an album, playlist, Favorites or Recent, still replace the queue.
 - **The queue survives restarts:** library songs are saved in `queue_items` and Online Library tracks in `queue_streams` (links and text only), in their mixed order; the Player comes back paused on the same song.
+- The web Controller remembers its name as you type it (per browser) and says which name it is connecting as.
 - Sliders (progress bar, volume) hold the released value until the Player confirms, so they no longer snap back.
 
 ## Online Library (Phase 8)
@@ -103,6 +104,7 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 The Controller (phone and web) has an **Online** tab that searches [Jamendo](https://www.jamendo.com)'s free, Creative Commons catalogue by keyword, genre, artist or album. Each result shows title, artist, album, length, artwork and its licence (tap the licence to read it). **Play on Player** sends the track's stream link to the Player with the existing `playUrl` command; **Add to queue** is the same command with `queue: true`.
 
 - **Needs your own free Jamendo client ID** (developer.jamendo.com > create an application). Paste it in the Online tab. It is kept on that device only (never in the repository, never sent to the Player).
+- **Presetting the ID for your own builds:** put `{"JAMENDO_CLIENT_ID": "<your id>"}` in `docs/jamendo.json` (git-ignored, so it never reaches the public repository) and build with `fvm flutter build apk --debug --dart-define-from-file=docs/jamendo.json`. The app then has the ID built in; an ID pasted in the Online tab always wins. The GitHub Pages web build has no ID (it is built on GitHub), so the web page asks once per browser.
 - **The search runs on the Controller**, so that device needs internet; with none, the tab says so and nothing else is affected. The Player needs internet to stream. Local mode and your own music work without Jamendo or any ID.
 - **Nothing is downloaded or stored** (no download button), and there is no telemetry. The only network calls are to `api.jamendo.com` (and Jamendo's image server for artwork).
 - **Online history:** every Jamendo track played is remembered on the **Player** phone (title, artist, album, licence and links only, never audio), newest first, up to 200. Open it with the clock button in the Online tab: play again, add to the queue, remove one, **Clear**, or switch **Keep history** off. It is never sent anywhere; a Controller plays an entry again by id and never sees the stream link.

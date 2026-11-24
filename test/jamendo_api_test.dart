@@ -286,6 +286,22 @@ void main() {
       expect(JamendoKeyStore.problem('56d30c95'), isNull);
     });
 
+    test('a build-time ID is used until the user saves their own', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = PrefsJamendoKeyStore(null, 'built1234');
+      expect(await store.load(), 'built1234');
+      await store.save('mine5678');
+      expect(await store.load(), 'mine5678', reason: 'the user\'s own ID wins');
+      await store.clear();
+      expect(await store.load(), 'built1234', reason: 'back to the built-in one');
+    });
+
+    test('a damaged build-time ID is ignored', () async {
+      SharedPreferences.setMockInitialValues({});
+      expect(await PrefsJamendoKeyStore(null, 'not valid!').load(), isNull);
+      expect(await PrefsJamendoKeyStore(null, '').load(), isNull);
+    });
+
     test('is saved on this device, read back and removed', () async {
       SharedPreferences.setMockInitialValues({});
       final store = PrefsJamendoKeyStore();
