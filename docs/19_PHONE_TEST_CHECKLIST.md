@@ -136,6 +136,10 @@ Both phones now run the **release build** (faster than debug; same app).
 - [x] **Queue Peek:** on Now Playing a small sheet rests at the bottom showing the song playing. Drag it up: the next 3 songs appear, further up the whole queue. Tap a song: it plays. Drag down: it tucks away. The player controls above are never covered, and you can still scroll the page to its last card.
 - [x] Nothing queued, or playing an internet track: no sheet is shown.
 
+## 14. Gapless and updates
+- [ ] **Gapless:** queue two songs from the phone's own library that flow into each other (an album or a live recording). Let the first end: the second starts with no audible gap or click. Skip, repeat-one, shuffle and removing the next song still work normally.
+- [ ] **Updates (after the GitHub secret is set and a release exists):** Settings > App updates > Check for updates says "newest version" or offers the new one. Update: Android asks to allow installs from RemoteTunes once, downloads, then shows its install screen; afterwards the app opens with your songs, playlists and trusted devices still there.
+
 ---
 
 ## How to report

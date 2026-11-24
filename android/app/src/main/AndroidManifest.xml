@@ -24,6 +24,9 @@
     <!-- Group play, Auto-align: listens to both phones for a few seconds to
          measure the delay between them. Nothing is saved or sent. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Self-update: lets the app hand a downloaded update to Android's installer
+         (Android still asks you to confirm, and to allow it once). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -50,6 +53,16 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
 
         <service
             android:name="com.ryanheise.audioservice.AudioService"

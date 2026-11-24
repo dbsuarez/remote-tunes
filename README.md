@@ -79,6 +79,18 @@ The web Controller is published automatically from `main` by `.github/workflows/
 
 One-time setup in the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**. After that every push that changes `lib/`, `web/` or `pubspec.*` rebuilds the page (Actions tab shows progress; you can also run the workflow by hand). The page uses the same Supabase defaults as the phone app, so it works with no setup. Local build with the same path: `fvm flutter build web -t lib/main_web.dart --release --base-href /remote-tunes/`.
 
+## Releases and updates
+
+APKs are published as **GitHub Releases**, and the app can update itself from them, so a phone never needs a cable.
+
+**One-time setup** (repository **Settings → Secrets and variables → Actions → New repository secret**):
+1. `RELEASE_KEYSTORE_BASE64`: run `powershell -File tool\export_signing_key.ps1` (copies the key as text to the clipboard) and paste it. This is the key your phones' current app was signed with, so the GitHub build installs **over** it and keeps your data. Every release must use this same key. Back the file up (path printed by the script); the key is a secret.
+2. `JAMENDO_CLIENT_ID` (optional): your Jamendo ID, so the Online tab works in the released app.
+
+**Publishing a version:** `git tag v0.2.0` then `git push origin v0.2.0` (or run the *Release APK* workflow by hand). It analyzes, tests, builds one APK per CPU type and attaches them to a release named after the tag. The tag sets the app's version.
+
+**On the phones:** Settings → App updates → *Check for updates* (also checked about once a day when the app opens, switchable). When a newer version exists the Home screen shows an *Update* card; tapping it downloads the APK (checked for size and SHA-256), then Android's own install screen asks you to confirm. The first time, Android sends you to a switch "Allow from this source" for RemoteTunes. Only GitHub is contacted, and nothing about you is sent.
+
 ## Shorter screens (Phase 7)
 
 - **Player screen** has three tabs: *Player* (now playing and controls), *Connect* (QR code, room code, address, trusted Controllers) and *Music* (add songs, library, queue, URL). Who is connected, errors and a pairing request stay pinned on top of every tab.

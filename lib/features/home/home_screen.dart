@@ -7,6 +7,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../providers/providers.dart';
+import '../update/update_widgets.dart';
 import 'widgets/connection_mode_selector.dart';
 import 'widgets/connection_pill.dart';
 import 'widgets/history_section.dart';
@@ -37,6 +38,7 @@ class HomeScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
+            const UpdateBanner(),
             Align(
               alignment: Alignment.centerLeft,
               child: ConnectionPill(mode: settings.connectionMode),

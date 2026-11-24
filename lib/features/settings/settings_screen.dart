@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../update/update_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -174,6 +175,9 @@ class SettingsScreen extends ConsumerWidget {
                 value: s.accentFromArt,
                 onChanged: repo.setAccentFromArt,
               ),
+              const SizedBox(height: 16),
+              const _SectionHeader('App updates'),
+              UpdateSettingsTiles(settings: s),
               const SizedBox(height: 16),
               const _SectionHeader('Advanced'),
               SwitchListTile(

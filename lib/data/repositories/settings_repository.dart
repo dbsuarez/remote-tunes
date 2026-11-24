@@ -24,6 +24,8 @@ class SettingKeys {
   static const songListSize = 'song_list_size';
   static const hapticsEnabled = 'haptics_enabled';
   static const accentFromArt = 'accent_from_art';
+  static const autoUpdateCheck = 'auto_update_check';
+  static const lastUpdateCheck = 'last_update_check';
 }
 
 /// Immutable snapshot of all settings, with defaults for missing keys.
@@ -42,6 +44,8 @@ class AppSettings {
     this.songListSize = SongListSize.small,
     this.hapticsEnabled = true,
     this.accentFromArt = true,
+    this.autoUpdateCheck = true,
+    this.lastUpdateCheck = 0,
   });
 
   final String deviceName;
@@ -63,6 +67,12 @@ class AppSettings {
 
   /// Tint the Controller with a color from the album art.
   final bool accentFromArt;
+
+  /// Look for a newer version on GitHub now and then (about once a day).
+  final bool autoUpdateCheck;
+
+  /// When that was last done (milliseconds since 1970; 0 = never).
+  final int lastUpdateCheck;
 
   factory AppSettings.fromMap(Map<String, String> m) {
     final name = m[SettingKeys.deviceName]?.trim();
@@ -89,6 +99,8 @@ class AppSettings {
       // On unless switched off.
       hapticsEnabled: m[SettingKeys.hapticsEnabled] != 'false',
       accentFromArt: m[SettingKeys.accentFromArt] != 'false',
+      autoUpdateCheck: m[SettingKeys.autoUpdateCheck] != 'false',
+      lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
     );
   }
 }
@@ -182,6 +194,12 @@ class SettingsRepository {
 
   Future<void> setHapticsEnabled(bool v) =>
       _put(SettingKeys.hapticsEnabled, v.toString());
+
+  Future<void> setAutoUpdateCheck(bool v) =>
+      _put(SettingKeys.autoUpdateCheck, v.toString());
+
+  Future<void> setLastUpdateCheck(int ms) =>
+      _put(SettingKeys.lastUpdateCheck, ms.toString());
 
   Future<void> setAccentFromArt(bool v) =>
       _put(SettingKeys.accentFromArt, v.toString());
