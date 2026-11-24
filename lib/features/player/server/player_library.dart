@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -88,7 +89,30 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
   final bool Function(String path) _fileExists;
   Set<int> _favorites = {};
   bool _favoritesLoaded = false;
-  final Map<String, Uint8List?> _thumbs = {};
+  /// Thumbnails by picture file and size. The Future is stored, so several
+  /// rows asking for the same album at once share one job.
+  final Map<String, Future<Uint8List?>> _thumbs = {};
+
+  /// Decoding a big picture takes memory and its own isolate, so only a couple
+  /// run at once however long the list is.
+  static const _maxThumbJobs = 2;
+  int _thumbBusy = 0;
+  final List<Completer<void>> _thumbWaiters = [];
+
+  Future<T> _limitedThumb<T>(Future<T> Function() task) async {
+    while (_thumbBusy >= _maxThumbJobs) {
+      final turn = Completer<void>();
+      _thumbWaiters.add(turn);
+      await turn.future;
+    }
+    _thumbBusy++;
+    try {
+      return await task();
+    } finally {
+      _thumbBusy--;
+      if (_thumbWaiters.isNotEmpty) _thumbWaiters.removeAt(0).complete();
+    }
+  }
 
   Future<void> _loadFavorites() async {
     if (_favoritesLoaded) return;
@@ -162,10 +186,11 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
     if (path == null) return null;
     // Songs of one album share a picture, so this is made once per album.
     final key = '$path|$size';
-    if (_thumbs.containsKey(key)) return _thumbs[key];
-    final thumb = await loadArtThumbnail(path, size: size);
+    final known = _thumbs[key];
+    if (known != null) return known;
+    final job = _limitedThumb(() => loadArtThumbnail(path, size: size));
     if (_thumbs.length > 300) _thumbs.remove(_thumbs.keys.first);
-    return _thumbs[key] = thumb;
+    return _thumbs[key] = job;
   }
 
   @override

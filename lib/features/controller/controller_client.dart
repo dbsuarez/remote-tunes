@@ -982,6 +982,10 @@ class ControllerClient {
             continue;
           } on TransportException {
             continue;
+          } catch (_) {
+            // Anything unexpected is just a failed attempt: try the next
+            // route or round, never leave the screen stuck on "Reconnecting".
+            continue;
           }
         }
       }

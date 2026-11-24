@@ -296,6 +296,15 @@ void main() {
       expect(results.every((r) => r != null), isTrue);
     });
 
+    test('many rows asking for the same album share one picture', () async {
+      final all = await Future.wait([
+        for (var i = 0; i < 12; i++) library.artThumbnail(ids['One']!, size: 96),
+      ]);
+      expect(all.every((b) => b != null), isTrue);
+      expect(all.every((b) => identical(b, all.first)), isTrue,
+          reason: 'one job, not twelve');
+    });
+
     test('a song without art, or an unknown song, gives null', () async {
       expect(await client.artFor(ids['Two']!), isNull);
       expect(await client.artFor(99999), isNull);

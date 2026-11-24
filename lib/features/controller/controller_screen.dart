@@ -12,6 +12,7 @@ import '../../providers/connection_providers.dart';
 import '../../providers/providers.dart';
 import 'controller_client.dart';
 import 'controller_views.dart';
+import 'discovery.dart';
 import '../../core/pairing_qr.dart';
 import 'qr_scan_screen.dart';
 import 'trusted_players.dart';
@@ -58,21 +59,33 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
   ConnectionMode get _mode =>
       ref.read(settingsProvider).valueOrNull?.connectionMode ?? ConnectionMode.auto;
 
-  void _connectTrusted(TrustedPlayer p) {
+  /// [explicit] means the user picked this exact address (Nearby list, typed
+  /// IP or room): use it as it is.
+  void _connectTrusted(TrustedPlayer p, {bool explicit = false}) {
     // The Player's Wi-Fi address may have changed: use a fresh one if it is
-    // visible on the network right now.
+    // visible on the network right now. It is matched by its online room (which
+    // is unique and survives renaming), or else by a name that only one Player
+    // on the network has. Two phones can share a name, so a name alone must
+    // never pick one.
     String? host;
     int? port;
     String? room;
-    final seen = ref.read(discoveredPlayersProvider).valueOrNull;
+    final seen = explicit ? null : ref.read(discoveredPlayersProvider).valueOrNull;
     if (seen != null) {
-      for (final d in seen) {
-        if (d.name == p.name) {
-          host = d.host;
-          port = d.port;
-          room = d.roomCode;
-          break;
-        }
+      DiscoveredPlayer? match;
+      final byRoom = p.roomCode == null
+          ? const <DiscoveredPlayer>[]
+          : seen.where((d) => d.roomCode == p.roomCode).toList();
+      if (byRoom.isNotEmpty) {
+        match = byRoom.first;
+      } else {
+        final byName = seen.where((d) => d.name == p.name).toList();
+        if (byName.length == 1) match = byName.first;
+      }
+      if (match != null) {
+        host = match.host;
+        port = match.port;
+        room = match.roomCode;
       }
     }
     _trying = p.sessionId;
@@ -184,7 +197,7 @@ class _ConnectView extends ConsumerStatefulWidget {
   final ControllerClient client;
   final ControllerClientState state;
   final List<TrustedPlayer> trusted;
-  final void Function(TrustedPlayer) onConnectTrusted;
+  final void Function(TrustedPlayer, {bool explicit}) onConnectTrusted;
   final void Function(TrustedPlayer) onForget;
 
   @override
@@ -250,7 +263,8 @@ class _ConnectViewState extends ConsumerState<_ConnectView> {
         ? _trustedMatch(host: host, port: port, room: room, name: name)
         : null;
     if (known != null) {
-      widget.onConnectTrusted(known.copyWith(host: host, port: port, roomCode: room));
+      widget.onConnectTrusted(known.copyWith(host: host, port: port, roomCode: room),
+          explicit: true);
       return;
     }
     widget.client.connect(

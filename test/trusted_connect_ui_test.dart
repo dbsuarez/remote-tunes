@@ -55,7 +55,7 @@ class _Client extends ControllerClient {
     String? roomCode,
   }) async =>
       calls.add('resume ${player.sessionId} ${player.host}:${player.port} '
-          'room=${player.roomCode}');
+          'room=${player.roomCode} using=$host:$port');
 
   @override
   Future<void> connect({
@@ -128,7 +128,8 @@ void main() {
     );
     await tester.tap(find.text('GT30 Pro'));
     await tester.pump();
-    expect(client.calls, ['resume s1 192.168.18.219:8765 room=4DUQNSQS']);
+    expect(client.calls, ['resume s1 192.168.18.219:8765 room=4DUQNSQS using=null:null'],
+        reason: 'the picked address is carried by the saved Player itself');
   });
 
   testWidgets('a Player we do not know still goes through pairing', (tester) async {
@@ -142,6 +143,49 @@ void main() {
     await tester.tap(find.text('Stranger'));
     await tester.pump();
     expect(client.calls, ['pair 10.9.9.9:8765']);
+  });
+
+  testWidgets('two Players with the same name: the one you pick is the one you get',
+      (tester) async {
+    final client = await open(
+      tester,
+      saved: [
+        trusted('s1', 'My Phone', host: '10.0.0.5', room: 'AAAA2222'),
+        trusted('s2', 'My Phone', host: '10.0.0.6', room: 'BBBB3333'),
+      ],
+      // Both are on the network right now, both called "My Phone".
+      nearby: const [
+        DiscoveredPlayer(name: 'My Phone', host: '10.0.0.5', port: 8765, roomCode: 'AAAA2222'),
+        DiscoveredPlayer(name: 'My Phone', host: '10.0.0.6', port: 8765, roomCode: 'BBBB3333'),
+      ],
+    );
+    // Pick the second one in the Nearby list.
+    await tester.tap(find.text('10.0.0.6:8765 · also online'));
+    await tester.pump();
+    expect(client.calls.single, startsWith('resume s2 10.0.0.6:8765'));
+    expect(client.calls.single, isNot(contains('10.0.0.5')),
+        reason: 'it must not be swapped for the first Player with the same name');
+  });
+
+  testWidgets('opening a saved Player finds its fresh address by room, not by name',
+      (tester) async {
+    final client = await open(
+      tester,
+      saved: [
+        trusted('s1', 'My Phone', host: '10.0.0.5', room: 'AAAA2222'),
+        trusted('s2', 'My Phone', host: '10.0.0.6', room: 'BBBB3333'),
+      ],
+      // The second Player's address changed; another "My Phone" is listed first.
+      nearby: const [
+        DiscoveredPlayer(name: 'My Phone', host: '10.0.0.5', port: 8765, roomCode: 'AAAA2222'),
+        DiscoveredPlayer(name: 'My Phone', host: '10.0.0.99', port: 8765, roomCode: 'BBBB3333'),
+      ],
+    );
+    // Tap the saved Player s2 in "Your Players" (its card shows the saved host).
+    await tester.tap(find.textContaining('10.0.0.6').first);
+    await tester.pump();
+    expect(client.calls.last, startsWith('resume s2'));
+    expect(client.calls.last, endsWith('using=10.0.0.99:8765'));
   });
 
   testWidgets('matching by name needs the name to be unique', (tester) async {
