@@ -9,7 +9,18 @@ import '../data/repositories/library_repository.dart';
 import '../data/repositories/recent_urls_repository.dart';
 import '../features/library/import_service.dart';
 import '../features/library/metadata_extractor.dart';
+import '../features/player/lyrics_service.dart';
 import 'providers.dart';
+
+/// Looks up and remembers lyrics (Player side). Honors the Settings switch.
+final lyricsServiceProvider = Provider<LyricsService>((ref) {
+  final db = ref.watch(databaseProvider);
+  return LyricsService(
+    library: ref.watch(libraryRepositoryProvider),
+    db: db,
+    isEnabled: () async => (await ref.read(settingsRepositoryProvider).load()).lyricsEnabled,
+  );
+});
 
 final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
   return LibraryRepository(ref.watch(databaseProvider));

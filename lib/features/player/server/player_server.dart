@@ -1382,6 +1382,9 @@ class PlayerServer {
       case RemoteActions.removeFromPlaylist:
         await _library.removeFromPlaylist(
             _requiredInt(p, 'playlistId'), _requiredInt(p, 'songId'));
+      case RemoteActions.getLyrics:
+        final l = await _library.lyrics(_requiredInt(p, 'songId'));
+        return {'lyrics': l.toJson()};
       case RemoteActions.getArt:
         final size = p['size'] is num ? (p['size'] as num).toInt() : 256;
         final bytes =

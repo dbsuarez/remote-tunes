@@ -175,6 +175,16 @@ class SettingsScreen extends ConsumerWidget {
                 value: s.accentFromArt,
                 onChanged: repo.setAccentFromArt,
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Lyrics from the internet'),
+                subtitle: const Text(
+                    'The Player looks up lyrics on LRCLIB (and lyrics.ovh) when you open them. '
+                    'Only the song\'s title, artist, album and length are sent, and the lyrics '
+                    'are kept on the Player.'),
+                value: s.lyricsEnabled,
+                onChanged: repo.setLyricsEnabled,
+              ),
               const SizedBox(height: 16),
               const _SectionHeader('App updates'),
               UpdateSettingsTiles(settings: s),

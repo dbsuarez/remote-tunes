@@ -25,6 +25,7 @@ class SettingKeys {
   static const hapticsEnabled = 'haptics_enabled';
   static const accentFromArt = 'accent_from_art';
   static const autoUpdateCheck = 'auto_update_check';
+  static const lyricsEnabled = 'lyrics_enabled';
   static const lastUpdateCheck = 'last_update_check';
 }
 
@@ -45,6 +46,7 @@ class AppSettings {
     this.hapticsEnabled = true,
     this.accentFromArt = true,
     this.autoUpdateCheck = true,
+    this.lyricsEnabled = true,
     this.lastUpdateCheck = 0,
   });
 
@@ -70,6 +72,10 @@ class AppSettings {
 
   /// Look for a newer version on GitHub now and then (about once a day).
   final bool autoUpdateCheck;
+
+  /// Look up lyrics on the internet (sends the song's title and artist to
+  /// LRCLIB / lyrics.ovh). Lives on the Player.
+  final bool lyricsEnabled;
 
   /// When that was last done (milliseconds since 1970; 0 = never).
   final int lastUpdateCheck;
@@ -100,6 +106,7 @@ class AppSettings {
       hapticsEnabled: m[SettingKeys.hapticsEnabled] != 'false',
       accentFromArt: m[SettingKeys.accentFromArt] != 'false',
       autoUpdateCheck: m[SettingKeys.autoUpdateCheck] != 'false',
+      lyricsEnabled: m[SettingKeys.lyricsEnabled] != 'false',
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
     );
   }
@@ -194,6 +201,9 @@ class SettingsRepository {
 
   Future<void> setHapticsEnabled(bool v) =>
       _put(SettingKeys.hapticsEnabled, v.toString());
+
+  Future<void> setLyricsEnabled(bool v) =>
+      _put(SettingKeys.lyricsEnabled, v.toString());
 
   Future<void> setAutoUpdateCheck(bool v) =>
       _put(SettingKeys.autoUpdateCheck, v.toString());

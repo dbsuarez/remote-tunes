@@ -6,6 +6,7 @@ import '../../../core/protocol/library_models.dart';
 import '../../../data/repositories/library_repository.dart';
 import '../../../data/repositories/online_history_repository.dart';
 import '../queue/playable_song.dart';
+import '../lyrics_service.dart';
 import 'art_thumbnail.dart';
 
 /// What the Player server needs from the library. Results never include file
@@ -27,6 +28,9 @@ abstract class PlayerLibrary {
     int offset,
     int limit,
   });
+
+  /// Lyrics for a library song (looked up on the internet once, then kept).
+  Future<RemoteLyrics> lyrics(int songId);
 
   Future<LibraryPage<RemotePlaylist>> playlists({
     String query,
@@ -90,9 +94,18 @@ abstract class PlayerLibrary {
 
 class RepositoryPlayerLibrary implements PlayerLibrary {
   RepositoryPlayerLibrary(this._repo,
-      {bool Function(String path)? fileExists, OnlineHistoryRepository? history})
+      {bool Function(String path)? fileExists,
+      OnlineHistoryRepository? history,
+      LyricsService? lyrics})
       : _fileExists = fileExists ?? ((p) => File(p).existsSync()),
-        _history = history;
+        _history = history,
+        _lyrics = lyrics;
+
+  final LyricsService? _lyrics;
+
+  @override
+  Future<RemoteLyrics> lyrics(int songId) async =>
+      await _lyrics?.forSong(songId) ?? const RemoteLyrics();
 
   final OnlineHistoryRepository? _history;
 

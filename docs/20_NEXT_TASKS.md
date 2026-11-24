@@ -21,18 +21,20 @@ Ideas queued by the project owner. Nothing here is built unless ticked.
 ### UI/UX (both sides)
 - [ ] Skinning engine (JSON themes)
 - [ ] Visualizer tab (Player only)
-- [ ] Gesture: edge-swipe for Queue Peek / Library
+- [x] Gesture: edge-swipe on the Controller's Now Playing: in from the right edge raises the queue (middle, then full), in from the left edge opens the Library. Not on the Player screen. With Android gesture navigation the very edge is also "back": start the swipe a finger-width in.
 - [ ] Rich MediaSession / lock-screen controls
 
 ## Lyrics (Poweramp-style synced lyrics)
 
 **Providers:** primary LRCLIB (lrclib.net: free, no key, time-synced LRC, CORS enabled). Fallbacks: lyrics.ovh (plain text), Megalobiz (synced; requires attribution).
 
-- [ ] Drift table `LyricsCache` (trackKey, plainLyrics, syncedLyrics, source, TTL)
-- [ ] Protocol: `RemoteLyrics` DTO with `syncedLyrics` (LRC string)
-- [ ] `LyricsService` on the Player (fetches, caches, parses LRC)
-- [ ] UI: toggle Album Art / Lyrics on Now Playing (Player and Controller)
-- [ ] Sync: the Controller asks for lyrics through the protocol; the Player serves them from its cache
+- [x] Drift table `LyricsCache` (schema v6; kept 30 days, a miss 1 day)
+- [x] Protocol: `getLyrics {songId}` -> `RemoteLyrics` (plain + LRC)
+- [x] `LyricsService` on the Player (LRCLIB exact, LRCLIB search, then lyrics.ovh) and `core/lyrics/lrc.dart` (LRC parser)
+- [x] UI: a Lyrics button under the song on Now Playing (Player and Controller) opens a panel that follows the song line by line; tap a line to jump there. (The album art stays in the card above it rather than being swapped out.)
+- [x] Sync: the Controller asks the Player, which answers from its cache
+- [ ] Megalobiz fallback (scraping a site that asks for attribution; skipped for now)
+- [x] Settings switch "Lyrics from the internet" (Look and feel)
 
 **Legal / privacy:** personal and open-source use only; no bulk download; cache per track, on demand. Only the song's title, artist, album and length are sent to the lyrics provider (never file paths); this needs a note in the privacy text and an off switch in Settings.
 

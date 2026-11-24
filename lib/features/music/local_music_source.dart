@@ -79,6 +79,9 @@ class LocalMusicSource implements MusicSource {
       PlaybackException(ErrorCodes.invalidAction, 'That playlist no longer exists.');
 
   @override
+  Future<RemoteLyrics> lyrics(int songId) => _library.lyrics(songId);
+
+  @override
   Future<LibraryPage<RemoteFolder>> folders({
     String query = '',
     int offset = 0,

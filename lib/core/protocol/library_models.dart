@@ -105,6 +105,60 @@ class RemoteArtist {
       );
 }
 
+/// Lyrics for one song, as the Player found them.
+class RemoteLyrics {
+  const RemoteLyrics({
+    this.found = false,
+    this.plain = '',
+    this.synced = '',
+    this.instrumental = false,
+    this.source = '',
+    this.disabled = false,
+    this.failed = false,
+  });
+
+  /// Something was found (lyrics, or the song is instrumental).
+  final bool found;
+
+  /// Plain text, one line per row.
+  final String plain;
+
+  /// LRC text with a time on each line (empty when only plain text exists).
+  final String synced;
+  final bool instrumental;
+
+  /// Where they came from (shown as credit).
+  final String source;
+
+  /// The Player has lyrics switched off in Settings.
+  final bool disabled;
+
+  /// The lookup could not reach the internet (try again later).
+  final bool failed;
+
+  bool get hasText => plain.isNotEmpty || synced.isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+        'found': found,
+        'plain': plain,
+        'synced': synced,
+        'instrumental': instrumental,
+        'source': source,
+        'disabled': disabled,
+        'failed': failed,
+      };
+
+  factory RemoteLyrics.fromJson(Map<String, dynamic> j) => RemoteLyrics(
+        found: j['found'] == true,
+        plain: _str(j['plain']),
+        synced: _str(j['synced']),
+        instrumental: j['instrumental'] == true,
+        source: _str(j['source']),
+        disabled: j['disabled'] == true,
+        failed: j['failed'] == true,
+      );
+}
+
 /// A folder of the Player's music. The Controller only gets an id and names,
 /// never the path.
 class RemoteFolder {

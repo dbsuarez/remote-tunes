@@ -907,6 +907,15 @@ class ControllerClient {
   Future<void> setFavorite(int songId, bool favorite) => sendCommand(
       RemoteActions.setFavorite, {'songId': songId, 'favorite': favorite});
 
+  /// Lyrics for a library song. The Player may need a few seconds to look
+  /// them up the first time.
+  Future<RemoteLyrics> lyrics(int songId) async {
+    final r = await sendCommandForResult(
+        RemoteActions.getLyrics, {'songId': songId}, const Duration(seconds: 30));
+    final l = r['lyrics'];
+    return l is Map<String, dynamic> ? RemoteLyrics.fromJson(l) : const RemoteLyrics();
+  }
+
   Future<LibraryPage<RemoteFolder>> folders({
     String query = '',
     int offset = 0,

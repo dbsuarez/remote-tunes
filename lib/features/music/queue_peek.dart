@@ -21,7 +21,11 @@ class QueuePeekSheet extends StatefulWidget {
     required this.revision,
     required this.currentIndex,
     this.enabled = true,
+    this.controller,
   });
+
+  /// Lets the screen open or close the sheet (e.g. from an edge swipe).
+  final DraggableScrollableController? controller;
 
   final MusicSource source;
 
@@ -93,6 +97,7 @@ class _QueuePeekSheetState extends State<QueuePeekSheet> {
     return IgnorePointer(
       ignoring: !widget.enabled,
       child: DraggableScrollableSheet(
+        controller: widget.controller,
         initialChildSize: QueuePeekSheet.peekSize,
         minChildSize: QueuePeekSheet.peekSize,
         maxChildSize: QueuePeekSheet.fullSize,

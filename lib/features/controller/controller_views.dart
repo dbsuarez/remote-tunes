@@ -19,6 +19,8 @@ import '../online_library/online_history_source.dart';
 import '../online_library/online_library_view.dart';
 import '../group/group_card.dart';
 import '../music/music_browser.dart';
+import '../../core/widgets/edge_swipe.dart';
+import '../music/lyrics_view.dart';
 import '../music/queue_peek.dart';
 import '../music/music_source.dart';
 import '../music/queue_view.dart';
@@ -416,7 +418,7 @@ class _KeepAliveState extends State<_KeepAlive>
   }
 }
 
-class _NowPlayingTab extends StatelessWidget {
+class _NowPlayingTab extends StatefulWidget {
   const _NowPlayingTab({required this.client, required this.state, required this.source});
 
   final ControllerClient client;
@@ -424,6 +426,36 @@ class _NowPlayingTab extends StatelessWidget {
 
   /// The queue, for the peek sheet.
   final MusicSource source;
+
+  @override
+  State<_NowPlayingTab> createState() => _NowPlayingTabState();
+}
+
+class _NowPlayingTabState extends State<_NowPlayingTab> {
+  final DraggableScrollableController _sheet = DraggableScrollableController();
+
+  ControllerClient get client => widget.client;
+  ControllerClientState get state => widget.state;
+  MusicSource get source => widget.source;
+
+  @override
+  void dispose() {
+    _sheet.dispose();
+    super.dispose();
+  }
+
+  /// A swipe in from the right edge raises the queue: first to the middle, then
+  /// all the way up.
+  void _raiseQueue() {
+    if (!_sheet.isAttached) return;
+    final mid = QueuePeekSheet.midSize;
+    final target = _sheet.size < mid - 0.03 ? mid : QueuePeekSheet.fullSize;
+    _sheet.animateTo(target,
+        duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+  }
+
+  /// A swipe in from the left edge opens the Library.
+  void _openLibrary() => DefaultTabController.of(context).animateTo(2);
 
   Future<void> _send(
     BuildContext context,
@@ -460,7 +492,11 @@ class _NowPlayingTab extends StatelessWidget {
     // The queue peek rests along the bottom; the page scrolls clear of it.
     return LayoutBuilder(builder: (context, box) {
       final peekSpace = p.isExternal ? 0.0 : box.maxHeight * QueuePeekSheet.peekSize + 12;
-      return Stack(
+      return EdgeSwipe(
+        enabled: enabled,
+        onFromLeft: _openLibrary,
+        onFromRight: p.isExternal ? null : _raiseQueue,
+        child: Stack(
         children: [
           ListView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
@@ -497,6 +533,15 @@ class _NowPlayingTab extends StatelessWidget {
                   ),
                 ),
         ),
+        if (!p.isExternal)
+          LyricsSection(
+            songId: p.songId,
+            positionSeconds: p.positionSeconds,
+            isPlaying: p.isPlaying,
+            enabled: enabled,
+            fetch: source.lyrics,
+            onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
+          ),
         const SizedBox(height: 8),
         TransportControls(
           canSkip: p.canSkip,
@@ -533,6 +578,7 @@ class _NowPlayingTab extends StatelessWidget {
           if (!p.isExternal)
             Positioned.fill(
               child: QueuePeekSheet(
+                controller: _sheet,
                 source: source,
                 revision: p.queueRevision,
                 currentIndex: p.queueIndex,
@@ -540,6 +586,7 @@ class _NowPlayingTab extends StatelessWidget {
               ),
             ),
         ],
+        ),
       );
     });
   }

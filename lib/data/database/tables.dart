@@ -120,6 +120,23 @@ class QueueStreams extends Table {
   TextColumn get imageUrl => text().nullable()();
 }
 
+/// Lyrics found for a song (schema v6), kept on the Player so a song is looked
+/// up on the internet once. A row with `found = false` remembers a miss.
+class LyricsCache extends Table {
+  TextColumn get trackKey => text()();
+  BoolColumn get found => boolean().withDefault(const Constant(false))();
+  TextColumn get plainLyrics => text().nullable()();
+
+  /// LRC text (`[01:23.45] words`), when the source has timings.
+  TextColumn get syncedLyrics => text().nullable()();
+  BoolColumn get instrumental => boolean().withDefault(const Constant(false))();
+  TextColumn get source => text().withDefault(const Constant(''))();
+  DateTimeColumn get fetchedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {trackKey};
+}
+
 /// What was played from the Online Library (schema v4): text and links only,
 /// never audio. Kept on the Player, never uploaded.
 class OnlineHistory extends Table {

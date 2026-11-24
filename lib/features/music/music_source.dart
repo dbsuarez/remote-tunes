@@ -22,6 +22,9 @@ abstract class MusicSource {
     int limit,
   });
 
+  /// Lyrics for a library song.
+  Future<RemoteLyrics> lyrics(int songId);
+
   /// The folders the Player's music is in.
   Future<LibraryPage<RemoteFolder>> folders({
     String query,
@@ -109,6 +112,9 @@ class RemoteMusicSource implements MusicSource {
           folderId: folderId,
           offset: offset,
           limit: limit);
+
+  @override
+  Future<RemoteLyrics> lyrics(int songId) => _client.lyrics(songId);
 
   @override
   Future<LibraryPage<RemoteFolder>> folders(

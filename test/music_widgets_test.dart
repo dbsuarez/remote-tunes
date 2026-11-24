@@ -73,6 +73,16 @@ class FakeMusicSource implements MusicSource {
         offset, limit);
   }
 
+  RemoteLyrics lyricsResult = const RemoteLyrics();
+  final lyricsAsked = <int>[];
+
+  @override
+  Future<RemoteLyrics> lyrics(int songId) async {
+    lyricsAsked.add(songId);
+    if (failWith != null) throw failWith!;
+    return lyricsResult;
+  }
+
   @override
   Future<LibraryPage<RemoteFolder>> folders(
           {String query = '', int offset = 0, int limit = 50}) async =>

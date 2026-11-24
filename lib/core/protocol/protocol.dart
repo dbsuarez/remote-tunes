@@ -97,6 +97,9 @@ class RemoteActions {
   static const setSpeed = 'setSpeed';
   static const getArt = 'getArt';
 
+  /// `{"action":"getLyrics","songId":n}` -> {lyrics: RemoteLyrics json}.
+  static const getLyrics = 'getLyrics';
+
   // `{"action":"saveQueueAsPlaylist","name":"..."}` -> {playlistId, added, skipped}
   static const saveQueueAsPlaylist = 'saveQueueAsPlaylist';
 

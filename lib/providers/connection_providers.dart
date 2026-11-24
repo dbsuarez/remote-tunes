@@ -49,6 +49,7 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
   final library = RepositoryPlayerLibrary(
     ref.watch(libraryRepositoryProvider),
     history: OnlineHistoryRepository(ref.watch(databaseProvider)),
+    lyrics: ref.watch(lyricsServiceProvider),
   );
   final localEngine = QueuePlaybackEngine(
     backend: JustAudioBackend(),
