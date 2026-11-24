@@ -40,6 +40,9 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     _subs.add(_backend.completedStream.listen((_) {
       _serial(_onCompleted).catchError((Object _) {});
     }));
+    _subs.add(_backend.advancedStream.listen((path) {
+      _serial(() => _onAdvanced(path)).catchError((Object _) {});
+    }));
     unawaited(_backend.setVolume(_volume));
   }
 
@@ -152,6 +155,76 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   void _emit() {
     if (!_disposed && !_controller.isClosed) _controller.add(state);
     _scheduleSave();
+    _preloadIfChanged();
+  }
+
+  // -------------------------------------------------------- gapless playback
+
+  /// The queue entry whose file the backend has lined up after the loaded one.
+  int? _preloadedEntryId;
+  String? _preloadKey;
+  Future<void> _preloadTail = Future.value();
+
+  /// Lines up the song that follows the current one so the change is gapless.
+  /// Cheap to call often: it only acts when the queue, the current song or the
+  /// shuffle/repeat choice changed.
+  void _preloadIfChanged() {
+    if (_disposed) return;
+    final key = '${_queue.revision}|${_queue.shuffle}|${_queue.repeat}|'
+        '$_loadedEntryId|${_queue.current?.id}';
+    if (key == _preloadKey) return;
+    _preloadKey = key;
+    _preloadTail = _preloadTail.then((_) async {
+      if (_disposed) return;
+      QueueEntry? want;
+      final cur = _queue.current;
+      if (_loadedEntryId != null && cur != null && cur.id == _loadedEntryId) {
+        final n = _queue.peekNext();
+        final path = n?.song.filePath;
+        if (n != null &&
+            n.id != cur.id &&
+            !n.song.isUrl &&
+            path != null &&
+            _fileExists(path)) {
+          want = n;
+        }
+      }
+      if (want?.id == _preloadedEntryId) return;
+      _preloadedEntryId = want?.id;
+      try {
+        await _backend.setNext(want?.song.filePath);
+      } catch (_) {
+        _preloadedEntryId = null;
+      }
+    });
+  }
+
+  /// The backend moved on by itself to the lined-up file.
+  Future<void> _onAdvanced(String? path) async {
+    final expected = _preloadedEntryId;
+    _preloadedEntryId = null;
+    final next = _queue.advance(auto: true);
+    if (next == null || next.id != expected || next.song.filePath != path) {
+      // Out of step with the queue (it changed just then): load it properly.
+      if (next != null) {
+        try {
+          await _startEntry(next, autoplay: true);
+        } on PlaybackException {
+          // Reported through state.
+        }
+      }
+      return;
+    }
+    final song = next.song;
+    _loadedEntryId = next.id;
+    _positionSeconds = 0;
+    _durationSeconds = song.durationSeconds;
+    _error = '';
+    _loading = false;
+    _playing = true;
+    final id = song.libraryId;
+    if (id != null) onSongStarted?.call(id);
+    _emit();
   }
 
   /// Saves shortly after the queue or the current song changes, so a burst of
@@ -282,6 +355,9 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
               ? await _backend.loadUrl(song.url!)
               : await _backend.load(path!);
           _loadedEntryId = current.id;
+          // Loading cleared whatever was lined up behind the old track.
+          _preloadedEntryId = null;
+          _preloadKey = null;
           _positionSeconds = 0;
           _durationSeconds =
               song.durationSeconds > 0 ? song.durationSeconds : (duration?.inSeconds ?? 0);

@@ -96,7 +96,7 @@ Put the two phones side by side, same Wi-Fi, music with a clear beat. **C** is c
 - [x] Drag the progress bar on **C** (a seek): both phones jump and stay together within a couple of seconds.
 - [x] Next song: **C** keeps up (it fetched the next song ahead of time, so there should be no gap).
 - [x] Play on **P** at 1.5x speed: both follow.
-- [ ] Walk the phones to different rooms, or put **C** in your pocket with the screen on: it stays in step. (Screen off or app in the background may stop it: tell me what happens.)
+- [x] Walk the phones to different rooms, or put **C** in your pocket with the screen on: it stays in step. (Screen off or app in the background may stop it: tell me what happens.)
 - [x] Switch the Wi-Fi off on **C**: the card shows reconnecting and **C** goes quiet. Switch it back on: it rejoins by itself.
 - [x] Play a **Jamendo** track: **C** says it can't follow ("Waiting for the Player to play a song from its library"), the Player plays alone. Back to a library song: it rejoins the sound.
 - [x] Switch it off: **C** goes silent. (It also deletes the temporary song files.)
@@ -105,36 +105,36 @@ Put the two phones side by side, same Wi-Fi, music with a clear beat. **C** is c
 
 ## 11. Group play hardening and Auto-align (new)
 Same setup as section 10 (**P** = Player, **C** = the phone that plays along, side by side, same Wi-Fi).
-- [ ] **C** switches on **Play on this phone too**. The **screen stays on** by itself while it is on (it does not dim and lock). Switch it off: the screen behaves normally again.
-- [ ] While it is on, the card shows **"This phone's own audio delay"** with a number (some phones don't report it; then the line is missing).
-- [ ] Turn **P**'s music to a Bluetooth speaker or earbuds, or connect **C**'s to one: the card shows an **orange warning about Bluetooth**. Back to the phone speaker: the warning goes away.
-- [ ] Move **C** far from the Wi-Fi router: a warning about an **uneven Wi-Fi** may appear. Move back: it goes.
-- [ ] Let it play a whole song **without touching anything**. The **Off by** number should stay small and steady. Note its typical size, and how often you hear it correct itself (a hard jump is a click or skip; a speed nudge should not be audible).
-- [ ] Seek on **C**, pause/play, next: after each, **C** is back in step within a couple of seconds and **does not keep jumping around**.
-- [ ] **Auto-align** (the microphone button): put the phones about 10 cm apart, volumes up, quiet room. Tap it, read the box, **Start**. The Player plays a short series of clicks, first alone (about 5 s), then **this phone alone** (about 5 s). Keep quiet.
-- [ ] A permission box asks for the **microphone**: allow it.
-- [ ] A message tells you what it found, for example **"This phone was 37.0 ms late. Fine-tune set to +37 ms."** **Write down the number it reports and the phones' names.**
-- [ ] **Run Auto-align a second time.** It should now say it is **already lined up** (within a few ms). If it reports a big number again, tell me both numbers.
-- [ ] After Auto-align the **Player is back to what it was**: the same song, queue and volume (it was silenced for a few seconds in the middle).
-- [ ] While Auto-align runs, tap **Cancel**: it stops, and the Player's volume and queue are back to normal.
-- [ ] In a noisy room, or with the volume very low, Auto-align says it **could not hear the clicks** and changes nothing.
-- [ ] After Auto-align the song really **sounds together** now. If it doesn't, nudge it by ear and tell me how far off it still was, and which way (this tells me how accurate the measurement is on your phones).
-- [ ] Deny the microphone permission: Auto-align says so and changes nothing.
+- [x] **C** switches on **Play on this phone too**. The **screen stays on** by itself while it is on (it does not dim and lock). Switch it off: the screen behaves normally again.
+- [x] While it is on, the card shows **"This phone's own audio delay"** with a number (some phones don't report it; then the line is missing).
+- [x] Turn **P**'s music to a Bluetooth speaker or earbuds, or connect **C**'s to one: the card shows an **orange warning about Bluetooth**. Back to the phone speaker: the warning goes away.
+- [x] Move **C** far from the Wi-Fi router: a warning about an **uneven Wi-Fi** may appear. Move back: it goes.
+- [x] Let it play a whole song **without touching anything**. The **Off by** number should stay small and steady. Note its typical size, and how often you hear it correct itself (a hard jump is a click or skip; a speed nudge should not be audible).
+- [x] Seek on **C**, pause/play, next: after each, **C** is back in step within a couple of seconds and **does not keep jumping around**.
+- [x] **Auto-align** (the microphone button): put the phones about 10 cm apart, volumes up, quiet room. Tap it, read the box, **Start**. The Player plays a short series of clicks, first alone (about 5 s), then **this phone alone** (about 5 s). Keep quiet.
+- [x] A permission box asks for the **microphone**: allow it.
+- [x] A message tells you what it found, for example **"This phone was 37.0 ms late. Fine-tune set to +37 ms."** **Write down the number it reports and the phones' names.**
+- [x] **Run Auto-align a second time.** It should now say it is **already lined up** (within a few ms). If it reports a big number again, tell me both numbers.
+- [x] After Auto-align the **Player is back to what it was**: the same song, queue and volume (it was silenced for a few seconds in the middle).
+- [x] While Auto-align runs, tap **Cancel**: it stops, and the Player's volume and queue are back to normal.
+- [x] In a noisy room, or with the volume very low, Auto-align says it **could not hear the clicks** and changes nothing.
+- [x] After Auto-align the song really **sounds together** now. If it doesn't, nudge it by ear and tell me how far off it still was, and which way (this tells me how accurate the measurement is on your phones).
+- [x] Deny the microphone permission: Auto-align says so and changes nothing.
 
 ## 12. Smaller new things
 Both phones now run the **release build** (faster than debug; same app).
-- [ ] The app opens quickly and your data is all still there (songs, playlists, trusted devices).
-- [ ] **Queue search:** Queue tab > the search button. Type part of a title, an artist or an album: the list narrows and says "N of M". Tap an entry to play it, tap the cross to remove it. Close the search: the whole queue is back and dragging works again.
-- [ ] **Carry on where it was:** play a song to about the middle, pause, close the app completely and open it as Player. The bar shows where it was. Press Play: it continues from there, not from the start. A different song chosen instead starts from its beginning.
-- [ ] Play a song, close the app **without pausing**, reopen: it is within about 10 seconds of where you left it.
-- [ ] **Settings > Diagnostics:** there are now sections for the saved queue, Online Library, and **Group play** (sound output, the phone's own audio delay, microphone permission). While playing along, it also shows the live "Off by", round trip and fine-tune numbers. **Copy** works, and the text contains no Jamendo ID.
-- [ ] Auto-align (section 11) works on the release build too. If it is **muted at the wrong time** (the Player goes quiet before the first clicks finish, or this phone never gets loud), tell me what you heard.
+- [x] The app opens quickly and your data is all still there (songs, playlists, trusted devices).
+- [x] **Queue search:** Queue tab > the search button. Type part of a title, an artist or an album: the list narrows and says "N of M". Tap an entry to play it, tap the cross to remove it. Close the search: the whole queue is back and dragging works again.
+- [x] **Carry on where it was:** play a song to about the middle, pause, close the app completely and open it as Player. The bar shows where it was. Press Play: it continues from there, not from the start. A different song chosen instead starts from its beginning.
+- [x] Play a song, close the app **without pausing**, reopen: it is within about 10 seconds of where you left it.
+- [x] **Settings > Diagnostics:** there are now sections for the saved queue, Online Library, and **Group play** (sound output, the phone's own audio delay, microphone permission). While playing along, it also shows the live "Off by", round trip and fine-tune numbers. **Copy** works, and the text contains no Jamendo ID.
+- [x] Auto-align (section 11) works on the release build too. If it is **muted at the wrong time** (the Player goes quiet before the first clicks finish, or this phone never gets loud), tell me what you heard.
 
 ## 13. Feel and color (docs/handoff.md)
-- [ ] **Haptics:** on the Controller, Play/Pause gives a firmer tap; Previous/Next a light one; letting go of the volume or seek slider, hearts, long-press to select and picking a song give a small click. **Settings > Look and feel > Haptic feedback** off: all silent.
-- [ ] **Album-art colors:** play songs with different covers. The Controller's accent (progress bar, play button, highlights) fades to the cover's color in about half a second. Covers that are grey or missing keep the normal teal. The accent is never Spotify-green and stays readable on the dark background. **Colors from album art** off: always teal.
-- [ ] **Queue Peek:** on Now Playing a small sheet rests at the bottom showing the song playing. Drag it up: the next 3 songs appear, further up the whole queue. Tap a song: it plays. Drag down: it tucks away. The player controls above are never covered, and you can still scroll the page to its last card.
-- [ ] Nothing queued, or playing an internet track: no sheet is shown.
+- [x] **Haptics:** on the Controller, Play/Pause gives a firmer tap; Previous/Next a light one; letting go of the volume or seek slider, hearts, long-press to select and picking a song give a small click. **Settings > Look and feel > Haptic feedback** off: all silent.
+- [x] **Album-art colors:** play songs with different covers. The Controller's accent (progress bar, play button, highlights) fades to the cover's color in about half a second. Covers that are grey or missing keep the normal teal. The accent is never Spotify-green and stays readable on the dark background. **Colors from album art** off: always teal.
+- [x] **Queue Peek:** on Now Playing a small sheet rests at the bottom showing the song playing. Drag it up: the next 3 songs appear, further up the whole queue. Tap a song: it plays. Drag down: it tucks away. The player controls above are never covered, and you can still scroll the page to its last card.
+- [x] Nothing queued, or playing an internet track: no sheet is shown.
 
 ---
 

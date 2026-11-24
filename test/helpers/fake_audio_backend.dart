@@ -25,6 +25,31 @@ class FakeAudioBackend implements AudioBackend {
 
   final _duration = StreamController<Duration?>.broadcast();
   final _errors = StreamController<String>.broadcast();
+  final _advanced = StreamController<String?>.broadcast();
+
+  /// Every value passed to [setNext], in order.
+  final List<String?> nextRequests = [];
+
+  /// The file lined up to follow the loaded one (null: none).
+  String? nextPath;
+
+  @override
+  Stream<String?> get advancedStream => _advanced.stream;
+
+  @override
+  Future<void> setNext(String? filePath) async {
+    nextRequests.add(filePath);
+    nextPath = filePath;
+  }
+
+  /// Simulates playback moving on to the lined-up file with no gap.
+  void advanceGapless() {
+    final p = nextPath;
+    nextPath = null;
+    currentPath = p;
+    position = Duration.zero;
+    _advanced.add(p);
+  }
 
   /// Every path passed to [load], in order.
   final List<String> loaded = [];
@@ -85,6 +110,7 @@ class FakeAudioBackend implements AudioBackend {
       throw AudioBackendException('Cannot play $filePath');
     }
     loaded.add(filePath);
+    nextPath = null;
     currentPath = filePath;
     position = Duration.zero;
     return durations[filePath] ?? const Duration(seconds: 100);
@@ -131,6 +157,7 @@ class FakeAudioBackend implements AudioBackend {
     await _completed.close();
     await _duration.close();
     await _errors.close();
+    await _advanced.close();
   }
 }
 

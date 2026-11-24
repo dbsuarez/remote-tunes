@@ -35,6 +35,14 @@ abstract class AudioBackend {
   /// as plain-language messages.
   Stream<String> get errorStream;
 
+  /// Fires when playback moved on by itself to the track given to [setNext]
+  /// (with no gap). Carries that track's file path.
+  Stream<String?> get advancedStream;
+
+  /// Gets a local file ready to follow the loaded track with no gap. Null
+  /// removes it. Replaced by the next [load].
+  Future<void> setNext(String? filePath);
+
   /// Loads a local file and returns its duration if known.
   Future<Duration?> load(String filePath);
 
@@ -59,6 +67,51 @@ class JustAudioBackend implements AudioBackend {
 
   final AudioPlayer _player;
 
+  // The player holds a short list: the loaded track and, after it, the one
+  // given to setNext, so the change between them is gapless.
+  final List<String?> _paths = [null]; // what is at each index (null: a link)
+  int _baseIndex = 0;
+  bool _indexWatched = false;
+  Future<void> _nextWork = Future.value();
+  final StreamController<String?> _advanced = StreamController<String?>.broadcast();
+
+  void _watchIndex() {
+    if (_indexWatched) return;
+    _indexWatched = true;
+    _player.currentIndexStream.listen((i) {
+      if (i == null || i <= _baseIndex) return;
+      _baseIndex = i;
+      _advanced.add(i < _paths.length ? _paths[i] : null);
+    });
+  }
+
+  @override
+  Stream<String?> get advancedStream => _advanced.stream;
+
+  @override
+  Future<void> setNext(String? filePath) {
+    final job = _nextWork.then((_) async {
+      final nextIndex = _baseIndex + 1;
+      try {
+        if (_paths.length > nextIndex) {
+          if (_paths[nextIndex] == filePath) return;
+          await _player.removeAudioSourceAt(nextIndex);
+          _paths.removeRange(nextIndex, _paths.length);
+        }
+        if (filePath != null) {
+          await _player.addAudioSource(AudioSource.file(filePath));
+          _paths.add(filePath);
+        }
+      } catch (_) {
+        // No gapless change this time; the track after this one loads normally.
+        _paths.removeRange(
+            (_baseIndex + 1).clamp(0, _paths.length), _paths.length);
+      }
+    });
+    _nextWork = job;
+    return job;
+  }
+
   @override
   Stream<Duration> get positionStream => _player.positionStream;
 
@@ -82,9 +135,18 @@ class JustAudioBackend implements AudioBackend {
             'audio could not be read.',
       );
 
+  void _resetList(String? path) {
+    _watchIndex();
+    _baseIndex = 0;
+    _paths
+      ..clear()
+      ..add(path);
+  }
+
   @override
   Future<Duration?> load(String filePath) async {
     try {
+      _resetList(filePath);
       return await _player.setFilePath(filePath);
     } on PlayerInterruptedException {
       // A newer load replaced this one; not an error for the user.
@@ -102,6 +164,7 @@ class JustAudioBackend implements AudioBackend {
   @override
   Future<Duration?> loadUrl(String url) async {
     try {
+      _resetList(null);
       return await _player.setUrl(url);
     } on PlayerInterruptedException {
       return null;
