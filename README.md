@@ -110,6 +110,10 @@ The Controller (phone and web) has an **Online** tab that searches [Jamendo](htt
 - **Online history:** every Jamendo track played is remembered on the **Player** phone (title, artist, album, licence and links only, never audio), newest first, up to 200. Open it with the clock button in the Online tab: play again, add to the queue, remove one, **Clear**, or switch **Keep history** off. It is never sent anywhere; a Controller plays an entry again by id and never sees the stream link.
 - **Queued Jamendo tracks survive restarts** (their link and text are saved with the queue, in order among your own songs; Jamendo's links keep working because only the track id matters).
 
+## Testing on the phones
+
+Most features were verified by automated tests only. [docs/19_PHONE_TEST_CHECKLIST.md](docs/19_PHONE_TEST_CHECKLIST.md) is a tick-box list for trying everything by hand on two phones and the web page.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
