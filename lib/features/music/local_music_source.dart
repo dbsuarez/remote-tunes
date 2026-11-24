@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
 import '../../core/protocol/protocol.dart';
@@ -41,6 +43,10 @@ class LocalMusicSource implements MusicSource {
   @override
   Future<void> setFavorite(int songId, bool favorite) =>
       _library.setFavorite(songId, favorite);
+
+  @override
+  Future<Uint8List?> artFor(int songId, {int size = 96}) =>
+      _library.artThumbnail(songId, size: size);
 
   @override
   Future<int> createPlaylist(String name) => _library.createPlaylist(name);

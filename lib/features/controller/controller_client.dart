@@ -759,21 +759,35 @@ class ControllerClient {
 
   /// Album art for a library song, as a small JPEG, or null if it has none.
   /// Remembered, so each song's art is fetched once.
-  Future<Uint8List?> artFor(int songId) {
-    return _art.putIfAbsent(songId, () async {
+  ///
+  /// [size] is the longest side in pixels (48 to 256). Lists ask for small
+  /// pictures, Now Playing for the big one.
+  Future<Uint8List?> artFor(int songId, {int size = 256}) {
+    final key = '$songId@$size';
+    return _art.putIfAbsent(key, () async {
+      // A long list asks for many pictures at once: do a few at a time so
+      // playback commands are not stuck behind them.
+      while (_artBusy >= _maxArtRequests) {
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+      }
+      _artBusy++;
       try {
-        final r = await sendCommandForResult(
-            RemoteActions.getArt, {'songId': songId}, const Duration(seconds: 15));
+        final r = await sendCommandForResult(RemoteActions.getArt,
+            {'songId': songId, 'size': size}, const Duration(seconds: 15));
         final a = r['art'];
         return a is String && a.isNotEmpty ? base64Decode(a) : null;
       } catch (_) {
-        _art.remove(songId); // Try again next time (e.g. after a reconnect).
+        _art.remove(key); // Try again next time (e.g. after a reconnect).
         return null;
+      } finally {
+        _artBusy--;
       }
     });
   }
 
-  final Map<int, Future<Uint8List?>> _art = {};
+  static const _maxArtRequests = 3;
+  int _artBusy = 0;
+  final Map<String, Future<Uint8List?>> _art = {};
 
   /// Sets the playback speed (0.5 to 2.0).
   Future<void> setSpeed(double speed) =>

@@ -42,7 +42,7 @@ abstract class PlayerLibrary {
   Future<void> removeFromPlaylist(int playlistId, int songId);
 
   /// A small JPEG of the song's album art, or null if it has none.
-  Future<Uint8List?> artThumbnail(int songId);
+  Future<Uint8List?> artThumbnail(int songId, {int size});
 
   Future<LibraryPage<RemoteArtist>> artists({
     String query,
@@ -113,14 +113,16 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       _repo.removeFromPlaylist(playlistId, songId);
 
   @override
-  Future<Uint8List?> artThumbnail(int songId) async {
+  Future<Uint8List?> artThumbnail(int songId, {int size = artThumbnailSize}) async {
     final song = await _repo.songById(songId);
     final path = song?.albumArtPath;
     if (path == null) return null;
-    if (_thumbs.containsKey(path)) return _thumbs[path];
-    final thumb = await loadArtThumbnail(path);
-    if (_thumbs.length > 40) _thumbs.remove(_thumbs.keys.first);
-    return _thumbs[path] = thumb;
+    // Songs of one album share a picture, so this is made once per album.
+    final key = '$path|$size';
+    if (_thumbs.containsKey(key)) return _thumbs[key];
+    final thumb = await loadArtThumbnail(path, size: size);
+    if (_thumbs.length > 300) _thumbs.remove(_thumbs.keys.first);
+    return _thumbs[key] = thumb;
   }
 
   @override

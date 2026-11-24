@@ -4,6 +4,7 @@ import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
+import 'song_art.dart';
 
 /// The play queue: tap to jump, drag the handle to reorder, remove entries,
 /// clear, shuffle and repeat. Used on both phones through [MusicSource].
@@ -206,18 +207,15 @@ class _QueueViewState extends State<QueueView> {
           minTileHeight: 64,
           selected: isCurrent,
           selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.10),
-          leading: CircleAvatar(
-            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            child: Icon(
-              !song.available
-                  ? Icons.error_outline_rounded
-                  : isCurrent
-                      ? Icons.graphic_eq_rounded
-                      : Icons.music_note_rounded,
-              color: !song.available
-                  ? theme.colorScheme.error
-                  : theme.colorScheme.primary,
-            ),
+          leading: SongArt(
+            source: widget.source,
+            songId: song.id,
+            overlayIcon: !song.available
+                ? Icons.error_outline_rounded
+                : isCurrent
+                    ? Icons.graphic_eq_rounded
+                    : null,
+            overlayColor: !song.available ? theme.colorScheme.error : null,
           ),
           title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(

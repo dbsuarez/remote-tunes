@@ -1065,7 +1065,9 @@ class PlayerServer {
         await _library.removeFromPlaylist(
             _requiredInt(p, 'playlistId'), _requiredInt(p, 'songId'));
       case RemoteActions.getArt:
-        final bytes = await _library.artThumbnail(_requiredInt(p, 'songId'));
+        final size = p['size'] is num ? (p['size'] as num).toInt() : 256;
+        final bytes =
+            await _library.artThumbnail(_requiredInt(p, 'songId'), size: size);
         return bytes == null ? const {} : {'art': base64Encode(bytes)};
       case RemoteActions.toggle:
         await engine.toggle();

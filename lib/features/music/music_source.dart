@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
 import '../../core/protocol/protocol.dart';
@@ -26,6 +28,10 @@ abstract class MusicSource {
   });
 
   Future<void> setFavorite(int songId, bool favorite);
+
+  /// A small picture of the song's album art (longest side [size] pixels), or
+  /// null if it has none.
+  Future<Uint8List?> artFor(int songId, {int size});
 
   /// Returns the new playlist id.
   Future<int> createPlaylist(String name);
@@ -99,6 +105,10 @@ class RemoteMusicSource implements MusicSource {
   @override
   Future<void> setFavorite(int songId, bool favorite) =>
       _client.setFavorite(songId, favorite);
+
+  @override
+  Future<Uint8List?> artFor(int songId, {int size = 96}) =>
+      _client.artFor(songId, size: size);
 
   @override
   Future<int> createPlaylist(String name) async {

@@ -276,6 +276,26 @@ void main() {
       expect(bytes.sublist(0, 2), Uint8List.fromList([0xFF, 0xD8]));
     });
 
+    test('list rows ask for a small picture, and sizes are kept in range', () async {
+      final small = await client.artFor(ids['One']!, size: 96);
+      final big = await client.artFor(ids['One']!);
+      final s = img.decodeImage(small!)!;
+      expect(s.width, lessThanOrEqualTo(96));
+      expect(small.length, lessThan(big!.length));
+      // Absurd sizes are clamped to 48..256 instead of failing.
+      final tiny = img.decodeImage((await client.artFor(ids['One']!, size: 1))!)!;
+      expect(tiny.width, 48);
+      final huge = img.decodeImage((await client.artFor(ids['One']!, size: 99999))!)!;
+      expect(huge.width, 256);
+    });
+
+    test('many pictures at once all arrive (a few at a time)', () async {
+      final results = await Future.wait([
+        for (var i = 0; i < 12; i++) client.artFor(ids['One']!, size: 48 + i),
+      ]);
+      expect(results.every((r) => r != null), isTrue);
+    });
+
     test('a song without art, or an unknown song, gives null', () async {
       expect(await client.artFor(ids['Two']!), isNull);
       expect(await client.artFor(99999), isNull);

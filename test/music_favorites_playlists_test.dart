@@ -4,6 +4,7 @@ import 'package:remote_tunes/core/protocol/library_models.dart';
 import 'package:remote_tunes/features/music/music_browser.dart';
 
 import 'music_widgets_test.dart' show FakeMusicSource, host, settleUi, song;
+import 'package:remote_tunes/features/music/song_art.dart';
 
 void main() {
   late FakeMusicSource source;
@@ -20,6 +21,37 @@ void main() {
     await tester.pumpWidget(host(MusicBrowser(source: source)));
     await settleUi(tester);
   }
+
+  testWidgets('song rows show album art when the song has it, a note otherwise',
+      (tester) async {
+    source.withArt.add(2); // only Banana
+    await open(tester);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    CircleAvatar avatarOf(String title) => tester.widget<CircleAvatar>(find.descendant(
+        of: find.ancestor(of: find.text(title), matching: find.byType(ListTile)),
+        matching: find.descendant(
+            of: find.byType(SongArt), matching: find.byType(CircleAvatar))));
+
+    expect(avatarOf('Banana Song').backgroundImage, isA<MemoryImage>());
+    expect(avatarOf('Apple Song').backgroundImage, isNull);
+    // The note shows for the one without art.
+    expect(
+        find.descendant(
+            of: find.ancestor(of: find.text('Apple Song'), matching: find.byType(ListTile)),
+            matching: find.byIcon(Icons.music_note_rounded)),
+        findsOneWidget);
+  });
+
+  testWidgets('a selected row with art keeps the picture and adds a check',
+      (tester) async {
+    source.withArt.add(2);
+    await open(tester);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.longPress(find.text('Banana Song'));
+    await settleUi(tester);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+  });
 
   testWidgets('all six filter chips are offered', (tester) async {
     await open(tester);

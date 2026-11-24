@@ -88,7 +88,7 @@ One-time setup in the repository: **Settings → Pages → Build and deployment 
 
 - **Library chips:** Songs, Artists, Albums, **Favorites**, **Recent**, **Playlists**. The heart on a song toggles a favorite; the song menu has *Add to playlist*. A playlist opens like an album (Play all, Rename, Delete, remove a song). Deleting a playlist keeps the songs.
 - **Now Playing (Controller):** a heart for the current song, a **Speed** picker (0.5x to 2x, kept for the next songs) and the album art.
-- **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path.
+- **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path. Now Playing and the mini bar use the big one; song rows (Library, Queue, Favorites, playlists, on both phones) ask for a 96 px one, a few at a time, and show a music note when the song has no art.
 - **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
 - The database moved to version 3; upgrading keeps the library.
 - **Multi-select:** long-press a song to start selecting; tap to pick more, then *Select all*, *Add to queue* or *Add to playlist*.

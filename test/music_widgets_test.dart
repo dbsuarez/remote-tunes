@@ -1,10 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/core/models/enums.dart';
 import 'package:remote_tunes/core/protocol/library_models.dart';
 import 'package:remote_tunes/features/music/music_browser.dart';
 import 'package:remote_tunes/features/music/music_source.dart';
 import 'package:remote_tunes/features/music/queue_view.dart';
+
+/// A real, valid 8x8 JPEG for art tests.
+final Uint8List tinyJpeg = Uint8List.fromList(
+    img.encodeJpg(img.Image(width: 8, height: 8), quality: 50));
 
 RemoteSong song(int id, String title,
         {String artist = 'Ann', String album = 'Alpha', bool available = true}) =>
@@ -69,6 +76,13 @@ class FakeMusicSource implements MusicSource {
   Future<LibraryPage<RemotePlaylist>> playlists(
           {String query = '', int offset = 0, int limit = 50}) async =>
       _page(playlistList, offset, limit);
+
+  /// Songs that have art, by id (a tiny valid picture is returned for them).
+  final withArt = <int>{};
+
+  @override
+  Future<Uint8List?> artFor(int songId, {int size = 96}) async =>
+      withArt.contains(songId) ? tinyJpeg : null;
 
   @override
   Future<void> setFavorite(int songId, bool favorite) async {

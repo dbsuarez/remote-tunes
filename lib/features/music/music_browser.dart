@@ -6,6 +6,7 @@ import '../../core/protocol/library_models.dart';
 import '../../core/song_list_style.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
+import 'song_art.dart';
 
 enum _Scope { songs, artists, albums, favorites, recent, playlists }
 
@@ -355,6 +356,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
       ),
       itemBuilder: (context, song) => _SongTile(
         song: song,
+        source: widget.source,
         onTap: () => _selected.isNotEmpty
             ? _toggleSelected(song.id)
             : _run(() async {
@@ -657,6 +659,7 @@ enum _SongAction { playNext, addToQueue, addToPlaylist, removeFromPlaylist, remo
 class _SongTile extends StatelessWidget {
   const _SongTile({
     required this.song,
+    required this.source,
     required this.onTap,
     required this.onPlayNext,
     required this.onAddToQueue,
@@ -680,6 +683,7 @@ class _SongTile extends StatelessWidget {
   final VoidCallback onSelect;
 
   final RemoteSong song;
+  final MusicSource source;
   final VoidCallback onTap;
   final VoidCallback onPlayNext;
   final VoidCallback onAddToQueue;
@@ -703,16 +707,16 @@ class _SongTile extends StatelessWidget {
       enabled: true,
       selected: selected,
       selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-      leading: CircleAvatar(
+      leading: SongArt(
+        source: source,
+        songId: song.id,
         radius: 20 * k,
-        backgroundColor: theme.colorScheme.surfaceContainerHighest,
-        child: selected
-            ? Icon(Icons.check_rounded, color: theme.colorScheme.primary, size: 24 * k)
-            : Icon(
-                dim ? Icons.error_outline_rounded : Icons.music_note_rounded,
-                size: 24 * k,
-                color: dim ? theme.colorScheme.error : theme.colorScheme.primary,
-              ),
+        overlayIcon: selected
+            ? Icons.check_rounded
+            : dim
+                ? Icons.error_outline_rounded
+                : null,
+        overlayColor: dim && !selected ? theme.colorScheme.error : null,
       ),
       title: Text(song.title,
           maxLines: 1,
