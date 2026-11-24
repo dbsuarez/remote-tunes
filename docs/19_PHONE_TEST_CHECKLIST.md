@@ -145,6 +145,7 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Lock screen:** while playing, the lock screen / notification shows the cover and title; the seek bar moves; on Android 13+ the shuffle and repeat buttons show and work.
 - [ ] **Album art finder:** Settings > Find missing album art. It says how many albums lack a cover, finds some, and they show on the next song played from those albums.
 - [ ] **Edit info:** on the Player, Library > a song's menu > Edit info. Change the title, Save: the list shows the new title. The Controller shows it too after reopening the Library.
+- [ ] **Now Playing v2 (Controller):** the cover is big (never more than about 40% of the screen), the title is in the accent color, and favorite / shuffle / repeat sit under it and switch on and off. The 10-second back / forward buttons jump in the song. Everything below (volume, speed, sleep timer, Lyrics) is still reachable by scrolling, and the Queue Peek sheet doesn't cover it. On your smallest phone nothing is cut off.
 
 ---
 

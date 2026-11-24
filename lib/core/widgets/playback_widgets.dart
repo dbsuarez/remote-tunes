@@ -24,9 +24,18 @@ class NowPlayingCard extends StatefulWidget {
     this.enabled = true,
     this.art,
     this.trailing,
+    this.hero = false,
+    this.actions,
   });
 
   final PlaybackState state;
+
+  /// The big layout: a large cover, centered title in the accent color, then
+  /// [actions] and the seek bar. Without it: the compact card.
+  final bool hero;
+
+  /// A row of quick actions shown under the title in the [hero] layout.
+  final Widget? actions;
 
   /// Replaces the album-art picture (the Controller passes the thumbnail it
   /// fetched from the Player).
@@ -90,6 +99,10 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
         s.hasTrack &&
         s.durationSeconds > 0 &&
         s.canSeek; // another app may not allow seeking
+
+    if (widget.hero) {
+      return _hero(theme, s, position, duration, canSeek);
+    }
 
     return Card(
       child: Padding(
@@ -232,6 +245,118 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
       ),
     );
   }
+
+  Widget _seekBar(ThemeData theme, PlaybackState s, double position, int duration, bool canSeek) {
+    return Column(
+      children: [
+        Slider(
+          value: position,
+          max: duration.toDouble(),
+          onChanged: canSeek ? (v) => setState(() => _dragging = v) : null,
+          onChangeEnd: canSeek
+              ? (v) {
+                  Haptics.selection();
+                  widget.onSeek!(v.round());
+                  setState(() {
+                    _dragging = null;
+                    _pendingSeek = v.roundToDouble();
+                  });
+                  // Give up waiting if the Player never confirms.
+                  _pendingTimer?.cancel();
+                  _pendingTimer = Timer(const Duration(seconds: 4), () {
+                    if (mounted) setState(() => _pendingSeek = null);
+                  });
+                }
+              : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(formatDuration(position.round()), style: theme.textTheme.bodySmall),
+              Text(formatDuration(s.durationSeconds), style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The big layout: cover, title in the accent color, quick actions, seek bar.
+  Widget _hero(ThemeData theme, PlaybackState s, double position, int duration, bool canSeek) {
+    final subtitle = [
+      if (s.artist.isNotEmpty) s.artist,
+      if (s.album.isNotEmpty) s.album,
+    ].join(' · ');
+    final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    return Column(
+      children: [
+        if (widget.art != null) Center(child: widget.art!),
+        const SizedBox(height: 16),
+        Text(
+          s.hasTrack ? s.title : 'Nothing playing',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (subtitle.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(subtitle,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: s.isExternal
+              ? Text(
+                  s.externalApp.isEmpty
+                      ? 'Waiting for a music app'
+                      : 'Playing in ${s.externalApp}',
+                  style: muted)
+              : s.isInternetStream
+                  ? Text('Internet audio', style: muted)
+                  : s.queueLength > 0
+                      ? Text('Track ${s.queueIndex + 1} of ${s.queueLength}', style: muted)
+                      : const SizedBox.shrink(),
+        ),
+        if (s.isLoading) ...[
+          const SizedBox(height: 12),
+          const LinearProgressIndicator(),
+          const SizedBox(height: 4),
+          Text('Opening the stream…', style: theme.textTheme.bodySmall),
+        ],
+        if (s.error.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline_rounded, size: 18, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(s.error,
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+              ),
+            ],
+          ),
+        ],
+        if (widget.actions != null) ...[
+          const SizedBox(height: 8),
+          widget.actions!,
+        ],
+        const SizedBox(height: 4),
+        _seekBar(theme, s, position, duration, canSeek),
+      ],
+    );
+  }
 }
 
 /// Album art on the Player; a music-note placeholder when there is none (and
@@ -280,7 +405,13 @@ class TransportControls extends StatelessWidget {
     required this.onToggle,
     required this.onNext,
     this.canSkip = true,
+    this.onSeekBack,
+    this.onSeekForward,
   });
+
+  /// Optional 10-second jump buttons next to previous / next.
+  final VoidCallback? onSeekBack;
+  final VoidCallback? onSeekForward;
 
   final bool isPlaying;
   final bool enabled;
@@ -304,7 +435,15 @@ class TransportControls extends StatelessWidget {
           onPressed: (enabled && canSkip) ? onPrevious : null,
           icon: const Icon(Icons.skip_previous_rounded),
         ),
-        const SizedBox(width: 12),
+        if (onSeekBack != null)
+          HapticButton(
+            kind: HapticKind.light,
+            tooltip: 'Back 10 seconds',
+            iconSize: 30,
+            onPressed: enabled ? onSeekBack : null,
+            icon: const Icon(Icons.replay_10_rounded),
+          ),
+        const SizedBox(width: 8),
         HapticButton(
           kind: HapticKind.medium,
           filled: true,
@@ -314,7 +453,15 @@ class TransportControls extends StatelessWidget {
           onPressed: enabled ? onToggle : null,
           icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
+        if (onSeekForward != null)
+          HapticButton(
+            kind: HapticKind.light,
+            tooltip: 'Forward 10 seconds',
+            iconSize: 30,
+            onPressed: enabled ? onSeekForward : null,
+            icon: const Icon(Icons.forward_10_rounded),
+          ),
         HapticButton(
           kind: HapticKind.light,
           tooltip: 'Next',

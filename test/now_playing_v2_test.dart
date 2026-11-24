@@ -1,0 +1,231 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_tunes/core/haptics.dart';
+import 'package:remote_tunes/core/models/enums.dart';
+import 'package:remote_tunes/core/protocol/library_models.dart';
+import 'package:remote_tunes/core/protocol/protocol.dart';
+import 'package:remote_tunes/features/controller/controller_client.dart';
+import 'package:remote_tunes/features/controller/controller_views.dart';
+
+import 'music_widgets_test.dart' show settleUi;
+
+class _Client extends ControllerClient {
+  _Client() : super();
+  final sent = <String>[];
+  final params = <Map<String, dynamic>>[];
+
+  @override
+  Future<QueueSnapshot> getQueue() async => const QueueSnapshot(items: []);
+
+  @override
+  Future<void> sendCommand(String action, [Map<String, dynamic> p = const {}]) async {
+    sent.add(action);
+    params.add(p);
+  }
+
+  @override
+  Future<Map<String, dynamic>> sendCommandForResult(String action,
+      [Map<String, dynamic> p = const {}, Duration? timeout]) async {
+    if (action == RemoteActions.getArt) return const {}; // the cover, not a button
+    sent.add(action);
+    params.add(p);
+    return const {};
+  }
+}
+
+ControllerClientState state({
+  int position = 60,
+  bool shuffle = false,
+  RepeatMode repeat = RepeatMode.off,
+  bool favorite = false,
+  String source = 'local_file',
+  int? songId = 5,
+  bool playing = true,
+}) =>
+    ControllerClientState(
+      status: ControllerStatus.connected,
+      playerName: 'P',
+      playback: PlaybackState(
+        title: 'Killing in the Name',
+        artist: 'Rage',
+        album: 'Rage Against',
+        durationSeconds: 300,
+        positionSeconds: position,
+        isPlaying: playing,
+        queueLength: 12,
+        queueIndex: 2,
+        shuffleEnabled: shuffle,
+        repeatMode: repeat,
+        favorite: favorite,
+        source: source,
+        songId: songId,
+      ),
+    );
+
+void main() {
+  late _Client client;
+
+  setUp(() {
+    client = _Client();
+    Haptics.enabled = false;
+  });
+
+  tearDown(() => Haptics.enabled = true);
+
+  Future<void> open(WidgetTester tester, ControllerClientState s,
+      {Size size = const Size(400, 800)}) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(ProviderScope(
+      child: MaterialApp(
+        theme: ThemeData.dark(useMaterial3: true),
+        home: Scaffold(body: ControllerDashboard(client: client, state: s)),
+      ),
+    ));
+    await settleUi(tester);
+  }
+
+  testWidgets('the big layout: title, artist and album, and where it is in the queue',
+      (tester) async {
+    await open(tester, state());
+    expect(find.text('Killing in the Name'), findsOneWidget);
+    expect(find.text('Rage · Rage Against'), findsOneWidget);
+    expect(find.text('Track 3 of 12'), findsOneWidget);
+    expect(find.text('Now playing'), findsNothing, reason: 'the small card is not used');
+  });
+
+  testWidgets('the title is in the accent color', (tester) async {
+    await open(tester, state());
+    final t = tester.widget<Text>(find.text('Killing in the Name'));
+    final primary = Theme.of(tester.element(find.text('Killing in the Name'))).colorScheme.primary;
+    expect(t.style?.color, primary);
+  });
+
+  testWidgets('the cover is big but never fills a small screen', (tester) async {
+    await open(tester, state(), size: const Size(360, 640));
+    final art = tester.getSize(find.byType(RemoteArt).first);
+    expect(art.width, art.height);
+    expect(art.height, lessThanOrEqualTo(640 * 0.42 + 1));
+    expect(art.width, greaterThan(120));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on a large phone the cover stops growing', (tester) async {
+    await open(tester, state(), size: const Size(600, 1200));
+    expect(tester.getSize(find.byType(RemoteArt).first).width, lessThanOrEqualTo(340));
+  });
+
+  testWidgets('seek buttons jump 10 seconds back and forward', (tester) async {
+    await open(tester, state(position: 60));
+    await tester.tap(find.byTooltip('Back 10 seconds'));
+    await tester.tap(find.byTooltip('Forward 10 seconds'));
+    expect(client.sent, [RemoteActions.seek, RemoteActions.seek]);
+    expect(client.params.map((p) => p['positionSeconds']), [50, 70]);
+  });
+
+  testWidgets('the jump stays inside the song', (tester) async {
+    await open(tester, state(position: 4));
+    await tester.tap(find.byTooltip('Back 10 seconds'));
+    expect(client.params.single['positionSeconds'], 0);
+    client.params.clear();
+    await open(tester, state(position: 296));
+    await tester.tap(find.byTooltip('Forward 10 seconds'));
+    expect(client.params.single['positionSeconds'], 300);
+  });
+
+  testWidgets('shuffle, repeat and favorite are right under the title', (tester) async {
+    await open(tester, state());
+    await tester.tap(find.byTooltip('Shuffle is off'));
+    await tester.tap(find.byTooltip('Repeat: Off'));
+    await tester.tap(find.byTooltip('Add to favorites'));
+    expect(client.sent, [
+      RemoteActions.setShuffle,
+      RemoteActions.setRepeatMode,
+      RemoteActions.setFavorite,
+    ]);
+    expect(client.params[0]['enabled'], true);
+    expect(client.params[1]['mode'], RepeatMode.queue.name);
+    expect(client.params[2], {'songId': 5, 'favorite': true});
+  });
+
+  testWidgets('repeat steps through all, one, off', (tester) async {
+    await open(tester, state(repeat: RepeatMode.queue));
+    await tester.tap(find.byTooltip(RegExp('Repeat:')));
+    expect(client.params.single['mode'], RepeatMode.one.name);
+    client.params.clear();
+    await open(tester, state(repeat: RepeatMode.one));
+    await tester.tap(find.byTooltip(RegExp('Repeat:')));
+    expect(client.params.single['mode'], RepeatMode.off.name);
+  });
+
+  testWidgets('what is on shows: shuffle and favorite change their look and words',
+      (tester) async {
+    await open(tester, state(shuffle: true, favorite: true));
+    expect(find.byTooltip('Shuffle is on'), findsOneWidget);
+    expect(find.byTooltip('Remove from favorites'), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+  });
+
+  testWidgets('quick actions give the haptic click', (tester) async {
+    Haptics.enabled = true;
+    final log = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') log.add('${call.arguments}');
+      return null;
+    });
+    addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await open(tester, state());
+    await tester.tap(find.byTooltip('Shuffle is off'));
+    expect(log, ['HapticFeedbackType.selectionClick']);
+  });
+
+  testWidgets('an internet track has no favorite, but still has the other actions',
+      (tester) async {
+    await open(tester, state(songId: -1, source: 'url'));
+    expect(find.text('Internet audio'), findsOneWidget);
+    expect(find.byTooltip('Shuffle is off'), findsOneWidget);
+    await tester.tap(find.byTooltip('Add to favorites'), warnIfMissed: false);
+    expect(client.sent, isNot(contains(RemoteActions.setFavorite)));
+  });
+
+  testWidgets('controlling another app keeps the small card, with no jump buttons',
+      (tester) async {
+    await open(
+      tester,
+      ControllerClientState(
+        status: ControllerStatus.connected,
+        playerName: 'P',
+        playback: const PlaybackState(
+          title: 'Their song',
+          artist: 'X',
+          durationSeconds: 200,
+          source: 'external',
+          externalApp: 'Some App',
+          externalEnabled: true,
+        ),
+      ),
+    );
+    expect(find.text('Now playing'), findsOneWidget);
+    expect(find.byTooltip('Back 10 seconds'), findsNothing);
+    expect(find.byTooltip('Shuffle is off'), findsNothing);
+  });
+
+  testWidgets('nothing happens while reconnecting', (tester) async {
+    await open(
+      tester,
+      ControllerClientState(
+        status: ControllerStatus.reconnecting,
+        playerName: 'P',
+        playback: state().playback,
+      ),
+    );
+    await tester.tap(find.byTooltip('Back 10 seconds'), warnIfMissed: false);
+    await tester.tap(find.byTooltip('Shuffle is off'), warnIfMissed: false);
+    expect(client.sent, isEmpty);
+  });
+}

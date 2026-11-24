@@ -454,6 +454,61 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
         duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
   }
 
+  /// Jumps [seconds] back or forward in the song.
+  void _jump(BuildContext context, PlaybackState p, int seconds) {
+    final to = (p.positionSeconds + seconds).clamp(0, p.durationSeconds);
+    _send(context, RemoteActions.seek, {'positionSeconds': to});
+  }
+
+  /// Favorite, shuffle and repeat, right under the title.
+  Widget _quickActions(BuildContext context, PlaybackState p, bool enabled) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final hasSong = p.songId != null && p.songId! > 0;
+    final repeatIcon = switch (p.repeatMode) {
+      RepeatMode.one => Icons.repeat_one_rounded,
+      _ => Icons.repeat_rounded,
+    };
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        HapticButton(
+          kind: HapticKind.selection,
+          tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
+          onPressed: enabled && hasSong
+              ? () => _send(context, RemoteActions.setFavorite,
+                  {'songId': p.songId, 'favorite': !p.favorite})
+              : null,
+          icon: Icon(
+            p.favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            color: p.favorite ? primary : null,
+          ),
+        ),
+        HapticButton(
+          kind: HapticKind.selection,
+          tooltip: p.shuffleEnabled ? 'Shuffle is on' : 'Shuffle is off',
+          onPressed: enabled
+              ? () => _send(context, RemoteActions.setShuffle, {'enabled': !p.shuffleEnabled})
+              : null,
+          icon: Icon(Icons.shuffle_rounded, color: p.shuffleEnabled ? primary : null),
+        ),
+        HapticButton(
+          kind: HapticKind.selection,
+          tooltip: 'Repeat: ${p.repeatMode.label}',
+          onPressed: enabled
+              ? () => _send(context, RemoteActions.setRepeatMode, {
+                    'mode': switch (p.repeatMode) {
+                      RepeatMode.off => RepeatMode.queue.name,
+                      RepeatMode.queue => RepeatMode.one.name,
+                      RepeatMode.one => RepeatMode.off.name,
+                    },
+                  })
+              : null,
+          icon: Icon(repeatIcon, color: p.repeatMode == RepeatMode.off ? null : primary),
+        ),
+      ],
+    );
+  }
+
   /// A swipe in from the left edge opens the Library.
   void _openLibrary() => DefaultTabController.of(context).animateTo(2);
 
@@ -492,6 +547,11 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
     // The queue peek rests along the bottom; the page scrolls clear of it.
     return LayoutBuilder(builder: (context, box) {
       final peekSpace = p.isExternal ? 0.0 : box.maxHeight * QueuePeekSheet.peekSize + 12;
+      // The cover is as wide as the page allows, but not taller than about half
+      // the screen so the controls stay in reach on a small phone.
+      final heroSize = [box.maxWidth - 64, box.maxHeight * 0.42, 340.0]
+          .reduce((a, b) => a < b ? a : b)
+          .clamp(120.0, 340.0);
       return EdgeSwipe(
         enabled: enabled,
         onFromLeft: _openLibrary,
@@ -510,29 +570,27 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
           ),
           const SizedBox(height: 12),
         ],
-        NowPlayingCard(
-          state: p,
-          enabled: enabled,
-          onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
-          art: RemoteArt(
+        if (p.isExternal)
+          NowPlayingCard(
+            state: p,
+            enabled: enabled,
+            onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
+            art: RemoteArt(client: client, songId: null, size: 64),
+          )
+        else
+          NowPlayingCard(
+            hero: true,
+            state: p,
+            enabled: enabled,
+            onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
+            art: RemoteArt(
               client: client,
-              songId: p.isExternal || (p.songId ?? 0) <= 0 ? null : p.songId,
-              size: 64),
-          trailing: p.songId == null || p.songId! <= 0 || p.isExternal
-              ? null
-              : HapticButton(
-                  kind: HapticKind.selection,
-                  tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
-                  onPressed: enabled
-                      ? () => _send(context, RemoteActions.setFavorite,
-                          {'songId': p.songId, 'favorite': !p.favorite})
-                      : null,
-                  icon: Icon(
-                    p.favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    color: p.favorite ? Theme.of(context).colorScheme.primary : null,
-                  ),
-                ),
-        ),
+              songId: (p.songId ?? 0) <= 0 ? null : p.songId,
+              size: heroSize,
+              radius: 20,
+            ),
+            actions: _quickActions(context, p, enabled),
+          ),
         if (!p.isExternal)
           LyricsSection(
             songId: p.songId,
@@ -550,6 +608,12 @@ class _NowPlayingTabState extends State<_NowPlayingTab> {
           onPrevious: () => _send(context, RemoteActions.previous),
           onToggle: () => _send(context, RemoteActions.toggle),
           onNext: () => _send(context, RemoteActions.next),
+          onSeekBack: p.isExternal || p.durationSeconds <= 0
+              ? null
+              : () => _jump(context, p, -10),
+          onSeekForward: p.isExternal || p.durationSeconds <= 0
+              ? null
+              : () => _jump(context, p, 10),
         ),
         const SizedBox(height: 8),
         VolumeSlider(
@@ -648,11 +712,19 @@ class _SpeedRow extends StatelessWidget {
 /// Album art for a library song, fetched from the Player as a small picture.
 /// Shows a music note while loading, or if the song has no art.
 class RemoteArt extends StatefulWidget {
-  const RemoteArt({super.key, required this.client, required this.songId, this.size = 64});
+  const RemoteArt(
+      {super.key,
+      required this.client,
+      required this.songId,
+      this.size = 64,
+      this.radius});
 
   final ControllerClient client;
   final int? songId;
   final double size;
+
+  /// Corner radius (default: a fifth of the size).
+  final double? radius;
 
   @override
   State<RemoteArt> createState() => _RemoteArtState();
@@ -682,12 +754,13 @@ class _RemoteArtState extends State<RemoteArt> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final size = widget.size;
+    final radius = widget.radius ?? size / 5;
     final placeholder = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(size / 5),
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: Icon(Icons.music_note_rounded,
           color: theme.colorScheme.primary, size: size / 2),
@@ -700,7 +773,7 @@ class _RemoteArtState extends State<RemoteArt> {
         final bytes = snap.data;
         if (bytes == null) return placeholder;
         return ClipRRect(
-          borderRadius: BorderRadius.circular(size / 5),
+          borderRadius: BorderRadius.circular(radius),
           child: Image.memory(
             bytes,
             width: size,
