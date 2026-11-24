@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart' as svc;
 
+import '../../../core/models/enums.dart';
 import '../../../core/protocol/protocol.dart';
 import '../playback_engine.dart';
+import '../queue_aware_engine.dart';
 
 /// Bridges the Player's [PlaybackEngine] to Android's media session, so the
 /// notification, lock screen and headset buttons control the same engine that
@@ -72,15 +74,29 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
         svc.MediaAction.skipToPrevious,
         svc.MediaAction.play,
         svc.MediaAction.pause,
+        svc.MediaAction.setShuffleMode,
+        svc.MediaAction.setRepeatMode,
+        svc.MediaAction.setSpeed,
       },
       androidCompactActionIndices: const [0, 1, 2],
       // Kept "ready" even with an empty queue so the service stays in the
       // foreground while Player mode is open.
-      processingState: svc.AudioProcessingState.ready,
+      processingState:
+          s.isLoading ? svc.AudioProcessingState.loading : svc.AudioProcessingState.ready,
       playing: s.isPlaying,
       updatePosition: Duration(seconds: s.positionSeconds),
-      speed: 1.0,
+      speed: s.isPlaying ? s.speed : 1.0,
       queueIndex: s.queueLength > 0 ? s.queueIndex : null,
+      // Lets the lock screen and Android 13+ media controls show (and change)
+      // shuffle and repeat.
+      repeatMode: switch (s.repeatMode) {
+        RepeatMode.one => svc.AudioServiceRepeatMode.one,
+        RepeatMode.queue => svc.AudioServiceRepeatMode.all,
+        RepeatMode.off => svc.AudioServiceRepeatMode.none,
+      },
+      shuffleMode: s.shuffleEnabled
+          ? svc.AudioServiceShuffleMode.all
+          : svc.AudioServiceShuffleMode.none,
     ));
   }
 
@@ -108,6 +124,29 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   @override
   Future<void> seek(Duration position) =>
       _run((e) => e.seek(position.inSeconds));
+
+  @override
+  Future<void> setShuffleMode(svc.AudioServiceShuffleMode shuffleMode) => _run((e) async {
+        if (e is QueueAwareEngine) {
+          await e.setShuffle(shuffleMode != svc.AudioServiceShuffleMode.none);
+        }
+      });
+
+  @override
+  Future<void> setRepeatMode(svc.AudioServiceRepeatMode repeatMode) => _run((e) async {
+        if (e is QueueAwareEngine) {
+          await e.setRepeatMode(switch (repeatMode) {
+            svc.AudioServiceRepeatMode.one => RepeatMode.one,
+            svc.AudioServiceRepeatMode.all || svc.AudioServiceRepeatMode.group => RepeatMode.queue,
+            svc.AudioServiceRepeatMode.none => RepeatMode.off,
+          });
+        }
+      });
+
+  @override
+  Future<void> setSpeed(double speed) => _run((e) async {
+        if (e is QueueAwareEngine) await e.setSpeed(speed.clamp(0.5, 2.0));
+      });
 
   @override
   Future<void> skipToNext() => _run((e) => e.next());
