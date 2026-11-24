@@ -228,6 +228,35 @@ void main() {
           ['app-arm64-v8a-release.apk']);
     });
 
+    test('a file that is already complete is used without downloading again', () async {
+      File('${dir.path}/app-arm64-v8a-release.apk').writeAsBytesSync(bytes);
+      var asked = 0;
+      final f = await checker((_) {
+        asked++;
+        return http.Response.bytes(bytes, 200);
+      }).download(info(sha: sha256.convert(bytes).toString()), dir);
+      expect(asked, 0);
+      expect(f.readAsBytesSync(), bytes);
+    });
+
+    test('a half-finished or changed file is downloaded again', () async {
+      File('${dir.path}/app-arm64-v8a-release.apk').writeAsBytesSync([1, 2]);
+      var asked = 0;
+      final f = await checker((_) {
+        asked++;
+        return http.Response.bytes(bytes, 200);
+      }).download(info(sha: sha256.convert(bytes).toString()), dir);
+      expect(asked, 1);
+      expect(f.readAsBytesSync(), bytes);
+      // Same size but different content (checksum differs): also downloaded again.
+      File('${dir.path}/app-arm64-v8a-release.apk').writeAsBytesSync(utf8.encode('HELLO'));
+      await checker((_) {
+        asked++;
+        return http.Response.bytes(bytes, 200);
+      }).download(info(sha: sha256.convert(bytes).toString()), dir);
+      expect(asked, 2);
+    });
+
     test('a link from somewhere else is not fetched', () async {
       var asked = false;
       final c = checker((_) {
@@ -277,7 +306,11 @@ void main() {
       expect(c.read(updateProvider).info!.version, '0.3.0');
       await c.read(updateProvider.notifier).install();
       expect(native.calls, ['install app-arm64-v8a-release.apk']);
-      expect(c.read(updateProvider).status, UpdateStatus.available, reason: 'can be retried');
+      expect(c.read(updateProvider).status, UpdateStatus.installing,
+          reason: 'the install screen is open: the button is off');
+      // Back from the install screen without installing: it can be tried again.
+      await c.read(updateProvider.notifier).onResumed();
+      expect(c.read(updateProvider).status, UpdateStatus.available);
     });
 
     test('up to date says so', () async {
@@ -302,6 +335,74 @@ void main() {
       addTearDown(c.dispose);
       await c.read(updateProvider.notifier).check();
       expect(c.read(updateProvider).status, UpdateStatus.failed);
+    });
+
+    test('tapping Update again after a finished download does not download again', () async {
+      var downloads = 0;
+      final native = FakeNative();
+      final c = ProviderContainer(overrides: [
+        databaseProvider.overrideWith((ref) {
+          final db = AppDatabase.forTesting(NativeDatabase.memory());
+          ref.onDispose(db.close);
+          return db;
+        }),
+        updateNativeProvider.overrideWithValue(native),
+        updateCheckerProvider.overrideWithValue(UpdateChecker(
+            client: MockClient((r) async {
+          if (r.url.host == 'api.github.com') return http.Response(release(), 200);
+          downloads++;
+          return http.Response.bytes(utf8.encode('hello'), 200);
+        }))),
+        updateDirProvider.overrideWithValue(() async => dir),
+      ]);
+      addTearDown(c.dispose);
+      await c.read(updateProvider.notifier).check();
+      await c.read(updateProvider.notifier).install();
+      await c.read(updateProvider.notifier).onResumed(); // closed Android's screen
+      await c.read(updateProvider.notifier).install();
+      expect(downloads, 1, reason: 'the second tap used the file already downloaded');
+      expect(native.calls, ['install app-arm64-v8a-release.apk', 'install app-arm64-v8a-release.apk']);
+    });
+
+    test('after allowing installs, coming back carries on by itself', () async {
+      final native = FakeNative(allowed: false);
+      final c = make(native, release());
+      addTearDown(c.dispose);
+      await c.read(updateProvider.notifier).check();
+      await c.read(updateProvider.notifier).install();
+      expect(c.read(updateProvider).status, UpdateStatus.needsPermission);
+      // Still not allowed: nothing happens on return.
+      await c.read(updateProvider.notifier).onResumed();
+      expect(native.calls, ['settings']);
+      // Allowed now.
+      native.allowed = true;
+      await c.read(updateProvider.notifier).onResumed();
+      expect(native.calls.last, 'install app-arm64-v8a-release.apk');
+    });
+
+    test('if Android restarted the app meanwhile, the next start carries on', () async {
+      final native = FakeNative(allowed: false);
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      ProviderContainer build() => ProviderContainer(overrides: [
+            databaseProvider.overrideWithValue(db),
+            updateNativeProvider.overrideWithValue(native),
+            updateCheckerProvider.overrideWithValue(UpdateChecker(
+                client: MockClient((r) async => r.url.host == 'api.github.com'
+                    ? http.Response(release(), 200)
+                    : http.Response.bytes(utf8.encode('hello'), 200)))),
+            updateDirProvider.overrideWithValue(() async => dir),
+          ]);
+      final first = build();
+      await first.read(updateProvider.notifier).check();
+      await first.read(updateProvider.notifier).install(); // sends the user to the switch
+      first.dispose(); // the app is restarted
+
+      native.allowed = true; // the user allowed it
+      final second = build();
+      addTearDown(second.dispose);
+      await second.read(updateProvider.notifier).autoCheck();
+      expect(native.calls.last, 'install app-arm64-v8a-release.apk');
     });
 
     test('the quiet check stays silent on a network failure', () async {

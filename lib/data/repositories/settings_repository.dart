@@ -27,6 +27,7 @@ class SettingKeys {
   static const accentFromArt = 'accent_from_art';
   static const autoUpdateCheck = 'auto_update_check';
   static const lyricsEnabled = 'lyrics_enabled';
+  static const pendingUpdate = 'pending_update';
   static const searchHistory = 'search_history';
   static const lastUpdateCheck = 'last_update_check';
 }
@@ -59,6 +60,7 @@ class AppSettings {
     this.accentFromArt = true,
     this.autoUpdateCheck = true,
     this.lyricsEnabled = true,
+    this.pendingUpdate = false,
     this.searchHistory = const [],
     this.lastUpdateCheck = 0,
   });
@@ -89,6 +91,10 @@ class AppSettings {
   /// Look up lyrics on the internet (sends the song's title and artist to
   /// LRCLIB / lyrics.ovh). Lives on the Player.
   final bool lyricsEnabled;
+
+  /// An update install was started and is waiting for Android's "allow
+  /// installs" switch.
+  final bool pendingUpdate;
 
   /// What was searched for lately, newest first (kept on this phone).
   final List<String> searchHistory;
@@ -123,6 +129,7 @@ class AppSettings {
       accentFromArt: m[SettingKeys.accentFromArt] != 'false',
       autoUpdateCheck: m[SettingKeys.autoUpdateCheck] != 'false',
       lyricsEnabled: m[SettingKeys.lyricsEnabled] != 'false',
+      pendingUpdate: m[SettingKeys.pendingUpdate] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
     );
@@ -221,6 +228,9 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setPendingUpdate(bool v) =>
+      _put(SettingKeys.pendingUpdate, v.toString());
 
   Future<void> setLyricsEnabled(bool v) =>
       _put(SettingKeys.lyricsEnabled, v.toString());

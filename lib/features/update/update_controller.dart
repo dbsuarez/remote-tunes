@@ -12,6 +12,9 @@ enum UpdateStatus {
   upToDate,
   available,
   downloading,
+
+  /// Android's install screen has been opened; waiting for the user there.
+  installing,
   needsPermission,
   failed,
 }
@@ -118,10 +121,40 @@ class UpdateController extends StateNotifier<UpdateState> {
   /// Start-up check: at most about once a day, only if the user allows it.
   Future<void> autoCheck() async {
     final s = await _ref.read(settingsRepositoryProvider).load();
+    if (s.pendingUpdate) {
+      // The app was restarted while Android's "allow installs" switch was open:
+      // carry on with the update that was wanted.
+      await check(quiet: true);
+      if (state.status == UpdateStatus.available && await _ref.read(updateNativeProvider).canInstall()) {
+        await install();
+      } else {
+        await _ref.read(settingsRepositoryProvider).setPendingUpdate(false);
+      }
+      return;
+    }
     if (!s.autoUpdateCheck) return;
     final last = DateTime.fromMillisecondsSinceEpoch(s.lastUpdateCheck);
     if (DateTime.now().difference(last) < autoCheckEvery) return;
     await check(quiet: true);
+  }
+
+  /// Called when the app comes back to the front (for example from Android's
+  /// install screen or the "allow installs" switch).
+  Future<void> onResumed() async {
+    if (_busy) return;
+    switch (state.status) {
+      case UpdateStatus.installing:
+        // The install screen was closed without installing: the button works
+        // again, and the download is kept.
+        state = state.copyWith(status: UpdateStatus.available, clearMessage: true);
+      case UpdateStatus.needsPermission:
+        // Allowed just now: carry on without another tap.
+        if (state.info != null && await _ref.read(updateNativeProvider).canInstall()) {
+          await install();
+        }
+      default:
+        break;
+    }
   }
 
   /// Downloads the found update and hands it to Android's installer.
@@ -129,14 +162,23 @@ class UpdateController extends StateNotifier<UpdateState> {
     final info = state.info;
     if (info == null || _busy) return;
     final native = _ref.read(updateNativeProvider);
+    final repo = _ref.read(settingsRepositoryProvider);
     if (!await native.canInstall()) {
       state = state.copyWith(
         status: UpdateStatus.needsPermission,
-        message: 'Allow RemoteTunes to install updates, then come back and tap Update again.',
+        message: 'Allow RemoteTunes to install updates. The update continues by itself when you come back.',
       );
+      // Android may restart the app when this switch is flipped: remember that an
+      // update was wanted, so it carries on at the next start.
+      try {
+        await repo.setPendingUpdate(true);
+      } catch (_) {}
       await native.openInstallSettings();
       return;
     }
+    try {
+      await repo.setPendingUpdate(false);
+    } catch (_) {}
     _busy = true;
     try {
       state = state.copyWith(status: UpdateStatus.downloading, progress: 0, clearMessage: true);
@@ -147,9 +189,13 @@ class UpdateController extends StateNotifier<UpdateState> {
             onProgress: (p) => state = state.copyWith(progress: p),
           );
       await native.install(file.path);
-      // Android now shows its own install screen; stay on "available" so a
-      // cancelled install can be retried.
-      state = state.copyWith(status: UpdateStatus.available);
+      // Android now shows its own install screen. Say so (the button is off),
+      // and go back to "available" when the app returns to the front, so a
+      // cancelled install can be retried without downloading again.
+      state = state.copyWith(
+        status: UpdateStatus.installing,
+        message: 'Confirm the install on the screen Android just opened.',
+      );
     } on UpdateException catch (e) {
       state = state.copyWith(status: UpdateStatus.failed, message: e.message);
     } finally {

@@ -138,6 +138,23 @@ class UpdateChecker {
     );
   }
 
+  /// True when [file] is the complete, unchanged APK of [info].
+  Future<bool> _isGoodDownload(File file, UpdateInfo info) async {
+    try {
+      if (!file.existsSync()) return false;
+      if (info.size > 0 && file.lengthSync() != info.size) return false;
+      final want = info.sha256;
+      if (want != null) {
+        final got = (await sha256.bind(file.openRead()).first).toString();
+        return got == want;
+      }
+      // Without a checksum only a file of the right size counts.
+      return info.size > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Downloads the APK of [info] into [dir] and checks it is complete and
   /// unchanged. [onProgress] gets 0..1.
   Future<File> download(UpdateInfo info, Directory dir,
@@ -146,6 +163,13 @@ class UpdateChecker {
       throw UpdateException("That download link is not from this app's releases.");
     }
     await dir.create(recursive: true);
+    final file = File('${dir.path}${Platform.pathSeparator}${info.apkName}');
+    // Already downloaded (an earlier try that was not finished at Android's
+    // install screen): use it, so tapping Update again does not download again.
+    if (await _isGoodDownload(file, info)) {
+      onProgress?.call(1);
+      return file;
+    }
     for (final old in dir.listSync()) {
       if (old is File) {
         try {
@@ -153,7 +177,6 @@ class UpdateChecker {
         } catch (_) {}
       }
     }
-    final file = File('${dir.path}${Platform.pathSeparator}${info.apkName}');
     final sink = file.openWrite();
     var ok = false;
     try {

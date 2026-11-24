@@ -7,6 +7,7 @@ import 'core/constants.dart';
 import 'core/haptics.dart';
 import 'core/router/app_router.dart';
 import 'core/search_history.dart';
+import 'features/update/update_controller.dart';
 import 'core/song_list_style.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/providers.dart';
@@ -18,8 +19,28 @@ class RemoteTunesApp extends ConsumerStatefulWidget {
   ConsumerState<RemoteTunesApp> createState() => _RemoteTunesAppState();
 }
 
-class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> {
+class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> with WidgetsBindingObserver {
   late final GoRouter _router = createRouter();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Back from Android's install screen or its "allow installs" switch.
+    if (state == AppLifecycleState.resumed) {
+      ref.read(updateProvider.notifier).onResumed().catchError((Object _) {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

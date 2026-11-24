@@ -89,7 +89,7 @@ APKs are published as **GitHub Releases**, and the app can update itself from th
 
 **Publishing a version:** `git tag v0.2.0` then `git push origin v0.2.0` (or run the *Release APK* workflow by hand). It analyzes, tests, builds one APK per CPU type and attaches them to a release named after the tag. The tag sets the app's version.
 
-**On the phones:** Settings → App updates → *Check for updates* (also checked about once a day when the app opens, switchable). When a newer version exists the Home screen shows an *Update* card; tapping it downloads the APK (checked for size and SHA-256), then Android's own install screen asks you to confirm. The first time, Android sends you to a switch "Allow from this source" for RemoteTunes. Only GitHub is contacted, and nothing about you is sent.
+**On the phones:** Settings → App updates → *Check for updates* (also checked about once a day when the app opens, switchable). When a newer version exists the Home screen shows an *Update* card; tapping it downloads the APK (checked for size and SHA-256), then Android's own install screen asks you to confirm. The download is kept until installed, so tapping Update again after closing Android's install screen does not download again. The first time, Android sends you to a switch "Allow from this source" for RemoteTunes; flip it and come back, and the update carries on by itself (even if Android restarted the app). Only GitHub is contacted, and nothing about you is sent.
 
 ## Shorter screens (Phase 7)
 

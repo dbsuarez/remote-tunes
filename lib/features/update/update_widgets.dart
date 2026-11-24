@@ -30,6 +30,7 @@ class _UpdateBannerState extends ConsumerState<UpdateBanner> {
     final show = info != null &&
         (u.status == UpdateStatus.available ||
             u.status == UpdateStatus.downloading ||
+            u.status == UpdateStatus.installing ||
             u.status == UpdateStatus.needsPermission ||
             u.status == UpdateStatus.failed);
     if (!show) return const SizedBox.shrink();
@@ -45,7 +46,7 @@ class _UpdateBannerState extends ConsumerState<UpdateBanner> {
                   child: LinearProgressIndicator(value: u.progress == 0 ? null : u.progress),
                 )
               : Text(u.message ?? 'You have ${u.installed ?? 'an older version'}.'),
-          trailing: u.status == UpdateStatus.downloading
+          trailing: (u.status == UpdateStatus.downloading || u.status == UpdateStatus.installing)
               ? null
               : FilledButton(
                   onPressed: () => ref.read(updateProvider.notifier).install(),
@@ -67,7 +68,9 @@ class UpdateSettingsTiles extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final u = ref.watch(updateProvider);
     final repo = ref.read(settingsRepositoryProvider);
-    final busy = u.status == UpdateStatus.checking || u.status == UpdateStatus.downloading;
+    final busy = u.status == UpdateStatus.checking ||
+        u.status == UpdateStatus.downloading ||
+        u.status == UpdateStatus.installing;
 
     String subtitle;
     switch (u.status) {
@@ -79,6 +82,8 @@ class UpdateSettingsTiles extends ConsumerWidget {
         subtitle = 'Version ${u.info?.version} is ready to install.';
       case UpdateStatus.downloading:
         subtitle = 'Downloading... ${(u.progress * 100).round()}%';
+      case UpdateStatus.installing:
+        subtitle = u.message ?? 'Confirm the install on the screen Android opened.';
       case UpdateStatus.needsPermission:
       case UpdateStatus.failed:
         subtitle = u.message ?? 'Something went wrong.';
