@@ -15,14 +15,14 @@ Ideas queued by the project owner. Nothing here is built unless ticked.
 ### Library and metadata (Player side)
 - [x] Folder browser view (Library > Folders; folders are listed by name only, never by path)
 - [x] Auto playlists: Recent (already there), Top (play counts, schema v5) and New (the newest 100)
-- [ ] Album art auto-fetcher service
-- [ ] Basic tag editor
+- [x] Album art finder: Settings > Find missing album art (MusicBrainz + Cover Art Archive, on request, 1 request a second, only artist and album names are sent; pictures saved on the Player)
+- [x] Basic tag editor: song menu > Edit info on the Player's library (title, artist, album, track number). Changes the listing in RemoteTunes only; the music file is not touched. (Writing tags into the files is not done.)
 
 ### UI/UX (both sides)
 - [ ] Skinning engine (JSON themes)
 - [ ] Visualizer tab (Player only)
 - [x] Gesture: edge-swipe on the Controller's Now Playing: in from the right edge raises the queue (middle, then full), in from the left edge opens the Library. Not on the Player screen. With Android gesture navigation the very edge is also "back": start the swipe a finger-width in.
-- [ ] Rich MediaSession / lock-screen controls
+- [x] Rich MediaSession: lock screen / Android 13+ media controls show the cover, length, shuffle, repeat and speed and can change them; a loading state is shown. (A favorite button on the lock screen is not done.)
 
 ## Lyrics (Poweramp-style synced lyrics)
 

@@ -68,6 +68,37 @@ class LibraryRepository {
     return {for (final r in rows) r.read<int>('id')};
   }
 
+  static const maxTagLength = 200;
+
+  /// Changes how a song is listed (title, artist, album, track number) in this
+  /// library. The music file itself is not touched. Returns false if the song is
+  /// gone or the title is empty.
+  Future<bool> updateSongInfo(
+    int songId, {
+    required String title,
+    required String artist,
+    required String album,
+    int? trackNumber,
+  }) async {
+    String clip(String s) {
+      final t = s.trim();
+      return t.length > maxTagLength ? t.substring(0, maxTagLength) : t;
+    }
+
+    final t = clip(title);
+    if (t.isEmpty) return false;
+    final n = (trackNumber != null && trackNumber > 0 && trackNumber < 10000) ? trackNumber : null;
+    final rows = await (_db.update(_db.songs)..where((x) => x.id.equals(songId))).write(
+      SongsCompanion(
+        title: Value(t),
+        artist: Value(clip(artist).isEmpty ? 'Unknown artist' : clip(artist)),
+        album: Value(clip(album).isEmpty ? 'Unknown album' : clip(album)),
+        trackNumber: Value(n),
+      ),
+    );
+    return rows > 0;
+  }
+
   /// Remembers that [songId] just started playing.
   Future<void> markPlayed(int songId) => _db.customUpdate(
         'UPDATE songs SET last_played_at = ?, play_count = play_count + 1 WHERE id = ?',

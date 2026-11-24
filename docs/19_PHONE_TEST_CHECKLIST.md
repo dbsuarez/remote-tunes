@@ -142,6 +142,9 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Top / New / Folders** chips in the Library (scroll the chips sideways): Top fills as you play songs, New shows the newest first, Folders lists your music folders and opening one shows only its songs. Your old library is intact after the update.
 - [ ] **Lyrics:** play a well-known song, Now Playing > *Lyrics*. After a few seconds the lyrics appear, the current line is highlighted and follows the song; tap a line to jump. A song with no lyrics says so. With the Player offline it says it can't reach the service. Settings > Look and feel > Lyrics from the internet off: it says lyrics are switched off. Works from the Player's own screen too.
 - [ ] **Edge swipes (Controller):** on Now Playing swipe in from the right edge (a finger-width in from the very edge if Android's back gesture steals it): the queue rises, again for the full list. From the left edge: the Library opens. The normal swipe between tabs still works from the middle.
+- [ ] **Lock screen:** while playing, the lock screen / notification shows the cover and title; the seek bar moves; on Android 13+ the shuffle and repeat buttons show and work.
+- [ ] **Album art finder:** Settings > Find missing album art. It says how many albums lack a cover, finds some, and they show on the next song played from those albums.
+- [ ] **Edit info:** on the Player, Library > a song's menu > Edit info. Change the title, Save: the list shows the new title. The Controller shows it too after reopening the Library.
 
 ---
 

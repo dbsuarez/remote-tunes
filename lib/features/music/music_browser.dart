@@ -8,6 +8,7 @@ import '../../core/song_list_style.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
 import 'song_art.dart';
+import 'song_info_dialog.dart';
 
 enum _Scope { songs, artists, albums, favorites, recent, playlists, top, newest, folders }
 
@@ -32,6 +33,7 @@ class MusicBrowser extends StatefulWidget {
     this.enabled = true,
     this.refreshToken = 0,
     this.onRemoveSong,
+    this.onEditSong,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
   });
@@ -49,6 +51,10 @@ class MusicBrowser extends StatefulWidget {
 
   /// Player only: shows "Remove from library" in the song menu.
   final Future<void> Function(RemoteSong song)? onRemoveSong;
+
+  /// Player only: shows "Edit info" in the song menu (title, artist, album and
+  /// track number, in this library only).
+  final Future<bool> Function(RemoteSong song, SongInfoEdit edit)? onEditSong;
   final String emptyMessage;
 
   @override
@@ -407,6 +413,18 @@ class _MusicBrowserState extends State<MusicBrowser> {
                   await widget.source.removeFromPlaylist(drill!.playlistId!, song.id);
                   if (mounted) setState(() => _generation++);
                 }, done: 'Removed from playlist'),
+        onEdit: widget.onEditSong == null
+            ? null
+            : () async {
+                final edit = await showSongInfoDialog(context, song);
+                if (edit == null) return;
+                await _run(() async {
+                  if (!await widget.onEditSong!(song, edit)) {
+                    throw StateError('could not save');
+                  }
+                  if (mounted) setState(() => _generation++);
+                }, done: 'Saved');
+              },
         onRemove: widget.onRemoveSong == null
             ? null
             : () => _run(() async {
@@ -699,7 +717,7 @@ class _DrillHeader extends StatelessWidget {
   }
 }
 
-enum _SongAction { playNext, addToQueue, addToPlaylist, removeFromPlaylist, remove }
+enum _SongAction { playNext, addToQueue, addToPlaylist, removeFromPlaylist, edit, remove }
 
 class _SongTile extends StatelessWidget {
   const _SongTile({
@@ -715,6 +733,7 @@ class _SongTile extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     this.onRemoveFromPlaylist,
+    this.onEdit,
     this.onRemove,
   });
 
@@ -736,6 +755,7 @@ class _SongTile extends StatelessWidget {
   final VoidCallback? onRemoveFromPlaylist;
   final Future<void> Function(bool favorite) onFavorite;
   final VoidCallback? onRemove;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -794,6 +814,7 @@ class _SongTile extends StatelessWidget {
               _SongAction.addToQueue => onAddToQueue(),
               _SongAction.addToPlaylist => onAddToPlaylist(),
               _SongAction.removeFromPlaylist => onRemoveFromPlaylist?.call(),
+              _SongAction.edit => onEdit?.call(),
               _SongAction.remove => onRemove?.call(),
             },
             itemBuilder: (context) => [
@@ -807,6 +828,8 @@ class _SongTile extends StatelessWidget {
                 const PopupMenuItem(
                     value: _SongAction.removeFromPlaylist,
                     child: Text('Remove from playlist')),
+              if (onEdit != null)
+                const PopupMenuItem(value: _SongAction.edit, child: Text('Edit info')),
               if (onRemove != null)
                 const PopupMenuItem(
                     value: _SongAction.remove, child: Text('Remove from library')),

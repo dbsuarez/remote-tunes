@@ -67,6 +67,13 @@ class _PlayerLibraryScreenState extends ConsumerState<PlayerLibraryScreen> {
                 refreshToken: _refresh,
                 emptyMessage:
                     'Your library is empty.\nTap + to add songs or a whole folder.',
+                onEditSong: (song, e) => ref.read(libraryRepositoryProvider).updateSongInfo(
+                      song.id,
+                      title: e.title,
+                      artist: e.artist,
+                      album: e.album,
+                      trackNumber: e.trackNumber,
+                    ),
                 onRemoveSong: (song) async {
                   final service = await ref.read(importServiceProvider.future);
                   await service.removeSong(song.id);
