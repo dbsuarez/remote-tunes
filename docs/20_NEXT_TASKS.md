@@ -36,7 +36,21 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - Free tier: 10 GB of storage on R2 is roughly 2,500 songs at 128 kbps; no egress fees.
 - Privacy: song titles and the files themselves would go to your own R2 and Supabase; add this to the privacy page when built.
 
-Suggested order: **1** first (the owner's choice, and it stands alone), then **2 (phases 1 to 2)** because it is useful on its own and prepares **3**.
+**4. Insights: a statistics dashboard with charts** (from [remotetunes-visualization.md](remotetunes-visualization.md))
+- What it is: stat cards, a genre doughnut, top artists, library growth, tag-cleanup progress and (later) cloud storage use, drawn with **FL Chart** (`fl_chart`, free and open source, no network use). **Not the audio Visualizer**: the bars under the cover stay as they are. To avoid mixing the two up, the screen is called **Insights** (a menu entry), not "visualization". The doc says "replace the current visualization", but there is no statistics screen today, so this is new.
+- Rules from the doc: only bar, doughnut and line charts, progress bars and stat cards; 5 to 7 categories per chart with the exact numbers beside them; stable colors per genre (not random per rebuild); theme colors and skins respected; charts open a useful filtered list only when tapping makes sense (for example the *Rock* slice opens the Rock songs with *Play all* / *Add all to queue*); no radar, network, 3D or heatmap charts; **aggregate in SQL**, never load all 2,000 songs for a chart.
+- Reusable widgets planned: `GenrePieChart`, `TopArtistsBarChart`, `LibraryLineChart`, `TagCleanupBarChart`, `StorageProgressCard`, `StatCard`.
+- What the library already records (so these need no new data): genre, year, artist, album, duration, file size, **date added**, **play count**, **last played**. So *genre distribution*, *top artists*, *songs per album*, *songs added over time*, *most played songs / artists*, totals and *total size* can be built now.
+- What is missing: there is **no log of individual plays** (only a count and the last time), so *plays over time*, *plays this week / month* and *listening time* need a small play-events table first; the doc itself says not to build playback analytics unless that data exists. Tag-cleanup charts need item 2, and the storage-use card needs item 3.
+- Phases (the doc's, with what depends on what):
+  - [ ] **1. Foundation:** add `fl_chart`, the reusable widgets above, the Insights screen and its menu entry, in the app's theme.
+  - [ ] **2. Library insights** (no other work needed): totals, genre distribution, top artists, songs per album, recently added, songs added over time, size on the phone.
+  - [ ] **3. Tag cleanup charts:** after item 2 phase 1 exists (progress bar plus a bar chart of updates / needs review / no match).
+  - [ ] **4. Cloud Library charts:** after item 3 (R2 storage used of 10 GB, genre distribution, uploads per month).
+  - [ ] **5. Playback insights:** first record each play (song, time, how long it was heard); then most played, plays over time, listening time and plays by genre. Plays would stay on the phone.
+- Privacy: everything is computed on the phone from its own library; nothing is sent anywhere.
+
+Suggested order: **1** first (the owner's choice, and it stands alone), then **4 (phases 1 to 2)** because it needs nothing else and shows the library at a glance, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
 
