@@ -41,6 +41,9 @@ abstract class PlayerLibrary {
   /// Favorites and recently played. [isFavorite] answers from memory so the
   /// Player can add it to every state message.
   bool isFavorite(int songId);
+
+  /// Reads the favorites once, so [isFavorite] is right from the start.
+  Future<void> preloadFavorites();
   Future<void> setFavorite(int songId, bool favorite);
   Future<void> markPlayed(int songId);
 
@@ -170,6 +173,9 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
 
   @override
   bool isFavorite(int songId) => _favorites.contains(songId);
+
+  @override
+  Future<void> preloadFavorites() => _loadFavorites();
 
   @override
   Future<void> setFavorite(int songId, bool favorite) async {

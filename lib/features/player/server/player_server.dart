@@ -224,6 +224,8 @@ class PlayerServer {
   }
 
   /// The sleep timer (shared with this phone's own screens when given).
+  SleepTimerService get sleepTimer => _sleep;
+
   final SleepTimerService _sleep;
   final bool _ownsSleepTimer;
   StreamSubscription<int>? _sleepSub;

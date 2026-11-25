@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/pairing_qr.dart';
 import '../../providers/library_providers.dart';
 import '../music/lyrics_view.dart';
+import 'local_now_playing.dart';
 
 import '../../core/models/enums.dart';
 import '../../core/online/room_code.dart';
@@ -105,21 +106,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      // Player: what is playing, and its controls.
-                      ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                        children: [
-                          playback.when(
-                            loading: () => const SizedBox.shrink(),
-                            error: (_, __) => const SizedBox.shrink(),
-                            data: (p) => _LocalPlayer(state: p),
-                          ),
-                          if (showExternal) ...[
-                            const SizedBox(height: 16),
-                            const _ExternalCard(),
+                      // Player: what is playing, and its controls (the same
+                      // screen as on the Controller).
+                      if (host?.queueEngine != null && host?.server.library != null)
+                        LocalNowPlaying(
+                          engine: host!.queueEngine!,
+                          library: host.server.library!,
+                          sleepTimer: host.server.sleepTimer,
+                          header: showExternal ? const _ExternalCard() : null,
+                        )
+                      else
+                        ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          children: [
+                            playback.when(
+                              loading: () => const SizedBox.shrink(),
+                              error: (_, __) => const SizedBox.shrink(),
+                              data: (p) => _LocalPlayer(state: p),
+                            ),
+                            if (showExternal) ...[
+                              const SizedBox(height: 16),
+                              const _ExternalCard(),
+                            ],
                           ],
-                        ],
-                      ),
+                        ),
                       // Connect: everything about how Controllers reach this phone.
                       ListView(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
