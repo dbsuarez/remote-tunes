@@ -80,6 +80,14 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **6. A better audio Visualizer: built (not tried on a phone yet), see Done.**
 
+**7. Backup and restore to another phone** (the owner's idea; about 95% of the music is already copied over)
+- What goes in a backup file (one `.rtbackup` zip, no audio): **playlists**, **favorites**, **play / skip counts and last played**, the **left-out list**, **lyrics** found so far, edited **song info** (Edit info), **album art** found by the art finder (optional, shows its size), and the **settings** (skin, equalizer and its per-output memory, crossfade, visualizer style...). Never in it: the Jamendo client ID, pairing tokens and trusted devices, other secrets.
+- The path problem is solved by not using paths as the key. Each song is saved with its **path relative to your music root** plus a **fingerprint of its tags** (title, artist, album, length to the nearest second, file size when known). On the new phone: add the music folder first, then *Restore*, and say where the music root is (the old root is remembered in the file, so usually it is one tap). Each song is found by (1) old root swapped for the new root, then (2) the tags fingerprint for the few that moved or were renamed. Songs that cannot be found are listed in a report (like the add report), never guessed.
+- Restore only **adds and merges**: it never deletes what is on the new phone; a playlist with the same name is merged (songs added once); counts take the larger number; settings can be skipped with a switch.
+- Limits to say honestly: songs added with **Add songs** are copies kept inside the app, so a backup cannot bring them back (the audio is not in the file; re-add them); embedded covers come with the music files themselves, so only extra art is stored.
+- Phases: [ ] **A.** playlists, favorites, counts, left-out list, with the root picker and the report · [ ] **B.** lyrics, edited song info, settings · [ ] **C.** album art (optional) · [ ] **D.** share to another phone (Android share sheet / save to a folder) and pick the file on the new phone.
+- Privacy: everything stays in the file you choose to share; nothing is uploaded.
+
 Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
