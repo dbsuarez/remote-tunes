@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
+
 /// A backup file that cannot be used, with a sentence to show.
 class BackupException implements Exception {
   const BackupException(this.message);
@@ -27,6 +29,8 @@ class BackupSong {
     this.plays = 0,
     this.skips = 0,
     this.lastPlayed,
+    this.edited = false,
+    this.trackNumber,
   });
 
   final String title;
@@ -41,6 +45,10 @@ class BackupSong {
   final int plays;
   final int skips;
   final DateTime? lastPlayed;
+
+  /// The title, artist, album or track number was edited by hand on the old phone.
+  final bool edited;
+  final int? trackNumber;
 
   /// Same title, artist, album (and length to the second) means the same song.
   String keyFor(int duration) =>
@@ -59,6 +67,8 @@ class BackupSong {
         if (plays > 0) 'pl': plays,
         if (skips > 0) 'sk': skips,
         if (lastPlayed != null) 'lp': lastPlayed!.millisecondsSinceEpoch ~/ 1000,
+        if (edited) 'ed': true,
+        if (trackNumber != null) 'tn': trackNumber,
       };
 
   static BackupSong? fromJson(Object? j) {
@@ -78,6 +88,8 @@ class BackupSong {
       plays: n(j['pl']),
       skips: n(j['sk']),
       lastPlayed: lp is num ? DateTime.fromMillisecondsSinceEpoch(lp.toInt() * 1000) : null,
+      edited: j['ed'] == true,
+      trackNumber: j['tn'] is num ? (j['tn'] as num).toInt() : null,
     );
   }
 }
@@ -107,6 +119,20 @@ class BackupLyric {
   final String source;
 }
 
+/// A cover picture: one per album, found again by artist and album.
+class BackupArt {
+  const BackupArt({required this.artist, required this.album, required this.bytes, this.ext = 'jpg'});
+
+  final String artist;
+  final String album;
+  final Uint8List bytes;
+
+  /// `jpg` or `png`.
+  final String ext;
+
+  String get key => '${backupNorm(artist)}|${backupNorm(album)}';
+}
+
 /// Everything a backup file holds. No audio, no secrets.
 class BackupData {
   BackupData({
@@ -118,9 +144,10 @@ class BackupData {
     this.leftOutAbsolute = const [],
     this.lyrics = const [],
     this.settings = const {},
+    this.art = const [],
   });
 
-  static const format = 1;
+  static const format = 2;
   static const appName = 'RemoteTunes';
 
   final DateTime created;
@@ -136,6 +163,10 @@ class BackupData {
   final List<BackupLyric> lyrics;
   final Map<String, String> settings;
 
+  /// Cover pictures (when the backup was made with them).
+  final List<BackupArt> art;
+
+  int get edited => songs.where((s) => s.edited).length;
   int get favorites => songs.where((s) => s.favorite).length;
   int get withCounts => songs.where((s) => s.plays > 0 || s.skips > 0).length;
   int get leftOut => leftOutRelative.length + leftOutAbsolute.length;
@@ -162,10 +193,22 @@ class BackupData {
             },
         ],
         'settings': settings,
+        'art': [
+          for (var i = 0; i < art.length; i++)
+            {'artist': art[i].artist, 'album': art[i].album, 'f': 'art/$i.${art[i].ext}'},
+        ],
       };
 
-  /// The file's bytes: the JSON, compressed.
-  Uint8List encode() => Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(toJson()))));
+  /// The file's bytes: a zip with `backup.json` and the cover pictures.
+  Uint8List encode() {
+    final archive = Archive();
+    final json = utf8.encode(jsonEncode(toJson()));
+    archive.addFile(ArchiveFile('backup.json', json.length, json));
+    for (var i = 0; i < art.length; i++) {
+      archive.addFile(ArchiveFile('art/$i.${art[i].ext}', art[i].bytes.length, art[i].bytes));
+    }
+    return Uint8List.fromList(ZipEncoder().encode(archive));
+  }
 
   /// Reads a backup file. Throws a [BackupException] with a plain sentence when it is not one.
   static BackupData decode(List<int> bytes) {
@@ -173,11 +216,30 @@ class BackupData {
     if (bytes.isEmpty) throw const BackupException('That file is empty.');
     if (bytes.length > 100 * 1024 * 1024) throw const BackupException('That file is too big to be a backup.');
     final String text;
+    final images = <String, Uint8List>{};
     try {
-      final raw = (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b)
-          ? gzip.decode(bytes)
-          : bytes;
-      text = utf8.decode(raw);
+      if (bytes.length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4b) {
+        // A zip: the JSON and the pictures.
+        final archive = ZipDecoder().decodeBytes(bytes);
+        List<int>? json;
+        for (final f in archive) {
+          if (!f.isFile) continue;
+          if (f.name == 'backup.json') {
+            json = f.content;
+          } else if (f.name.startsWith('art/')) {
+            images[f.name] = Uint8List.fromList(f.content);
+          }
+        }
+        if (json == null) throw const BackupException('That is not a RemoteTunes backup.');
+        text = utf8.decode(json);
+      } else {
+        final raw = (bytes.length > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b)
+            ? gzip.decode(bytes)
+            : bytes;
+        text = utf8.decode(raw);
+      }
+    } on BackupException {
+      rethrow;
     } catch (_) {
       throw const BackupException('That is not a RemoteTunes backup.');
     }
@@ -247,6 +309,22 @@ class BackupData {
         if (k is String && v is String) settings[k] = v;
       });
     }
+    final art = <BackupArt>[];
+    final rawArt = j['art'];
+    if (rawArt is List) {
+      for (final a in rawArt) {
+        if (a is! Map || a['f'] is! String) continue;
+        final bytes = images[a['f'] as String];
+        if (bytes == null || bytes.isEmpty) continue;
+        final name = a['f'] as String;
+        art.add(BackupArt(
+          artist: a['artist'] is String ? a['artist'] as String : '',
+          album: a['album'] is String ? a['album'] as String : '',
+          bytes: bytes,
+          ext: name.toLowerCase().endsWith('.png') ? 'png' : 'jpg',
+        ));
+      }
+    }
     DateTime created;
     try {
       created = DateTime.parse(j['created'] as String).toLocal();
@@ -262,6 +340,7 @@ class BackupData {
       leftOutAbsolute: strings(j['leftOutAbs']),
       lyrics: lyrics,
       settings: settings,
+      art: art,
     );
   }
 }

@@ -80,7 +80,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **6. A better audio Visualizer: built (not tried on a phone yet), see Done.**
 
-**7. Backup and restore to another phone: built (phases A, B and D; not tried on a phone yet), see Done.** Left over: **C**, the album art found by the art finder (needs a zip with images); edited **song info** (Edit info only changes this phone's listing, and there is no record of which songs were edited, so it is not in the backup; with *Also write into the music file* the change travels with the file); a matching report that lets you pick a song by hand for the ones not found.
+**7. Backup and restore to another phone: built (not tried on a phone yet), see Done.** Left over: a matching report that lets you pick a song by hand for the ones not found; edits made before `v1.0.7` are not remembered (there was no flag), only later ones.
 
 **8. List options, per list** (the owner's idea, from the screenshots `docs/arts/drawer_part_1.jpg` and `drawer_part_2.jpg`; the layout idea is free to follow, we draw our own)
 - What the screenshots show: a gear / *List options* sheet that opens from a song list, titled for the kind of list (*List Options: Playlist Songs*), with settings **remembered per kind of list**:
@@ -91,6 +91,19 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - What we already have to build on: *Song list > Text size* (Small, Medium, Large), the Back-returns-to-the-same-spot memory, Select, and the format reader (kHz, kbps, type). What is new: choosing the **view** (list / grid / one line / no images), settings kept **per kind of list** (All Songs, Album, Artist, Playlist, Queue, Most played...), pinch to zoom, the list header with count and total time, and per-track progress.
 - Proposed first step: one *List options* sheet reachable from every song list, with *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list; then the header with count and total time; then pinch-to-zoom; per-track progress last (it changes playback).
 - [ ] the sheet and the views · [ ] per-list memory · [ ] header with count and total time · [ ] pinch-to-zoom · [ ] per-track progress
+
+**9. Settings, grouped** (the owner: "it is now a long scroll to find a setting")
+- Today Settings is one long page of nine sections (Device, Connection mode, Online relay, Playback defaults, Song list, When the app opens, Look and feel, App updates, Advanced) with about forty rows, and most things added lately (backup, left-out, counts reset, visualizer, suggestions, All files access, queue scroll...) were put in wherever they fit.
+- Plan: the front page becomes a short list of **groups**, each a row with an icon, a name and a one-line summary of what it holds, opening its own page; and a **search box** at the top ("crossfade", "lyrics", "backup") that jumps straight to a setting.
+  - **Playback:** crossfade, even out loudness, shuffle / repeat defaults, default volume, queue opens at the song playing, visualizer and its style, equalizer (a shortcut).
+  - **Library:** add music, update tags, find missing album art, left out of the library, All files access, reset play and skip counts.
+  - **Look:** skins, song list text size, accent from album art, haptics.
+  - **Lyrics and online:** lyrics from the internet, Online Library suggestions, Jamendo client ID.
+  - **Other phone:** device name, remote playback, when the app opens, connection mode, online relay, external app control.
+  - **Backup and restore** (its own row).
+  - **Updates and about:** app updates, version, What's new, Help, Privacy, Diagnostics.
+- Keep: every setting keeps its place in the saved data, so nothing is lost; the menu shortcuts (Skins, Equalizer) still go straight to their pages; the Help guide and the checklist are updated to the new places.
+- [ ] groups and pages · [ ] search box · [ ] the guide, checklist and tests moved to the new paths
 
 Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
@@ -155,6 +168,8 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Backup and restore (built after `v1.0.5`; not tried on a phone yet)
 - [x] **Settings > Backup and restore.** *Back up to a file* makes `RemoteTunes-<date>.rtbackup` (compressed JSON, no audio) with: playlists (in order), favorites, play / skip counts and last played, the left-out list, lyrics found so far (switch), and the safe settings (switch: look, equalizer and its per-output memory, crossfade, visualizer style, list size...). Never in it: Jamendo ID, pairing, Supabase keys, device name.
 - [x] **Restore** reads the file, shows what is in it, and asks *Where is your music on this phone?* (the old place is shown; if the same folder exists it is chosen). Songs are found by **path under the new root**, then by **title + artist + album + length** (one second either way), then by **title + artist** when only one song has them (said in the report). Songs not found are listed, never guessed. It only adds and merges: playlists of the same name are merged (nothing twice), counts keep the larger number, this phone's own lyrics are never replaced, settings can be skipped, and only the safe settings are ever written whatever the file says.
+- [x] **Album art** (switch, shows how many covers and how big): one cover per album (the ones from the files and the ones the art finder found), saved inside the file, and put back on the matching albums of the new phone, **only where there is no picture yet** (yours are never replaced). The file is now a zip (`backup.json` + `art/`); backups from `v1.0.6` (gzipped JSON) are still read.
+- [x] **Edited song info** (Edit info) is remembered from now on (a flag on the song, schema v11) and put on the same file on the new phone (title, artist, album, track number).
 - Limits: songs added with **Add songs** are copies kept inside the app, so the backup cannot bring them back; add the music folder on the new phone before restoring.
 
 ### Built after `v1.0.4` (none of it tried on a phone yet)

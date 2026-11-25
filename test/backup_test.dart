@@ -175,10 +175,10 @@ void main() {
   });
 
   group('the file', () {
-    test('goes out and comes back the same, compressed', () async {
+    test('goes out and comes back the same, as a zip', () async {
       final data = await old.service.create();
       final bytes = data.encode();
-      expect(bytes[0], 0x1f, reason: 'gzip');
+      expect([bytes[0], bytes[1]], [0x50, 0x4b], reason: 'a zip starts with PK');
       final back = BackupData.decode(bytes);
       expect(back.root, data.root);
       expect(back.songs.length, data.songs.length);
@@ -186,6 +186,20 @@ void main() {
       expect([for (final i in back.playlists.single.songIndexes) back.songs[i].title],
           ['Charlie', 'Alpha', 'Bravo']);
       expect(back.songs.firstWhere((s) => s.title == 'Bravo').plays, 3);
+    });
+
+    test('a backup made by the first version (gzipped JSON) is still read', () {
+      final json = jsonEncode({
+        'app': 'RemoteTunes',
+        'format': 1,
+        'created': '2026-01-01T00:00:00Z',
+        'songs': [
+          {'t': 'Old', 'a': 'Format'}
+        ],
+      });
+      final d = BackupData.decode(gzip.encode(utf8.encode(json)));
+      expect(d.songs.single.title, 'Old');
+      expect(d.art, isEmpty);
     });
 
     test('plain JSON is read too', () {
@@ -214,6 +228,7 @@ void main() {
       bad(utf8.encode('hello'), 'not a RemoteTunes backup');
       bad(utf8.encode('{"app":"Other","format":1}'), 'not a RemoteTunes backup');
       bad(gzip.encode(utf8.encode('{"app":"RemoteTunes","format":99}')), 'newer version');
+      bad([0x50, 0x4b, 3, 4, 9, 9, 9], 'not a RemoteTunes backup');
       bad([0x1f, 0x8b, 1, 2, 3], 'not a RemoteTunes backup');
     });
 

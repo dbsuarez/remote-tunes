@@ -50,6 +50,10 @@ class Songs extends Table {
   /// first half of a short song) by pressing next or choosing another (schema v10).
   IntColumn get skipCount => integer().withDefault(const Constant(0))();
 
+  /// The title, artist, album or track number was changed by hand with Edit info (schema v11),
+  /// so a backup can carry the change to another phone.
+  BoolColumn get infoEdited => boolean().withDefault(const Constant(false))();
+
   /// A song has file_path or url, never both and never neither.
   @override
   List<String> get customConstraints => [

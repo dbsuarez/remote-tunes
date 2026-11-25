@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:path/path.dart' as pp;
+import 'package:uuid/uuid.dart';
 
 import '../../data/database/app_database.dart';
 import '../../data/repositories/settings_repository.dart';
@@ -25,6 +28,9 @@ class RestoreReport {
   int leftOutAdded = 0;
   int lyricsAdded = 0;
   int settingsApplied = 0;
+  int infoRestored = 0;
+  int artRestored = 0;
+  int artSkipped = 0;
 
   int get found => byPath + byTags + looseMatches;
 }
@@ -41,6 +47,7 @@ class BackupService {
     required this.settings,
     required this.exclusions,
     required this.copiedSongsDir,
+    this.artDir = '',
   });
 
   final AppDatabase db;
@@ -49,6 +56,9 @@ class BackupService {
 
   /// Songs added with "Add songs" are copies kept here: they have no usable path.
   final String copiedSongsDir;
+
+  /// Where cover pictures are kept (restored covers are written here).
+  final String artDir;
 
   static final _p = pp.posix;
 
@@ -94,10 +104,32 @@ class BackupService {
 
   bool _isCopy(String path) => copiedSongsDir.isNotEmpty && _p.isWithin(copiedSongsDir, path);
 
-  Future<BackupData> create({bool lyrics = true, bool settings = true}) async {
+  /// How many covers a backup would hold, and how big they are.
+  Future<({int count, int bytes})> artSummary() async {
+    var count = 0;
+    var bytes = 0;
+    for (final path in await _artFiles()) {
+      try {
+        bytes += await File(path).length();
+        count++;
+      } catch (_) {}
+    }
+    return (count: count, bytes: bytes);
+  }
+
+  /// One picture file per album that has one.
+  Future<List<String>> _artFiles() async {
+    final rows = await db.customSelect(
+      'SELECT DISTINCT album_art_path AS p FROM songs '
+      "WHERE album_art_path IS NOT NULL AND album_art_path != ''",
+    ).get();
+    return [for (final r in rows) r.read<String>('p')];
+  }
+
+  Future<BackupData> create({bool lyrics = true, bool settings = true, bool art = false}) async {
     final rows = await db.customSelect(
       'SELECT id, title, artist, album, duration_seconds, file_path, file_size_bytes, favorite, '
-      'play_count, skip_count, last_played_at FROM songs ORDER BY id',
+      'play_count, skip_count, last_played_at, info_edited, track_number FROM songs ORDER BY id',
     ).get();
     final inPlaylist = {
       for (final r in await db.customSelect('SELECT DISTINCT song_id FROM playlist_songs').get())
@@ -111,6 +143,7 @@ class BackupService {
           r.read<bool>('favorite') ||
           r.read<int>('play_count') > 0 ||
           r.read<int>('skip_count') > 0 ||
+          r.read<bool>('info_edited') ||
           r.readNullable<DateTime>('last_played_at') != null) {
         chosen.add(r);
       }
@@ -144,6 +177,8 @@ class BackupService {
         plays: r.read<int>('play_count'),
         skips: r.read<int>('skip_count'),
         lastPlayed: r.readNullable<DateTime>('last_played_at'),
+        edited: r.read<bool>('info_edited'),
+        trackNumber: r.readNullable<int>('track_number'),
       ));
     }
 
@@ -184,6 +219,35 @@ class BackupService {
       }
     }
 
+    // One cover per album (the picture file is shared by its songs).
+    final covers = <BackupArt>[];
+    if (art) {
+      final seen = <String>{};
+      final artRows = await db.customSelect(
+        'SELECT artist, album, album_art_path AS p FROM songs '
+        "WHERE album_art_path IS NOT NULL AND album_art_path != '' ORDER BY id",
+      ).get();
+      for (final r in artRows) {
+        final artist = r.readNullable<String>('artist') ?? '';
+        final album = r.readNullable<String>('album') ?? '';
+        final path = r.read<String>('p');
+        final key = '${backupNorm(artist)}|${backupNorm(album)}';
+        if (!seen.add(key)) continue;
+        try {
+          final bytes = await File(path).readAsBytes();
+          if (bytes.isEmpty) continue;
+          covers.add(BackupArt(
+            artist: artist,
+            album: album,
+            bytes: bytes,
+            ext: path.toLowerCase().endsWith('.png') ? 'png' : 'jpg',
+          ));
+        } catch (_) {
+          // A picture that is gone is just left out.
+        }
+      }
+    }
+
     return BackupData(
       created: DateTime.now(),
       root: root,
@@ -202,6 +266,7 @@ class BackupService {
           ),
       ],
       settings: values,
+      art: covers,
     );
   }
 
@@ -272,6 +337,7 @@ class BackupService {
     String? newRoot,
     bool includeLyrics = true,
     bool includeSettings = true,
+    bool includeArt = true,
   }) async {
     final report = RestoreReport()..songsInBackup = data.songs.length;
     final matches = await match(data, newRoot: newRoot);
@@ -290,6 +356,32 @@ class BackupService {
           final s = data.songs[i];
           report.notFound.add(s.artist.isEmpty ? s.title : '${s.title} (${s.artist})');
       }
+    }
+
+    // Song info edited by hand on the old phone: only for songs found by their place
+    // (found by their tags they already have it).
+    for (var i = 0; i < data.songs.length; i++) {
+      final id = idOf[i];
+      final s = data.songs[i];
+      if (id == null || !s.edited || matches[i].how != SongMatch.path) continue;
+      final changed = await db.customUpdate(
+        'UPDATE songs SET title = ?, artist = ?, album = ?, track_number = ?, info_edited = 1 '
+        'WHERE id = ? AND (title != ? OR IFNULL(artist, \'\') != ? OR IFNULL(album, \'\') != ? '
+        'OR IFNULL(track_number, -1) != ?)',
+        variables: [
+          Variable<String>(s.title),
+          Variable<String>(s.artist.isEmpty ? 'Unknown artist' : s.artist),
+          Variable<String>(s.album.isEmpty ? 'Unknown album' : s.album),
+          Variable<int>(s.trackNumber),
+          Variable<int>(id),
+          Variable<String>(s.title),
+          Variable<String>(s.artist.isEmpty ? 'Unknown artist' : s.artist),
+          Variable<String>(s.album.isEmpty ? 'Unknown album' : s.album),
+          Variable<int>(s.trackNumber ?? -1),
+        ],
+        updates: {db.songs},
+      );
+      report.infoRestored += changed;
     }
 
     // Hearts and counts.
@@ -394,6 +486,40 @@ class BackupService {
               fetchedAt: DateTime.now(),
             ));
         report.lyricsAdded++;
+      }
+    }
+
+    if (includeArt && artDir.isNotEmpty) {
+      for (final a in data.art) {
+        // Only songs of that album that have no picture yet get it.
+        final rows = await db.customSelect(
+          'SELECT id, album_art_path AS p FROM songs WHERE lower(IFNULL(artist, \'\')) = lower(?) '
+          'AND lower(IFNULL(album, \'\')) = lower(?)',
+          variables: [Variable<String>(a.artist), Variable<String>(a.album)],
+        ).get();
+        final needing = [
+          for (final r in rows)
+            if ((r.readNullable<String>('p') ?? '').isEmpty ||
+                !File(r.read<String>('p')).existsSync())
+              r.read<int>('id'),
+        ];
+        if (needing.isEmpty) {
+          if (rows.isEmpty) report.artSkipped++;
+          continue;
+        }
+        try {
+          await Directory(artDir).create(recursive: true);
+          final path = _p.join(artDir, '${const Uuid().v4()}.${a.ext}');
+          await File(path).writeAsBytes(a.bytes, flush: true);
+          await db.customUpdate(
+            'UPDATE songs SET album_art_path = ? WHERE id IN (${needing.join(',')})',
+            variables: [Variable<String>(path)],
+            updates: {db.songs},
+          );
+          report.artRestored++;
+        } catch (_) {
+          report.artSkipped++;
+        }
       }
     }
 

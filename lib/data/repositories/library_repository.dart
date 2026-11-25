@@ -179,6 +179,7 @@ class LibraryRepository {
         artist: Value(clip(artist).isEmpty ? 'Unknown artist' : clip(artist)),
         album: Value(clip(album).isEmpty ? 'Unknown album' : clip(album)),
         trackNumber: Value(n),
+        infoEdited: const Value(true),
       ),
     );
     return rows > 0;

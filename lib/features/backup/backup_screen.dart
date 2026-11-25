@@ -56,7 +56,13 @@ final backupServiceProvider = FutureProvider<BackupService>((ref) async {
     settings: ref.watch(settingsRepositoryProvider),
     exclusions: import.exclusions,
     copiedSongsDir: import.libraryDirPath,
+    artDir: import.artDirPath,
   );
+});
+
+/// How many covers there are and how big (for the switch's subtitle).
+final backupArtSummaryProvider = FutureProvider.autoDispose<({int count, int bytes})>((ref) async {
+  return (await ref.watch(backupServiceProvider.future)).artSummary();
 });
 
 /// Settings > Backup and restore: a file with the playlists, hearts, counts, lyrics and
@@ -71,6 +77,8 @@ class BackupScreen extends ConsumerStatefulWidget {
 class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _lyrics = true;
   bool _settings = true;
+  bool _art = true;
+  bool _restoreArt = true;
   bool _busy = false;
 
   BackupData? _loaded;
@@ -90,7 +98,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     try {
       final service = await ref.read(backupServiceProvider.future);
-      final data = await service.create(lyrics: _lyrics, settings: _settings);
+      final data = await service.create(lyrics: _lyrics, settings: _settings, art: _art);
       final bytes = data.encode();
       final d = data.created;
       String two(int n) => n.toString().padLeft(2, '0');
@@ -160,6 +168,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         newRoot: _root,
         includeLyrics: _restoreLyrics,
         includeSettings: _restoreSettings,
+        includeArt: _restoreArt,
       );
       // The lists and the look may have changed.
       ref.invalidate(settingsProvider);
@@ -189,6 +198,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       if (d.lyrics.isNotEmpty) n(d.lyrics.length, 'lyric'),
       if (d.leftOut > 0) n(d.leftOut, 'left-out folder or file', 'left-out folders and files'),
       if (d.settings.isNotEmpty) n(d.settings.length, 'setting'),
+      if (d.art.isNotEmpty) n(d.art.length, 'cover'),
+      if (d.edited > 0) n(d.edited, 'edited song info', 'edited song infos'),
     ].join(' · ');
   }
 
@@ -203,9 +214,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             Text(
-              'A backup is a small file with your playlists, favorites, play and skip counts, the '
-              'folders you left out, lyrics and settings. It does not hold your music. Use it to move '
-              'to another phone that has the same music.',
+              'A backup is a file with your playlists, favorites, play and skip counts, song info you '
+              'edited, the folders you left out, lyrics, album art and settings. It does not hold your music. '
+              'Use it to move to another phone that has the same music.',
               style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
@@ -215,6 +226,17 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               title: const Text('Include lyrics'),
               value: _lyrics,
               onChanged: (v) => setState(() => _lyrics = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include album art'),
+              subtitle: Text(ref.watch(backupArtSummaryProvider).maybeWhen(
+                  data: (a) => a.count == 0
+                      ? 'No covers found'
+                      : '${a.count} cover${a.count == 1 ? '' : 's'}, about ${_size(a.bytes)}',
+                  orElse: () => 'Covers from the files and the art finder')),
+              value: _art,
+              onChanged: (v) => setState(() => _art = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -290,6 +312,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                           title: const Text('Lyrics'),
                           value: _restoreLyrics,
                           onChanged: (v) => setState(() => _restoreLyrics = v ?? true),
+                        ),
+                      if (loaded.art.isNotEmpty)
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text('Album art (${loaded.art.length} covers)'),
+                          subtitle: const Text('Only for albums that have no picture here yet'),
+                          value: _restoreArt,
+                          onChanged: (v) => setState(() => _restoreArt = v ?? true),
                         ),
                       if (loaded.settings.isNotEmpty)
                         CheckboxListTile(
@@ -374,6 +405,8 @@ class RestoreReportDialog extends StatelessWidget {
               row('Songs with play or skip counts', r.countsRestored),
               row('Left-out folders and files', r.leftOutAdded),
               row('Lyrics added', r.lyricsAdded),
+              row('Album covers added', r.artRestored),
+              row('Song info changed (edited by hand)', r.infoRestored),
               row('Settings applied', r.settingsApplied),
               if (r.notFound.isNotEmpty) ...[
                 const Divider(),

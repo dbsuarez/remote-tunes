@@ -256,6 +256,21 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _infoEditedMeta = const VerificationMeta(
+    'infoEdited',
+  );
+  @override
+  late final GeneratedColumn<bool> infoEdited = GeneratedColumn<bool>(
+    'info_edited',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("info_edited" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -281,6 +296,7 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     albumGainDb,
     playCount,
     skipCount,
+    infoEdited,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -457,6 +473,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         skipCount.isAcceptableOrUnknown(data['skip_count']!, _skipCountMeta),
       );
     }
+    if (data.containsKey('info_edited')) {
+      context.handle(
+        _infoEditedMeta,
+        infoEdited.isAcceptableOrUnknown(data['info_edited']!, _infoEditedMeta),
+      );
+    }
     return context;
   }
 
@@ -558,6 +580,10 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         DriftSqlType.int,
         data['${effectivePrefix}skip_count'],
       )!,
+      infoEdited: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}info_edited'],
+      )!,
     );
   }
 
@@ -611,6 +637,10 @@ class Song extends DataClass implements Insertable<Song> {
   /// How many times the song was skipped: left within the first 30 seconds (or the
   /// first half of a short song) by pressing next or choosing another (schema v10).
   final int skipCount;
+
+  /// The title, artist, album or track number was changed by hand with Edit info (schema v11),
+  /// so a backup can carry the change to another phone.
+  final bool infoEdited;
   const Song({
     required this.id,
     required this.title,
@@ -635,6 +665,7 @@ class Song extends DataClass implements Insertable<Song> {
     this.albumGainDb,
     required this.playCount,
     required this.skipCount,
+    required this.infoEdited,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -694,6 +725,7 @@ class Song extends DataClass implements Insertable<Song> {
     }
     map['play_count'] = Variable<int>(playCount);
     map['skip_count'] = Variable<int>(skipCount);
+    map['info_edited'] = Variable<bool>(infoEdited);
     return map;
   }
 
@@ -750,6 +782,7 @@ class Song extends DataClass implements Insertable<Song> {
           : Value(albumGainDb),
       playCount: Value(playCount),
       skipCount: Value(skipCount),
+      infoEdited: Value(infoEdited),
     );
   }
 
@@ -782,6 +815,7 @@ class Song extends DataClass implements Insertable<Song> {
       albumGainDb: serializer.fromJson<double?>(json['albumGainDb']),
       playCount: serializer.fromJson<int>(json['playCount']),
       skipCount: serializer.fromJson<int>(json['skipCount']),
+      infoEdited: serializer.fromJson<bool>(json['infoEdited']),
     );
   }
   @override
@@ -811,6 +845,7 @@ class Song extends DataClass implements Insertable<Song> {
       'albumGainDb': serializer.toJson<double?>(albumGainDb),
       'playCount': serializer.toJson<int>(playCount),
       'skipCount': serializer.toJson<int>(skipCount),
+      'infoEdited': serializer.toJson<bool>(infoEdited),
     };
   }
 
@@ -838,6 +873,7 @@ class Song extends DataClass implements Insertable<Song> {
     Value<double?> albumGainDb = const Value.absent(),
     int? playCount,
     int? skipCount,
+    bool? infoEdited,
   }) => Song(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -866,6 +902,7 @@ class Song extends DataClass implements Insertable<Song> {
     albumGainDb: albumGainDb.present ? albumGainDb.value : this.albumGainDb,
     playCount: playCount ?? this.playCount,
     skipCount: skipCount ?? this.skipCount,
+    infoEdited: infoEdited ?? this.infoEdited,
   );
   Song copyWithCompanion(SongsCompanion data) {
     return Song(
@@ -908,6 +945,9 @@ class Song extends DataClass implements Insertable<Song> {
           : this.albumGainDb,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
       skipCount: data.skipCount.present ? data.skipCount.value : this.skipCount,
+      infoEdited: data.infoEdited.present
+          ? data.infoEdited.value
+          : this.infoEdited,
     );
   }
 
@@ -936,7 +976,8 @@ class Song extends DataClass implements Insertable<Song> {
           ..write('replayGainDb: $replayGainDb, ')
           ..write('albumGainDb: $albumGainDb, ')
           ..write('playCount: $playCount, ')
-          ..write('skipCount: $skipCount')
+          ..write('skipCount: $skipCount, ')
+          ..write('infoEdited: $infoEdited')
           ..write(')'))
         .toString();
   }
@@ -966,6 +1007,7 @@ class Song extends DataClass implements Insertable<Song> {
     albumGainDb,
     playCount,
     skipCount,
+    infoEdited,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -993,7 +1035,8 @@ class Song extends DataClass implements Insertable<Song> {
           other.replayGainDb == this.replayGainDb &&
           other.albumGainDb == this.albumGainDb &&
           other.playCount == this.playCount &&
-          other.skipCount == this.skipCount);
+          other.skipCount == this.skipCount &&
+          other.infoEdited == this.infoEdited);
 }
 
 class SongsCompanion extends UpdateCompanion<Song> {
@@ -1020,6 +1063,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
   final Value<double?> albumGainDb;
   final Value<int> playCount;
   final Value<int> skipCount;
+  final Value<bool> infoEdited;
   const SongsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -1044,6 +1088,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.albumGainDb = const Value.absent(),
     this.playCount = const Value.absent(),
     this.skipCount = const Value.absent(),
+    this.infoEdited = const Value.absent(),
   });
   SongsCompanion.insert({
     this.id = const Value.absent(),
@@ -1069,6 +1114,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.albumGainDb = const Value.absent(),
     this.playCount = const Value.absent(),
     this.skipCount = const Value.absent(),
+    this.infoEdited = const Value.absent(),
   }) : title = Value(title),
        source = Value(source);
   static Insertable<Song> custom({
@@ -1095,6 +1141,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Expression<double>? albumGainDb,
     Expression<int>? playCount,
     Expression<int>? skipCount,
+    Expression<bool>? infoEdited,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1120,6 +1167,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       if (albumGainDb != null) 'album_gain_db': albumGainDb,
       if (playCount != null) 'play_count': playCount,
       if (skipCount != null) 'skip_count': skipCount,
+      if (infoEdited != null) 'info_edited': infoEdited,
     });
   }
 
@@ -1147,6 +1195,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Value<double?>? albumGainDb,
     Value<int>? playCount,
     Value<int>? skipCount,
+    Value<bool>? infoEdited,
   }) {
     return SongsCompanion(
       id: id ?? this.id,
@@ -1172,6 +1221,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       albumGainDb: albumGainDb ?? this.albumGainDb,
       playCount: playCount ?? this.playCount,
       skipCount: skipCount ?? this.skipCount,
+      infoEdited: infoEdited ?? this.infoEdited,
     );
   }
 
@@ -1247,6 +1297,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     if (skipCount.present) {
       map['skip_count'] = Variable<int>(skipCount.value);
     }
+    if (infoEdited.present) {
+      map['info_edited'] = Variable<bool>(infoEdited.value);
+    }
     return map;
   }
 
@@ -1275,7 +1328,8 @@ class SongsCompanion extends UpdateCompanion<Song> {
           ..write('replayGainDb: $replayGainDb, ')
           ..write('albumGainDb: $albumGainDb, ')
           ..write('playCount: $playCount, ')
-          ..write('skipCount: $skipCount')
+          ..write('skipCount: $skipCount, ')
+          ..write('infoEdited: $infoEdited')
           ..write(')'))
         .toString();
   }
@@ -4948,6 +5002,7 @@ typedef $$SongsTableCreateCompanionBuilder =
       Value<double?> albumGainDb,
       Value<int> playCount,
       Value<int> skipCount,
+      Value<bool> infoEdited,
     });
 typedef $$SongsTableUpdateCompanionBuilder =
     SongsCompanion Function({
@@ -4974,6 +5029,7 @@ typedef $$SongsTableUpdateCompanionBuilder =
       Value<double?> albumGainDb,
       Value<int> playCount,
       Value<int> skipCount,
+      Value<bool> infoEdited,
     });
 
 final class $$SongsTableReferences
@@ -5137,6 +5193,11 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<int> get skipCount => $composableBuilder(
     column: $table.skipCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get infoEdited => $composableBuilder(
+    column: $table.infoEdited,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5314,6 +5375,11 @@ class $$SongsTableOrderingComposer
     column: $table.skipCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get infoEdited => $composableBuilder(
+    column: $table.infoEdited,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongsTableAnnotationComposer
@@ -5409,6 +5475,11 @@ class $$SongsTableAnnotationComposer
 
   GeneratedColumn<int> get skipCount =>
       $composableBuilder(column: $table.skipCount, builder: (column) => column);
+
+  GeneratedColumn<bool> get infoEdited => $composableBuilder(
+    column: $table.infoEdited,
+    builder: (column) => column,
+  );
 
   Expression<T> queueItemsRefs<T extends Object>(
     Expression<T> Function($$QueueItemsTableAnnotationComposer a) f,
@@ -5512,6 +5583,7 @@ class $$SongsTableTableManager
                 Value<double?> albumGainDb = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
                 Value<int> skipCount = const Value.absent(),
+                Value<bool> infoEdited = const Value.absent(),
               }) => SongsCompanion(
                 id: id,
                 title: title,
@@ -5536,6 +5608,7 @@ class $$SongsTableTableManager
                 albumGainDb: albumGainDb,
                 playCount: playCount,
                 skipCount: skipCount,
+                infoEdited: infoEdited,
               ),
           createCompanionCallback:
               ({
@@ -5562,6 +5635,7 @@ class $$SongsTableTableManager
                 Value<double?> albumGainDb = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
                 Value<int> skipCount = const Value.absent(),
+                Value<bool> infoEdited = const Value.absent(),
               }) => SongsCompanion.insert(
                 id: id,
                 title: title,
@@ -5586,6 +5660,7 @@ class $$SongsTableTableManager
                 albumGainDb: albumGainDb,
                 playCount: playCount,
                 skipCount: skipCount,
+                infoEdited: infoEdited,
               ),
           withReferenceMapper: (p0) => p0
               .map(

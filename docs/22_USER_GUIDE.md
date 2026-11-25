@@ -134,13 +134,13 @@ https://dbsuarez.github.io/remote-tunes/ : on the playing phone use remote playb
 
 ## Moving to another phone (backup and restore)
 
-A backup is a small file with your **playlists, favorites, play and skip counts, the folders you left out, lyrics and settings**. It does **not** contain your music, so the new phone needs the same music (copy your music folder over first).
+A backup is a file with your **playlists, favorites, play and skip counts, song info you edited, the folders you left out, lyrics, album art and settings**. The album art switch shows how many covers there are and how big the file will be; turn it off for a small file. It does **not** contain your music, so the new phone needs the same music (copy your music folder over first).
 
 1. **Old phone:** Settings > **Backup and restore** > **Back up to a file**. Choose where to save it, then copy it to the new phone (cable, cloud, Bluetooth, anything).
 2. **New phone:** add your music folder (Library > **Add folder**). Wait for the report.
 3. Settings > **Backup and restore** > **Choose a backup file**. It shows what is inside.
 4. **Where is your music on this phone?** Tap **Choose** and pick the folder that holds your music (the same one you added). The old place is shown for reference. The folder layout does not have to be the same: songs that are not at the same place are found by their title, artist, album and length.
-5. **Restore.** A report says how many songs were found and lists the ones that were not.
+5. **Restore.** A report says how many songs were found and lists the ones that were not. Album covers are only put on albums that have no picture yet.
 
 Good to know: restoring only **adds**. Nothing on the new phone is deleted; a playlist with the same name gets the missing songs; play counts keep the bigger number. Run it again any time: nothing is added twice. Songs you added with **Add songs** are copies kept inside the app, so a backup cannot bring those songs back: add them again, then restore. The backup never contains your Jamendo ID, pairing or keys.
 

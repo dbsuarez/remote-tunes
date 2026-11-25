@@ -129,6 +129,9 @@ class LibraryImportService {
 
   /// Where songs added with "Add songs" are copied to.
   String get libraryDirPath => _libraryDir.path;
+
+  /// Where cover pictures are kept.
+  String get artDirPath => _artDir.path;
   final MetadataExtractor _extractor;
   final Directory _libraryDir;
   final Directory _artDir;
