@@ -24,7 +24,10 @@ class LocalNowPlaying extends StatefulWidget {
     this.visualizer,
     this.visualizerButton,
     this.visualizerOnCover = false,
+    this.visualizerPosition = Alignment.bottomCenter,
   });
+
+  final Alignment visualizerPosition;
 
   /// Draw the visualizer over the dimmed cover (and not at the same time as the lyrics).
   final bool visualizerOnCover;
@@ -105,6 +108,7 @@ class _LocalNowPlayingState extends State<LocalNowPlaying> {
       visualizer: widget.visualizer,
       visualizerButton: widget.visualizerButton,
       visualizerOnCover: widget.visualizerOnCover,
+      visualizerPosition: widget.visualizerPosition,
     );
   }
 }

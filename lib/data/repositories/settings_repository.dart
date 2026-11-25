@@ -38,6 +38,7 @@ class SettingKeys {
   static const visualizer = 'visualizer';
   static const visualizerStyle = 'visualizer_style';
   static const visualizerOnCover = 'visualizer_on_cover';
+  static const visualizerCoverPosition = 'visualizer_cover_position';
   static const listLooks = 'list_looks';
   static const rescanOnOpen = 'rescan_on_open';
   static const playHistory = 'play_history';
@@ -106,6 +107,7 @@ class AppSettings {
     this.visualizerEnabled = false,
     this.visualizerStyle = 'bars',
     this.visualizerOnCover = false,
+    this.visualizerCoverPosition = 'bottom',
     this.listLooks = const {},
     this.rescanOnOpen = false,
     this.playHistory = true,
@@ -175,6 +177,9 @@ class AppSettings {
   /// visualizer then never show together.
   final bool visualizerOnCover;
 
+  /// Where it sits on the cover: `top`, `middle` or `bottom`.
+  final String visualizerCoverPosition;
+
   /// How each kind of song list is drawn (kinds not here use the standard list).
   final Map<String, ListLook> listLooks;
 
@@ -242,6 +247,7 @@ class AppSettings {
       visualizerEnabled: m[SettingKeys.visualizer] == 'true',
       visualizerStyle: m[SettingKeys.visualizerStyle] ?? 'bars',
       visualizerOnCover: m[SettingKeys.visualizerOnCover] == 'true',
+      visualizerCoverPosition: m[SettingKeys.visualizerCoverPosition] ?? 'bottom',
       listLooks: decodeListLooks(m[SettingKeys.listLooks]),
       rescanOnOpen: m[SettingKeys.rescanOnOpen] == 'true',
       playHistory: m[SettingKeys.playHistory] != 'false',
@@ -368,6 +374,8 @@ class SettingsRepository {
     }
     await _put(SettingKeys.listLooks, encodeListLooks(now));
   }
+
+  Future<void> setVisualizerCoverPosition(String v) => _put(SettingKeys.visualizerCoverPosition, v);
 
   Future<void> setVisualizerOnCover(bool v) => _put(SettingKeys.visualizerOnCover, v.toString());
 

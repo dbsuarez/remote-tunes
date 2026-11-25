@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/data/database/app_database.dart';
+import 'package:remote_tunes/data/repositories/settings_repository.dart';
 import 'package:remote_tunes/features/settings/settings_screen.dart';
 import 'package:remote_tunes/providers/providers.dart';
 
@@ -91,6 +92,26 @@ void main() {
     expect(find.text('Equalizer'), findsOneWidget);
     expect(find.text('Visualizer'), findsOneWidget);
     expect(find.text('Queue opens at the song playing'), findsOneWidget);
+  });
+
+  screenTest('the visualizer position shows only with the visualizer on the cover, and is saved', (tester) async {
+    final repo = SettingsRepository(db);
+    await tester.runAsync(() async {
+      await repo.setVisualizerEnabled(true);
+    });
+    await open(tester);
+    await tester.tap(find.byKey(const ValueKey('group-playback')));
+    await settle(tester);
+    await tester.ensureVisible(find.byKey(const ValueKey('viz-on-cover')));
+    expect(find.byKey(const ValueKey('viz-pos-top')), findsNothing, reason: 'not on the cover yet');
+    await tester.tap(find.byKey(const ValueKey('viz-on-cover')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('viz-pos-bottom')), findsOneWidget);
+    expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('viz-pos-bottom'))).selected, isTrue, reason: 'the default');
+    await tester.tap(find.byKey(const ValueKey('viz-pos-top')));
+    await settle(tester);
+    expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('viz-pos-top'))).selected, isTrue);
+    expect((await tester.runAsync(repo.load))!.visualizerCoverPosition, 'top');
   });
 
   screenTest('a setting changed on its page still works', (tester) async {

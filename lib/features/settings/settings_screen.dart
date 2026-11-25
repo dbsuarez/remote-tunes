@@ -1,4 +1,5 @@
 // ignore_for_file: unused_local_variable
+import '../../core/visualizer_position.dart';
 import '../library/music_folders_screen.dart';
 import '../backup/backup_screen.dart';
 import '../tagging/tag_cleanup_screen.dart';
@@ -293,6 +294,29 @@ final List<_Group> _groups = [
                   ),
                   value: s.visualizerOnCover,
                   onChanged: repo.setVisualizerOnCover,
+                ),
+              if (s.visualizerEnabled && s.visualizerOnCover)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Position on the cover', style: theme.textTheme.bodyMedium),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final v in VisualizerCoverPosition.values)
+                            ChoiceChip(
+                              key: ValueKey('viz-pos-${v.name}'),
+                              label: Text(v.label),
+                              selected: VisualizerCoverPosition.parse(s.visualizerCoverPosition) == v,
+                              onSelected: (_) => repo.setVisualizerCoverPosition(v.name),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               if (s.visualizerEnabled)
                 Padding(

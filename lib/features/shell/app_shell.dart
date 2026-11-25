@@ -1,3 +1,4 @@
+import '../../core/visualizer_position.dart';
 import '../music/group_info_dialog.dart';
 import '../../core/widgets/haptic_button.dart';
 import 'dart:async';
@@ -173,6 +174,9 @@ class _AppShellState extends ConsumerState<AppShell> {
               lyricsRequests: _lyricsRequests,
               visualizer: ref.watch(settingsProvider).valueOrNull?.visualizerEnabled ?? false,
               visualizerOnCover: ref.watch(settingsProvider).valueOrNull?.visualizerOnCover ?? false,
+              visualizerPosition: VisualizerCoverPosition.parse(
+                      ref.watch(settingsProvider).valueOrNull?.visualizerCoverPosition)
+                  .alignment,
               suggestions: ref.watch(settingsProvider).valueOrNull?.onlineSuggestions ?? true);
     }
 
@@ -444,6 +448,7 @@ class _Active {
       Listenable? lyricsRequests,
       bool visualizer = false,
       bool visualizerOnCover = false,
+      Alignment visualizerPosition = Alignment.bottomCenter,
       bool suggestions = true}) {
     final playback = ref.watch(playerPlaybackProvider).valueOrNull ?? core.engine.state;
     final source = LocalMusicSource(core.library, core.engine);
@@ -462,6 +467,7 @@ class _Active {
         lyricsRequests: lyricsRequests,
         // Shows or hides the visualizer without going to Settings.
         visualizerOnCover: visualizerOnCover,
+        visualizerPosition: visualizerPosition,
         visualizerButton: Builder(
           builder: (context) => HapticButton(
             kind: HapticKind.selection,

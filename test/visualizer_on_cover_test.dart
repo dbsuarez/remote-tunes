@@ -2,11 +2,12 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/core/protocol/library_models.dart';
+import 'package:remote_tunes/core/visualizer_position.dart';
 import 'package:remote_tunes/data/database/app_database.dart';
 import 'package:remote_tunes/data/repositories/settings_repository.dart';
 import 'package:remote_tunes/features/music/lyrics_view.dart';
 
-Widget host({Widget? overlay}) => MaterialApp(
+Widget host({Widget? overlay, Alignment align = Alignment.center}) => MaterialApp(
       theme: ThemeData.dark(useMaterial3: true),
       home: Scaffold(
         body: Center(
@@ -19,6 +20,7 @@ Widget host({Widget? overlay}) => MaterialApp(
             isPlaying: false,
             fetch: (_) async => const RemoteLyrics(found: true, plain: 'La la', source: 'x'),
             overlay: overlay,
+            overlayAlignment: align,
           ),
         ),
       ),
@@ -62,5 +64,40 @@ void main() {
     expect((await repo.load()).visualizerOnCover, isFalse);
     await repo.setVisualizerOnCover(true);
     expect((await repo.load()).visualizerOnCover, isTrue);
+  });
+
+  group('where it sits on the cover', () {
+    Future<double> centerY(WidgetTester tester, Alignment a) async {
+      await tester.pumpWidget(host(overlay: viz, align: a));
+      final cover = tester.getRect(find.byKey(const Key('cover')));
+      final v = tester.getCenter(find.byKey(const Key('viz')));
+      return (v.dy - cover.center.dy) / cover.height;
+    }
+
+    testWidgets('top, middle and bottom put it there, inside the cover', (tester) async {
+      final top = await centerY(tester, Alignment.topCenter);
+      final mid = await centerY(tester, Alignment.center);
+      final bottom = await centerY(tester, Alignment.bottomCenter);
+      expect(top, lessThan(-0.25));
+      expect(mid.abs(), lessThan(0.02));
+      expect(bottom, greaterThan(0.25));
+      expect(bottom, lessThan(0.5), reason: 'still inside the picture');
+    });
+
+    test('the choices, and bottom when nothing (or nonsense) is saved', () {
+      expect(VisualizerCoverPosition.values.map((v) => v.name), ['top', 'middle', 'bottom']);
+      expect(VisualizerCoverPosition.parse(null), VisualizerCoverPosition.bottom);
+      expect(VisualizerCoverPosition.parse('sideways'), VisualizerCoverPosition.bottom);
+      expect(VisualizerCoverPosition.parse('top').alignment, Alignment.topCenter);
+    });
+
+    test('the position is remembered; bottom is the default', () async {
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      final repo = SettingsRepository(db);
+      expect((await repo.load()).visualizerCoverPosition, 'bottom');
+      await repo.setVisualizerCoverPosition('top');
+      expect((await repo.load()).visualizerCoverPosition, 'top');
+    });
   });
 }

@@ -90,6 +90,7 @@ class BackupService {
     SettingKeys.visualizer,
     SettingKeys.visualizerStyle,
     SettingKeys.visualizerOnCover,
+    SettingKeys.visualizerCoverPosition,
     SettingKeys.listLooks,
     SettingKeys.rescanOnOpen,
     SettingKeys.playHistory,

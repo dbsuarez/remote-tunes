@@ -100,7 +100,11 @@ class CoverWithLyrics extends StatefulWidget {
     this.openRequests,
     this.coverAction,
     this.overlay,
+    this.overlayAlignment = Alignment.center,
   });
+
+  /// Where [overlay] sits on the cover.
+  final Alignment overlayAlignment;
 
   /// Drawn over the cover, which is dimmed behind it (for example the visualizer). It goes away
   /// for good while the lyrics show, so the two are never on screen together.
@@ -259,8 +263,8 @@ class _CoverWithLyricsState extends State<CoverWithLyrics> with SingleTickerProv
                     child: ColoredBox(
                       color: Colors.black.withValues(alpha: 0.55),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Center(child: widget.overlay),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Align(alignment: widget.overlayAlignment, child: widget.overlay),
                       ),
                     ),
                   ),

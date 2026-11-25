@@ -30,7 +30,11 @@ class NowPlayingView extends StatefulWidget {
     this.visualizer,
     this.visualizerButton,
     this.visualizerOnCover = false,
+    this.visualizerPosition = Alignment.bottomCenter,
   });
+
+  /// Where on the cover the visualizer sits (when it is on the cover).
+  final Alignment visualizerPosition;
 
   /// The visualizer goes over the dimmed cover, and gives way to the lyrics.
   final bool visualizerOnCover;
@@ -296,6 +300,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
                           // Top-left while the cover shows; the lyrics' fullscreen button
                           // has that corner when they show.
                           coverAction: _playlistButton(context, p),
+                          overlayAlignment: widget.visualizerPosition,
                           overlay: widget.visualizerOnCover && widget.visualizer != null
                               ? widget.visualizer!(p.isPlaying)
                               : null,
