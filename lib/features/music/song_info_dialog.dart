@@ -4,12 +4,19 @@ import '../../core/protocol/library_models.dart';
 
 /// New title, artist, album and track number for a song.
 class SongInfoEdit {
-  const SongInfoEdit({
+  SongInfoEdit({
     required this.title,
     required this.artist,
     required this.album,
     this.trackNumber,
+    this.writeToFile = false,
   });
+
+  /// Also change the tags inside the music file.
+  final bool writeToFile;
+
+  /// Said by whoever saves it: what happened to the file (shown after saving).
+  String? fileNote;
 
   final String title;
   final String artist;
@@ -18,17 +25,19 @@ class SongInfoEdit {
 }
 
 /// Asks for new details for [song]; null if cancelled.
-Future<SongInfoEdit?> showSongInfoDialog(BuildContext context, RemoteSong song) {
+Future<SongInfoEdit?> showSongInfoDialog(BuildContext context, RemoteSong song,
+    {bool canWriteFile = false}) {
   return showDialog<SongInfoEdit>(
     context: context,
-    builder: (_) => _SongInfoDialog(song: song),
+    builder: (_) => _SongInfoDialog(song: song, canWriteFile: canWriteFile),
   );
 }
 
 class _SongInfoDialog extends StatefulWidget {
-  const _SongInfoDialog({required this.song});
+  const _SongInfoDialog({required this.song, required this.canWriteFile});
 
   final RemoteSong song;
+  final bool canWriteFile;
 
   @override
   State<_SongInfoDialog> createState() => _SongInfoDialogState();
@@ -50,6 +59,8 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
     super.dispose();
   }
 
+  bool _writeToFile = false;
+
   bool get _valid => _title.text.trim().isNotEmpty;
 
   void _save() {
@@ -61,6 +72,7 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
         artist: _artist.text,
         album: _album.text,
         trackNumber: int.tryParse(_track.text.trim()),
+        writeToFile: widget.canWriteFile && _writeToFile,
       ),
     );
   }
@@ -94,9 +106,20 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Track number'),
             ),
+            if (widget.canWriteFile)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Also write into the music file'),
+                value: _writeToFile,
+                onChanged: (v) => setState(() => _writeToFile = v ?? false),
+              ),
             const SizedBox(height: 8),
             Text(
-              'Changes how the song is listed in RemoteTunes. The music file is not changed.',
+              widget.canWriteFile
+                  ? 'Always changes how the song is listed in RemoteTunes. Writing into the file '
+                      'keeps the change when the file is used elsewhere; Android may not allow it for every file.'
+                  : 'Changes how the song is listed in RemoteTunes. The music file is not changed.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

@@ -97,6 +97,7 @@ class MusicBrowser extends StatefulWidget {
     this.refreshToken = 0,
     this.onRemoveSong,
     this.onEditSong,
+    this.canWriteTags = false,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
     this.homeList = false,
@@ -139,6 +140,9 @@ class MusicBrowser extends StatefulWidget {
   /// Player only: shows "Edit info" in the song menu (title, artist, album and
   /// track number, in this library only).
   final Future<bool> Function(RemoteSong song, SongInfoEdit edit)? onEditSong;
+
+  /// Offer to write the tags into the music file too (this phone's own library).
+  final bool canWriteTags;
   final String emptyMessage;
 
   @override
@@ -681,14 +685,15 @@ class _MusicBrowserState extends State<MusicBrowser> {
         onEdit: widget.onEditSong == null
             ? null
             : () async {
-                final edit = await showSongInfoDialog(context, song);
+                final edit = await showSongInfoDialog(context, song,
+                    canWriteFile: widget.canWriteTags);
                 if (edit == null) return;
                 await _run(() async {
                   if (!await widget.onEditSong!(song, edit)) {
                     throw StateError('could not save');
                   }
                   if (mounted) setState(() => _generation++);
-                }, done: 'Saved');
+                }, done: edit.fileNote ?? 'Saved');
               },
         onRemove: widget.onRemoveSong == null
             ? null

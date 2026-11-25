@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../library/tag_writer.dart';
 import '../../core/constants.dart';
 import '../../core/haptics.dart';
 import '../../core/models/enums.dart';
@@ -500,14 +501,30 @@ class _LibraryTab extends ConsumerWidget {
               await service.removeSong(song.id);
             }
           : null,
+      canWriteTags: local,
       onEditSong: local
-          ? (song, e) => ref.read(libraryRepositoryProvider).updateSongInfo(
+          ? (song, e) async {
+              final library = ref.read(libraryRepositoryProvider);
+              final saved = await library.updateSongInfo(
                 song.id,
                 title: e.title,
                 artist: e.artist,
                 album: e.album,
                 trackNumber: e.trackNumber,
-              )
+              );
+              if (saved && e.writeToFile) {
+                final row = await library.songById(song.id);
+                final path = row?.filePath;
+                if (path != null) {
+                  e.fileNote = TagWriter.message(const TagWriter().write(path,
+                      title: e.title.trim(),
+                      artist: e.artist.trim().isEmpty ? 'Unknown artist' : e.artist.trim(),
+                      album: e.album.trim().isEmpty ? 'Unknown album' : e.album.trim(),
+                      trackNumber: e.trackNumber));
+                }
+              }
+              return saved;
+            }
           : null,
     );
   }
