@@ -10,7 +10,7 @@ import '../library/import_service.dart' show ExclusionStore;
 import 'backup_models.dart';
 
 /// How a song of the backup was found in this phone's library.
-enum SongMatch { path, tags, loose, notFound }
+enum SongMatch { path, tags, loose, picked, notFound }
 
 /// What a restore did.
 class RestoreReport {
@@ -18,7 +18,14 @@ class RestoreReport {
   int byPath = 0;
   int byTags = 0;
   int looseMatches = 0;
+
+  /// Songs the user matched by hand.
+  int picked = 0;
   final List<String> notFound = [];
+
+  /// Where each not-found song is in the backup (same order as [notFound]), so one can be
+  /// matched by hand.
+  final List<int> notFoundIndexes = [];
 
   int playlistsCreated = 0;
   int playlistsMerged = 0;
@@ -32,7 +39,7 @@ class RestoreReport {
   int artRestored = 0;
   int artSkipped = 0;
 
-  int get found => byPath + byTags + looseMatches;
+  int get found => byPath + byTags + looseMatches + picked;
 }
 
 /// Makes a backup of what is in the library besides the music itself, and puts one
@@ -105,7 +112,8 @@ class BackupService {
     return common.isEmpty ? '/' : _p.joinAll(common);
   }
 
-  bool _isCopy(String path) => copiedSongsDir.isNotEmpty && _p.isWithin(copiedSongsDir, path);
+  bool _isCopy(String path) =>
+      copiedSongsDir.isNotEmpty && (_p.isWithin(copiedSongsDir, path) || pp.isWithin(copiedSongsDir, path));
 
   /// How many covers a backup would hold, and how big they are.
   Future<({int count, int bytes})> artSummary() async {
@@ -282,6 +290,60 @@ class BackupService {
     );
   }
 
+  // ------------------------------------------------------- the copied songs
+
+  /// Songs added with "Add songs": copies kept inside the app (a backup cannot bring them back).
+  Future<List<({int id, String path, String title, String artist})>> copiedSongs() async {
+    if (copiedSongsDir.isEmpty) return const [];
+    final rows = await db
+        .customSelect('SELECT id, title, artist, file_path FROM songs WHERE file_path IS NOT NULL')
+        .get();
+    return [
+      for (final r in rows)
+        if (_isCopy(r.read<String>('file_path')))
+          (
+            id: r.read<int>('id'),
+            path: r.read<String>('file_path'),
+            title: r.read<String>('title'),
+            artist: r.readNullable<String>('artist') ?? '',
+          ),
+    ];
+  }
+
+  /// Copies the files of the copied songs into [dir], named "Artist - Title.ext" (a number is added
+  /// when the name is taken). Returns how many were copied and how many could not be.
+  Future<({int copied, int failed})> exportCopies(String dir) async {
+    final songs = await copiedSongs();
+    await Directory(dir).create(recursive: true);
+    var copied = 0;
+    var failed = 0;
+    String clean(String s) => s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    for (final s in songs) {
+      try {
+        final src = File(s.path);
+        if (!await src.exists()) {
+          failed++;
+          continue;
+        }
+        final ext = pp.extension(s.path);
+        final base = s.artist.isEmpty || s.artist.toLowerCase().startsWith('unknown')
+            ? clean(s.title)
+            : '${clean(s.artist)} - ${clean(s.title)}';
+        var name = '${base.isEmpty ? 'song' : base}$ext';
+        var n = 2;
+        while (await File(pp.join(dir, name)).exists()) {
+          name = '${base.isEmpty ? 'song' : base} ($n)$ext';
+          n++;
+        }
+        await src.copy(pp.join(dir, name));
+        copied++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    return (copied: copied, failed: failed);
+  }
+
   // ----------------------------------------------------------------- restore
 
   /// Finds each song of [data] in this library. [newRoot] is where the music root
@@ -350,9 +412,16 @@ class BackupService {
     bool includeLyrics = true,
     bool includeSettings = true,
     bool includeArt = true,
+    Map<int, int> picks = const {},
   }) async {
     final report = RestoreReport()..songsInBackup = data.songs.length;
     final matches = await match(data, newRoot: newRoot);
+    // Songs matched by hand (backup index -> library song id) stand in for the ones not found.
+    for (final e in picks.entries) {
+      if (e.key >= 0 && e.key < matches.length && matches[e.key].id == null) {
+        matches[e.key] = (id: e.value, how: SongMatch.picked);
+      }
+    }
     final idOf = <int, int?>{};
     for (var i = 0; i < matches.length; i++) {
       final m = matches[i];
@@ -364,9 +433,12 @@ class BackupService {
           report.byTags++;
         case SongMatch.loose:
           report.looseMatches++;
+        case SongMatch.picked:
+          report.picked++;
         case SongMatch.notFound:
           final s = data.songs[i];
           report.notFound.add(s.artist.isEmpty ? s.title : '${s.title} (${s.artist})');
+          report.notFoundIndexes.add(i);
       }
     }
 

@@ -16,6 +16,7 @@ class AppDrawer extends StatelessWidget {
     required this.onChangelog,
     required this.onHelp,
     this.onSkins,
+    this.onInsights,
     this.showEqualizer = true,
     this.version,
     this.updateAvailable = false,
@@ -38,6 +39,9 @@ class AppDrawer extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onChangelog;
   final VoidCallback onHelp;
+
+  /// What the library says about itself (null: not shown, e.g. for another phone's library).
+  final VoidCallback? onInsights;
 
   /// Skin settings (null: not shown).
   final VoidCallback? onSkins;
@@ -98,6 +102,7 @@ class AppDrawer extends StatelessWidget {
             item(Icons.format_list_numbered_rounded, 'Queue', onQueue),
             const Divider(),
             if (showEqualizer) item(Icons.equalizer_rounded, 'Equalizer', onEqualizer),
+            if (onInsights != null) item(Icons.insights_rounded, 'Insights', onInsights!),
             item(Icons.cast_connected_rounded, 'Remote playback', onRemotePlayback),
             if (onSkins != null) item(Icons.palette_outlined, 'Skin settings', onSkins!),
             item(Icons.settings_rounded, 'Settings', onSettings),

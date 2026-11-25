@@ -9,6 +9,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/providers.dart';
 import 'backup_models.dart';
 import 'backup_service.dart';
+import 'match_by_hand.dart';
 
 /// Where backup files are saved to and read from (replaced in tests).
 abstract class BackupPicker {
@@ -81,12 +82,43 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _activity = true;
   bool _restoreArt = true;
   bool _busy = false;
+  int _copies = 0;
 
   BackupData? _loaded;
   String? _root;
   bool _restoreLyrics = true;
   bool _restoreSettings = true;
   int _songsInLibrary = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _countCopies();
+  }
+
+  Future<void> _countCopies() async {
+    try {
+      final n = (await (await ref.read(backupServiceProvider.future)).copiedSongs()).length;
+      if (mounted) setState(() => _copies = n);
+    } catch (_) {}
+  }
+
+  /// Puts the songs added with "Add songs" in a folder the user picks, so they exist outside the app.
+  Future<void> _exportCopies() async {
+    final dir = await ref.read(backupPickerProvider).pickFolder();
+    if (dir == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final r = await (await ref.read(backupServiceProvider.future)).exportCopies(dir);
+      _say(r.failed == 0
+          ? 'Copied ${r.copied} song${r.copied == 1 ? '' : 's'} to the folder.'
+          : 'Copied ${r.copied}; ${r.failed} could not be copied.');
+    } catch (_) {
+      _say("The songs couldn't be copied. Try another folder.");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   void _say(String text) {
     if (!mounted) return;
@@ -165,20 +197,34 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     try {
       final service = await ref.read(backupServiceProvider.future);
-      final report = await service.restore(
-        data,
-        newRoot: _root,
-        includeLyrics: _restoreLyrics,
-        includeSettings: _restoreSettings,
-        includeArt: _restoreArt,
-      );
-      // The lists and the look may have changed.
-      ref.invalidate(settingsProvider);
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (_) => RestoreReportDialog(report: report),
-      );
+      final picks = <int, int>{};
+      while (true) {
+        final report = await service.restore(
+          data,
+          newRoot: _root,
+          includeLyrics: _restoreLyrics,
+          includeSettings: _restoreSettings,
+          includeArt: _restoreArt,
+          picks: picks,
+        );
+        // The lists and the look may have changed.
+        ref.invalidate(settingsProvider);
+        if (!mounted) return;
+        final again = await showDialog<bool>(
+          context: context,
+          builder: (_) => RestoreReportDialog(report: report),
+        );
+        if (again != true || !mounted) break;
+        // Match the ones that were not found by hand, then restore again (nothing is done twice).
+        final chosen = await showMatchByHand(
+          context,
+          library: ref.read(libraryRepositoryProvider),
+          data: data,
+          indexes: report.notFoundIndexes,
+        );
+        if (chosen == null || chosen.isEmpty) break;
+        picks.addAll(chosen);
+      }
       if (mounted) setState(() => _loaded = null);
     } catch (_) {
       _say("The backup couldn't be put back.");
@@ -278,6 +324,16 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               'bring those songs back (only what you did with them).',
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
+            if (_copies > 0)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('export-copies'),
+                  onPressed: _busy ? null : _exportCopies,
+                  icon: const Icon(Icons.drive_file_move_outline),
+                  label: Text('Export $_copies copied song${_copies == 1 ? '' : 's'} to a folder'),
+                ),
+              ),
             const Divider(height: 40),
             Text('Restore from a backup', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
@@ -418,6 +474,7 @@ class RestoreReportDialog extends StatelessWidget {
               row('Found by their place', r.byPath, color: theme.colorScheme.primary),
               row('Found by their tags', r.byTags, color: theme.colorScheme.primary),
               row('Found by title and artist only', r.looseMatches),
+              row('Matched by hand', r.picked, color: theme.colorScheme.primary),
               row('Not found on this phone', r.notFound.length, color: theme.colorScheme.error),
               const Divider(),
               row('Playlists made', r.playlistsCreated),
@@ -448,7 +505,15 @@ class RestoreReportDialog extends StatelessWidget {
           ),
         ),
       ),
-      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+      actions: [
+        if (r.notFoundIndexes.isNotEmpty)
+          TextButton(
+            key: const Key('match-by-hand'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Match by hand'),
+          ),
+        FilledButton(onPressed: () => Navigator.pop(context, false), child: const Text('OK')),
+      ],
     );
   }
 }

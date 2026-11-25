@@ -7,6 +7,7 @@ import '../../features/shell/app_shell.dart';
 import '../../features/settings/skin_screen.dart';
 import '../../features/shell/help_screen.dart';
 import '../../features/update/changelog_screen.dart';
+import '../../features/insights/insights_screen.dart';
 import '../../features/settings/diagnostics_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
@@ -21,6 +22,7 @@ class AppRoutes {
   static const changelog = '/changelog';
   static const skins = '/skins';
   static const help = '/help';
+  static const insights = '/insights';
   static const remotePlayback = '/remote-playback';
 }
 
@@ -55,6 +57,10 @@ GoRouter createRouter({String initialLocation = AppRoutes.home}) {
       GoRoute(
         path: AppRoutes.help,
         builder: (context, state) => const HelpScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.insights,
+        builder: (context, state) => const InsightsScreen(),
       ),
       GoRoute(
         path: AppRoutes.equalizer,

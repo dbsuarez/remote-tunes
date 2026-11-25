@@ -212,6 +212,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         onChangelog: () => context.push(AppRoutes.changelog),
         onHelp: () => context.push(AppRoutes.help),
         onSkins: () => context.push(AppRoutes.skins),
+        onInsights: remote ? null : () => context.push(AppRoutes.insights),
       ),
       appBar: AppBar(
         titleSpacing: 12,
