@@ -35,6 +35,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          # Keeps the downloaded build tools between runs, so a busy Maven Central
+          # (HTTP 429, "Too Many Requests") does not stop a release.
+          cache: gradle
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.38.5
@@ -78,8 +81,17 @@ jobs:
             printf '{"JAMENDO_CLIENT_ID":"%s"}' "$JAMENDO" > /tmp/jamendo.json
             DEFINES="--dart-define-from-file=/tmp/jamendo.json"
           fi
-          flutter build apk --release --split-per-abi \
-            --build-name="$VERSION" --build-number="${{ github.run_number }}" $DEFINES
+          # The tool downloads are sometimes refused for a minute (HTTP 429): wait and try again.
+          for attempt in 1 2 3; do
+            if flutter build apk --release --split-per-abi \
+                --build-name="$VERSION" --build-number="${{ github.run_number }}" $DEFINES; then
+              exit 0
+            fi
+            echo "::warning::The build failed (try $attempt of 3). Waiting, then trying again."
+            sleep $((attempt * 60))
+          done
+          echo "::error::The build failed three times."
+          exit 1
 
       - name: Publish the release
         env:
