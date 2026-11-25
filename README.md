@@ -79,7 +79,7 @@ The web Controller is published automatically from `main` by `.github/workflows/
 
 One-time setup in the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**. After that every push that changes `lib/`, `web/` or `pubspec.*` rebuilds the page (Actions tab shows progress; you can also run the workflow by hand). The page uses the same Supabase defaults as the phone app, so it works with no setup. Local build with the same path: `fvm flutter build web -t lib/main_web.dart --release --base-href /remote-tunes/`.
 
-How to use it (for the owner): [docs/22_USER_GUIDE.md](docs/22_USER_GUIDE.md).
+How to use it (for the owner): [docs/22_USER_GUIDE.md](docs/22_USER_GUIDE.md). A shorter one for friends: [docs/23_FRIENDS_GUIDE.md](docs/23_FRIENDS_GUIDE.md).
 
 Privacy: what leaves your phone, and what does not, is in [docs/21_PRIVACY.md](docs/21_PRIVACY.md).
 

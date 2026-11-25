@@ -23,9 +23,6 @@ From [remotetunescloud.md](remotetunescloud.md).
 - Insights charts that wait on it: cloud storage used (of 10 GB), genre distribution and uploads per month.
 
 ### 2. Small gaps in what is built
-**Audiobooks**
-- [ ] Audiobook *folders* are not in backups (the marks, places and speeds are; add the folders again on the new phone, then restore).
-
 **Tag cleanup**
 - [ ] **AcoustID fingerprints** (the owner does not need them for now): would need a native Chromaprint library for Android and an AcoustID key (kept out of git, like the Jamendo ID); it identifies a song by its sound, so it helps files with no tags, but only for known commercial recordings. Today the matching is by title, artist, album and length through MusicBrainz.
 - [ ] No *Tag cleanup* charts in Insights (progress bar, updates / needs review / no match).
@@ -47,20 +44,17 @@ From [remotetunescloud.md](remotetunescloud.md).
 - [ ] Playlists cannot hold Online Library tracks (they are not in the library).
 
 **List options**
-- [ ] *Compact header* (from the screenshots), and the song menu inside the Grid view (a long-press picks a song there).
 - [ ] *Per track progress* and *List position* are for audiobooks only (decided); music never remembers its place.
 
 **Other**
-- [ ] A menu for whole *folders* in the Folders list (it already has multi-select to a playlist).
 - [ ] **Writing tags into files** writes title, artist, album, track number, and (from group edit and Tag cleanup) year and genre; **not** the cover, and not the composer from here.
 
 ### 3. Audio effects (the owner's choice to wait)
-- [ ] Our own effects beyond the 10-band equalizer: a compressor (the easy next one: Android's `DynamicsProcessing` also has a multiband compressor), stereo width, a real bass boost and reverb (these would need our own audio processing, which `just_audio` has no hook for).
+- [ ] Our own effects beyond the 10-band equalizer and the compressor: stereo width, a real bass boost and reverb (these would need our own audio processing, which `just_audio` has no hook for).
 - [ ] **Replay Gain** reads the tags only; *measuring* loudness for files that have none needs decoding every file.
 
 ### 4. Ideas not started
-- [ ] A **user guide for friends** (a shorter, friendlier version of [22_USER_GUIDE.md](22_USER_GUIDE.md)). Wanted later; for now the app is for personal use only.
-- [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Excluded from library* screen).
+- (none right now; see the lists above)
 - Decided against for now: AI genre / mood / BPM, lyrics tagging, silent overwriting of tags, uploading during tagging.
 
 ---
@@ -134,6 +128,11 @@ From [remotetunescloud.md](remotetunescloud.md).
 - [x] **Look up this song** (Edit info > *Look up this song*; built after `v1.0.11`, not tried on a phone yet): one query for one song, with a result window to choose from. **Details:** MusicBrainz by title, artist, album and length lists up to six matches (title, artist, album, year, track number, the closest in length first); the chosen one fills the Edit info fields (still changeable before saving). **Lyrics:** shows whether lyrics were found (LRCLIB, Megalobiz, lyrics.ovh) with a preview, *Keep these lyrics* or not (also the way to get lyrics again after a miss). **Cover:** the Cover Art Archive picture for the match, to accept or skip; accepted, it becomes the album's picture. One *Apply*; *Save* then writes the fields (and, if ticked, into the file). Only the title, artist, album and length are sent (docs/21).
 - [x] **Edit info for several songs** (Select, then the edit button; built after `v1.0.11`, not tried on a phone yet): a dialog with only the fields songs can share: **Artist, Album, Album artist, Genre, Year, Composer**; title and track number are never offered. Each field starts *unchanged* (it shows the value when all picked songs agree, or *(different)*); only what you type is changed, and a tick can clear a field. *Also write into the music file* is ticked from the start (the tag writer also writes year, genre, album artist and composer); the report says how many files were written and how many Android refused. Changed songs are marked as edited, so a backup carries the change.
 - [x] **Visualizer button on Now Playing:** in the row of quick actions (favorite, shuffle, repeat, speed, sleep timer), just to the **left of the volume button**: a tap shows or hides the visualizer (saved, same as the Settings switch; turning it on asks for the microphone permission first). On a narrow phone the seven buttons get a slightly smaller touch area so they all fit.
+- [x] **Compact header, Grid menu, folder menu (after `v1.0.17`):** *List options > Compact header* (for album, artist, playlist, folder and genre pages) makes the header slimmer (*Play all* becomes an icon). Each cell of the **Grid** view has a small menu (the same as a row: Play next, Add to queue, Add to playlist, Edit info...). Each row of the **Folders** list has a menu: *Play*, *Add to queue*, *Add to playlist* for the whole folder.
+- [x] **Leave files out by name (after `v1.0.17`):** *Settings > Library > Excluded from library > Add a rule*: a rule like `intro` (any name that contains it), `*.wav` or `track??.mp3` (`*` any text, `?` one character; capitals do not matter). Rules apply every time a folder is added or rescanned (music and audiobook folders), and the screen offers to take the songs already in the library that match out (their files stay). A rule is kept in the same list as the folders left out (and so is in backups).
+- [x] **Audiobook folders in backups (after `v1.0.17`):** the backup holds where the audiobook folders were; a restore remembers again the ones that exist at the same place on the new phone (then *Rescan audiobook folders* reads them) and lists the others in the report.
+- [x] **Compressor (after `v1.0.17`; Equalizer screen > Compressor: Off / Light / Medium / Strong; not tried on a phone yet):** Android's multiband compressor used as one band over the whole sound (the same `DynamicsProcessing` effect as the 10 bands), so it needs a phone that allows that. It works with the equalizer off, and is kept per sound output like the other equalizer settings. Light: starts at -24 dB, 2:1; Medium: -28 dB, 3:1; Strong: -32 dB, 5:1, each turned back up (+3, +5, +8 dB). The native code compiles, but how it sounds needs a phone.
+- [x] **Friends guide (after `v1.0.17`):** [23_FRIENDS_GUIDE.md](23_FRIENDS_GUIDE.md), a short, friendlier version of the owner's guide.
 - [x] **Find songs I edited before (Backup and restore):** changes made with Edit info before `v1.0.7` were not flagged, so a backup missed them. The button compares every song with the tags in its file (title, artist, album, track number) and flags the ones that differ, so the next backup carries them; it only reads files and sets that flag. Songs with no such tag in the file (the title is then the file name) are not called edited.
 - [x] **Online Library: Top this week by genre (after `v1.0.15`):** under the home shelves, genre chips pick a genre and a shelf *Popular this week · rock* shows its best of the week (Jamendo `popularity_week` with the genre); each genre is fetched when first picked and kept 15 minutes. The shelves now **refresh by themselves**: every 5 minutes while the tab is open a shelf older than 15 minutes is fetched again, and when the app comes back to the front.
 - [x] **Backup:** *Playlists, favorites and counts* is its own switch, and *Choose lyrics and album art only* sets the switches for a backup that holds just those two.
