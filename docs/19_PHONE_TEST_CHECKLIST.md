@@ -161,6 +161,8 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Adding music:** the progress card keeps the same size while file names change.
 - [ ] **Lock screen:** start a song, lock the phone: the player (title, cover, buttons) shows on the lock screen. If it does not, tell me what you see (nothing at all, or a notification without buttons).
 - [ ] **Genres / Years / Album Artists:** Settings > Update tags from files, then Library > Genres, Years and Album Artists fill in and open like albums.
+- [ ] **Equalizer:** the equalizer icon in the top bar (or Settings > Equalizer). Play a song first. Pick Bass boost: the sliders move and the bass is clearly stronger. Switch it off: it sounds normal again. Turn on "Remember for ...", change to another output (headphones / Bluetooth) and back: the settings follow the output.
+- [ ] **Even out loudness:** Settings > Update tags from files, then Settings > Even out loudness > By song. Songs from albums with Replay Gain tags are turned down to about the same level (songs with no tags are unchanged).
 
 ---
 

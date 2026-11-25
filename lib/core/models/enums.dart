@@ -8,6 +8,9 @@ enum ConnectionMode { auto, localOnly, onlineOnly }
 
 enum ConnectionType { local, online }
 
+/// Evening out loudness between songs from the Replay Gain tags in the files.
+enum ReplayGainMode { off, track, album }
+
 /// What the app shows when it opens.
 enum StartMode {
   /// A music player for this phone's own music (the default).
@@ -39,6 +42,17 @@ extension ConnectionModeX on ConnectionMode {
 
   static ConnectionMode parse(String? v) => ConnectionMode.values
       .firstWhere((e) => e.name == v, orElse: () => ConnectionMode.auto);
+}
+
+extension ReplayGainModeX on ReplayGainMode {
+  String get label => switch (this) {
+        ReplayGainMode.off => 'Off',
+        ReplayGainMode.track => 'By song',
+        ReplayGainMode.album => 'By album',
+      };
+
+  static ReplayGainMode parse(String? v) =>
+      ReplayGainMode.values.firstWhere((e) => e.name == v, orElse: () => ReplayGainMode.off);
 }
 
 extension StartModeX on StartMode {

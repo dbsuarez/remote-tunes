@@ -61,6 +61,7 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     queueStore: DriftQueueStore(ref.watch(databaseProvider)),
     formatReader: AudioFormatReader().describe,
   );
+  unawaited(localEngine.setReplayGainMode(settings.replayGainMode));
   // The queue is kept between runs: pick up where it was, paused.
   try {
     await localEngine.restoreQueue();

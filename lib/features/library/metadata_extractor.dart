@@ -39,7 +39,13 @@ class ExtractedMetadata {
     this.albumArtist,
     this.genre,
     this.year,
+    this.replayGainDb,
+    this.albumGainDb,
   });
+
+  /// Replay Gain tags in dB (see [parseReplayGain]).
+  final double? replayGainDb;
+  final double? albumGainDb;
 
   final String? albumArtist;
 
@@ -68,6 +74,46 @@ class AudioMetadataExtractor implements MetadataExtractor {
   @override
   Future<ExtractedMetadata> extract(String path) =>
       Isolate.run(() => _read(path));
+}
+
+/// Reads a Replay Gain value such as `-6.54 dB`, `+3 dB` or `0.5`. Returns null
+/// for anything that is not a sensible number (a gain beyond +-30 dB is a bad tag).
+double? parseReplayGain(String? text) {
+  if (text == null) return null;
+  final m = RegExp(r'^\s*([+-]?\d+(?:[.,]\d+)?)\s*(?:db)?\s*$', caseSensitive: false)
+      .firstMatch(text.trim());
+  if (m == null) return null;
+  final v = double.tryParse(m.group(1)!.replaceAll(',', '.'));
+  if (v == null || v.isNaN || v.abs() > 30) return null;
+  return v;
+}
+
+({double? track, double? album}) _readGains(String path) {
+  try {
+    final tag = readAllMetadata(File(path), getImage: false);
+    if (tag is Mp3Metadata) {
+      String? find(String key) {
+        for (final e in tag.customMetadata.entries) {
+          if (e.key.toUpperCase() == key) return e.value;
+        }
+        return null;
+      }
+
+      return (
+        track: parseReplayGain(find('REPLAYGAIN_TRACK_GAIN')),
+        album: parseReplayGain(find('REPLAYGAIN_ALBUM_GAIN')),
+      );
+    }
+    if (tag is VorbisMetadata) {
+      return (
+        track: parseReplayGain(tag.replayGainTrackGain.isEmpty ? null : tag.replayGainTrackGain.first),
+        album: parseReplayGain(tag.replayGainAlbumGain.isEmpty ? null : tag.replayGainAlbumGain.first),
+      );
+    }
+  } catch (_) {
+    // No gains for this file.
+  }
+  return (track: null, album: null);
 }
 
 ExtractedMetadata _read(String path) {
@@ -103,7 +149,11 @@ ExtractedMetadata _read(String path) {
   }
   final year = m.year?.year;
 
+  final gains = _readGains(path);
+
   return ExtractedMetadata(
+    replayGainDb: gains.track,
+    albumGainDb: gains.album,
     albumArtist: clean(m.albumArtist),
     genre: genre,
     year: (year != null && year >= 1000 && year <= 2999) ? year : null,

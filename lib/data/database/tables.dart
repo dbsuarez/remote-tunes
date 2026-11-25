@@ -35,6 +35,11 @@ class Songs extends Table {
   TextColumn get genre => text().nullable()();
   IntColumn get year => integer().nullable()();
 
+  /// Replay Gain tags (schema v8): how many dB the file asks to be turned up (+)
+  /// or down (-), for the song and for its album. Null when the file has none.
+  RealColumn get replayGainDb => real().nullable()();
+  RealColumn get albumGainDb => real().nullable()();
+
   /// How many times the song started playing (schema v5; feeds "Top").
   IntColumn get playCount => integer().withDefault(const Constant(0))();
 

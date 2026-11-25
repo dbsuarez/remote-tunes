@@ -40,9 +40,9 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 ## Still to do
 
 ### Audio engine (Player side)
-- [ ] **Crossfade:** a fade between songs. Needs a second player (or a volume ramp) and a length setting; must stay compatible with gapless.
-- [ ] **EQ:** Android's built-in equalizer usually has only 5 bands and differs per phone; a true 10-band graphic EQ needs our own audio processing. Start with the built-in one, per-output presets (speaker / wired / Bluetooth), then the screen below.
-- [ ] **Replay Gain scanner** (background isolate; needs a new column and a re-scan of the library).
+- [ ] **Crossfade:** a fade between songs. A real overlap needs a second audio player running at the same time as the first, and a length setting; it has to stay compatible with gapless. Not started.
+- [x] **EQ (built-in):** Android's own equalizer (usually 5 bands, differs per phone) with 9 presets, a slider per band, and settings remembered per sound output (speaker / wired / Bluetooth) that come back when that output is in use. Equalizer icon in the top bar and in Settings. Not done: a true 10-band EQ (needs our own audio processing), the response curve, Tone / Limit switches and Bass / Treble knobs.
+- [x] **Replay Gain from tags** (schema v8): Settings > Even out loudness (Off / By song / By album) turns loud songs down to the level in their Replay Gain tags (read by "Update tags from files" and on import). It never turns a song up. Not done: *measuring* loudness for files that have no tags (that needs decoding every file).
 
 ### Library and search
 - [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Still to do: Composers (the tag reader only gives it for MP3) and a folder tree next to the flat Folders list.
@@ -50,7 +50,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [ ] Tag editor: write the tags into the music files (needs a writer and Android 11+ file-edit permission); today it only changes RemoteTunes' listing.
 
 ### UI / UX
-- [ ] **EQ screen:** vertical sliders (preamp + 10 bands, 31 Hz to 16 kHz), a response-curve preview, Equ / Tone / Limit switches, a preset chip, Bass and Treble knobs.
+- [x] **EQ screen** (sliders, presets, per-output memory); the extras (preamp, curve, Tone / Limit, Bass / Treble) are still to do.
 - [ ] **Bottom bar** (Library, EQ, Search, Queue) with a persistent mini player and progress line on every screen. A big navigation change: it would replace the top tabs.
 - [ ] **Menu with shortcuts** (Settings, Lyrics, Playlists, Skin settings, Library, Changelog, Help).
 - [ ] **Skinning engine** (JSON themes, named skins) that respects the album-art accent and the design guardrails.

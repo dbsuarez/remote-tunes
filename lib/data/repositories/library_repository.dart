@@ -35,6 +35,8 @@ class LibraryRepository {
     String? albumArtist,
     String? genre,
     int? year,
+    double? replayGainDb,
+    double? albumGainDb,
   }) {
     return _db.into(_db.songs).insert(
           SongsCompanion.insert(
@@ -50,6 +52,8 @@ class LibraryRepository {
             albumArtist: Value(albumArtist),
             genre: Value(genre),
             year: Value(year),
+            replayGainDb: Value(replayGainDb),
+            albumGainDb: Value(albumGainDb),
             source: SongSource.localFile.name,
           ),
         );
@@ -65,11 +69,20 @@ class LibraryRepository {
 
   /// Saves the album artist, genre and year read from a file's tags. A tag the
   /// file does not have leaves what is saved as it is.
-  Future<void> updateSongTags(int id, {String? albumArtist, String? genre, int? year}) =>
+  Future<void> updateSongTags(
+    int id, {
+    String? albumArtist,
+    String? genre,
+    int? year,
+    double? replayGainDb,
+    double? albumGainDb,
+  }) =>
       (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(SongsCompanion(
         albumArtist: albumArtist == null ? const Value.absent() : Value(albumArtist),
         genre: genre == null ? const Value.absent() : Value(genre),
         year: year == null ? const Value.absent() : Value(year),
+        replayGainDb: replayGainDb == null ? const Value.absent() : Value(replayGainDb),
+        albumGainDb: albumGainDb == null ? const Value.absent() : Value(albumGainDb),
       ));
 
   static String? _groupColumn(String? kind) => switch (kind) {
@@ -634,6 +647,8 @@ extension SongMapping on Song {
       durationSeconds: durationSeconds ?? 0,
       trackNumber: trackNumber,
       albumArtPath: albumArtPath,
+      replayGainDb: replayGainDb,
+      albumGainDb: albumGainDb,
     );
   }
 

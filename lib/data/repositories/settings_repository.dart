@@ -29,6 +29,7 @@ class SettingKeys {
   static const lyricsEnabled = 'lyrics_enabled';
   static const pendingUpdate = 'pending_update';
   static const startMode = 'start_mode';
+  static const replayGainMode = 'replay_gain_mode';
   static const remoteAutoStart = 'remote_auto_start';
   static const searchHistory = 'search_history';
   static const lastUpdateCheck = 'last_update_check';
@@ -64,6 +65,7 @@ class AppSettings {
     this.lyricsEnabled = true,
     this.pendingUpdate = false,
     this.startMode = StartMode.thisPhone,
+    this.replayGainMode = ReplayGainMode.off,
     this.remoteAutoStart = false,
     this.searchHistory = const [],
     this.lastUpdateCheck = 0,
@@ -102,6 +104,10 @@ class AppSettings {
 
   /// What the app shows when it opens.
   final StartMode startMode;
+
+  /// Lower loud songs to the level in their Replay Gain tags (it can only turn
+  /// songs down, never up).
+  final ReplayGainMode replayGainMode;
 
   /// Start remote playback (let other phones control this one) when the app
   /// opens.
@@ -142,6 +148,7 @@ class AppSettings {
       lyricsEnabled: m[SettingKeys.lyricsEnabled] != 'false',
       pendingUpdate: m[SettingKeys.pendingUpdate] == 'true',
       startMode: StartModeX.parse(m[SettingKeys.startMode]),
+      replayGainMode: ReplayGainModeX.parse(m[SettingKeys.replayGainMode]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
@@ -241,6 +248,9 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setReplayGainMode(ReplayGainMode v) =>
+      _put(SettingKeys.replayGainMode, v.name);
 
   Future<void> setStartMode(StartMode v) => _put(SettingKeys.startMode, v.name);
 

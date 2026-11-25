@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import '../../core/models/enums.dart';
 import '../../core/protocol/library_models.dart';
@@ -88,6 +89,32 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   double _volume;
   double _speed = 1.0;
   bool _disposed = false;
+
+  ReplayGainMode _replayGain = ReplayGainMode.off;
+
+  /// How loud songs are evened out from their Replay Gain tags. It only turns
+  /// loud songs down (never up, which could distort).
+  Future<void> setReplayGainMode(ReplayGainMode mode) => _serial(() async {
+        _replayGain = mode;
+        await _backend.setVolume(_effectiveVolume());
+      });
+
+  /// The volume given to the audio player: the chosen volume times the Replay
+  /// Gain adjustment of the song that is loaded.
+  double _effectiveVolume() => (_volume * _replayGainFactor()).clamp(0.0, 1.0);
+
+  double _replayGainFactor() {
+    if (_replayGain == ReplayGainMode.off) return 1.0;
+    final id = _loadedEntryId;
+    if (id == null) return 1.0;
+    final song = _queue.current?.id == id ? _queue.current?.song : null;
+    if (song == null) return 1.0;
+    final db = _replayGain == ReplayGainMode.album
+        ? (song.albumGainDb ?? song.replayGainDb)
+        : song.replayGainDb;
+    if (db == null || db >= 0) return 1.0;
+    return math.pow(10, db / 20).toDouble();
+  }
 
   /// True while a track is being opened (an internet stream can take seconds).
   bool _loading = false;
@@ -243,6 +270,9 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     }
     final song = next.song;
     _loadedEntryId = next.id;
+    if (_replayGain != ReplayGainMode.off) {
+      unawaited(_backend.setVolume(_effectiveVolume()));
+    }
     _readFormat(next);
     _positionSeconds = 0;
     _durationSeconds = song.durationSeconds;
@@ -382,6 +412,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
               ? await _backend.loadUrl(song.url!)
               : await _backend.load(path!);
           _loadedEntryId = current.id;
+          if (_replayGain != ReplayGainMode.off) await _backend.setVolume(_effectiveVolume());
           // Loading cleared whatever was lined up behind the old track.
           _readFormat(current);
           _preloadedEntryId = null;
@@ -537,7 +568,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
           );
         }
         _volume = volume;
-        await _backend.setVolume(volume);
+        await _backend.setVolume(_effectiveVolume());
         _emit();
       });
 

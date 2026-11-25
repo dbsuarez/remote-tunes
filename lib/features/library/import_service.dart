@@ -223,6 +223,8 @@ class LibraryImportService {
         albumArtist: meta.albumArtist,
         genre: meta.genre,
         year: meta.year,
+        replayGainDb: meta.replayGainDb,
+        albumGainDb: meta.albumGainDb,
       );
       result.added++;
     } catch (_) {
@@ -263,9 +265,17 @@ class LibraryImportService {
       try {
         if (!await File(f.path).exists()) continue;
         final meta = await _extractor.extract(f.path);
-        if (meta.albumArtist != null || meta.genre != null || meta.year != null) {
+        if (meta.albumArtist != null ||
+            meta.genre != null ||
+            meta.year != null ||
+            meta.replayGainDb != null ||
+            meta.albumGainDb != null) {
           await _library.updateSongTags(f.id,
-              albumArtist: meta.albumArtist, genre: meta.genre, year: meta.year);
+              albumArtist: meta.albumArtist,
+              genre: meta.genre,
+              year: meta.year,
+              replayGainDb: meta.replayGainDb,
+              albumGainDb: meta.albumGainDb);
           filled++;
         }
       } catch (_) {

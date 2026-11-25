@@ -14,6 +14,8 @@ class PlayableSong {
     this.albumArtPath,
     this.licenseUrl,
     this.imageUrl,
+    this.replayGainDb,
+    this.albumGainDb,
   }) : assert((filePath == null) != (url == null),
             'A song has either a file path or a url, not both.');
 
@@ -29,7 +31,13 @@ class PlayableSong {
         filePath = null,
         durationSeconds = 0,
         trackNumber = null,
-        albumArtPath = null;
+        albumArtPath = null,
+        replayGainDb = null,
+        albumGainDb = null;
+
+  /// Replay Gain tags in dB (null: the file has none).
+  final double? replayGainDb;
+  final double? albumGainDb;
 
   /// Library id (0 for internet streams).
   final int id;

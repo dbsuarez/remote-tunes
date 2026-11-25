@@ -223,6 +223,32 @@ class SettingsScreen extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => context.push(AppRoutes.equalizer),
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.graphic_eq_rounded),
+                title: const Text('Even out loudness'),
+                subtitle: const Text(
+                    'Turns loud songs down to the level in their Replay Gain tags, so songs sound '
+                    'about equally loud. Run "Update tags from files" once to read the tags. '
+                    'It never turns a song up.'),
+              ),
+              RadioGroup<ReplayGainMode>(
+                groupValue: s.replayGainMode,
+                onChanged: (v) {
+                  if (v != null) repo.setReplayGainMode(v);
+                },
+                child: Column(
+                  children: [
+                    for (final m in ReplayGainMode.values)
+                      RadioListTile<ReplayGainMode>(
+                        contentPadding: const EdgeInsets.only(left: 16),
+                        dense: true,
+                        value: m,
+                        title: Text(m.label),
+                      ),
+                  ],
+                ),
+              ),
               const AlbumArtTile(),
               ListTile(
                 contentPadding: EdgeInsets.zero,

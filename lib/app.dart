@@ -8,6 +8,7 @@ import 'core/haptics.dart';
 import 'core/router/app_router.dart';
 import 'core/search_history.dart';
 import 'features/update/update_controller.dart';
+import 'providers/connection_providers.dart';
 import 'core/song_list_style.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/providers.dart';
@@ -54,6 +55,13 @@ class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> with WidgetsBin
       // The saved searches are picked up once; after that the list is saved
       // whenever it changes (below).
       ref.read(searchHistoryProvider.notifier).load(settings.searchHistory);
+      // Loudness evening follows the setting (once this phone's player exists).
+      ref
+          .read(playerCoreProvider)
+          .valueOrNull
+          ?.localEngine
+          .setReplayGainMode(settings.replayGainMode)
+          .catchError((Object _) {});
     });
     ref.listen(searchHistoryProvider, (prev, next) {
       if (prev == null || identical(prev, next)) return;
