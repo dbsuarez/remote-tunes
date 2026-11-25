@@ -26,6 +26,9 @@ class FakeR2 {
   int failPutsFrom = -1; // fail every PUT from this count on
   int failStatus = 500;
   bool refuse = false;
+
+  /// When set, only requests signed with this key id are accepted (others get 403).
+  String? acceptKeyId;
   int puts = 0;
 
   http.Response handle(http.Request r) {
@@ -37,13 +40,13 @@ class FakeR2 {
     }
     expect(r.url.host, '$_account.r2.cloudflarestorage.com');
     final auth = r.headers['authorization'] ?? '';
-    expect(auth, startsWith('AWS4-HMAC-SHA256 Credential=KEYID/'));
+    expect(auth, startsWith('AWS4-HMAC-SHA256 Credential='));
     expect(auth, contains('/auto/s3/aws4_request'));
     expect(auth, contains('SignedHeaders=host;x-amz-content-sha256;x-amz-date'));
     expect(r.headers['x-amz-date'], matches(RegExp(r'^\d{8}T\d{6}Z$')));
     final hash = r.headers['x-amz-content-sha256']!;
     if (hash != SigV4.unsignedPayload) expect(hash, SigV4.sha256Hex(r.bodyBytes), reason: 'the body hash must be of the body');
-    if (refuse) return http.Response('', 403);
+    if (refuse || (acceptKeyId != null && !auth.contains('Credential=$acceptKeyId/'))) return http.Response('', 403);
     expect(r.url.path, startsWith('/remotetunes/'));
     final key = r.url.path.substring('/remotetunes/'.length);
     switch (r.method) {

@@ -68,6 +68,79 @@ void main() {
     expect(CloudConfig.parseS3Address(''), isNull);
   });
 
+  group('a notes file with the Cloudflare details', () {
+    // The same layout Cloudflare's page gives, with made-up values.
+    const notes = '''bucket name
+mybucket
+
+S3 API
+https://aaaabbbbccccddddeeeeffff00001111.r2.cloudflarestorage.com/mybucket
+
+Public Development URL
+https://pub-0123456789abcdef.r2.dev
+
+Account ID
+aaaabbbbccccddddeeeeffff00001111
+
+==
+
+Token value
+cfat_notakey
+
+Access Key ID
+firstkeyid0000000000000000000001
+
+Secret Access Key
+firstsecret
+
+Use jurisdiction-specific endpoints for S3 clients:
+https://aaaabbbbccccddddeeeeffff00001111.r2.cloudflarestorage.com
+
+==
+
+Token value
+cfut_notakey
+
+Use the following credentials for S3 clients:
+Access Key ID
+secondkeyid000000000000000000002
+
+Secret Access Key
+secondsecret
+''';
+
+    test('everything is found, with both pairs of keys in order', () {
+      final n = R2Notes.parse(notes);
+      expect((n.accountId, n.bucket, n.publicUrl), ('aaaabbbbccccddddeeeeffff00001111', 'mybucket', 'https://pub-0123456789abcdef.r2.dev'));
+      expect(n.keys.map((k) => '${k.id}/${k.secret}'), ['firstkeyid0000000000000000000001/firstsecret', 'secondkeyid000000000000000000002/secondsecret']);
+      expect(n.toConfig().accessKeyId, 'firstkeyid0000000000000000000001');
+      expect(n.toConfig(1).secretKey, 'secondsecret');
+      expect(n.toConfig(5).accessKeyId, isEmpty, reason: 'no such pair');
+      expect(n.isEmpty, isFalse);
+    });
+
+    test('labels with a colon, Windows line ends, and a slash after the address', () {
+      final n = R2Notes.parse('Account ID: aaaabbbbccccddddeeeeffff00001111\r\nBucket name = b\r\nAccess Key ID: kid\r\nSecret Access Key: sec\r\nhttps://pub-1.r2.dev/\r\n');
+      expect((n.accountId, n.bucket, n.publicUrl), ('aaaabbbbccccddddeeeeffff00001111', 'b', 'https://pub-1.r2.dev'));
+      expect(n.keys.single.id, 'kid');
+      expect(n.keys.single.secret, 'sec');
+    });
+
+    test('only the addresses: no keys', () {
+      final n = R2Notes.parse('https://aaaabbbbccccddddeeeeffff00001111.r2.cloudflarestorage.com/mybucket\nhttps://pub-9.r2.dev');
+      expect((n.accountId, n.bucket, n.publicUrl), ('aaaabbbbccccddddeeeeffff00001111', 'mybucket', 'https://pub-9.r2.dev'));
+      expect(n.keys, isEmpty);
+    });
+
+    test('a secret with no id before it is not paired; other addresses are not taken for the public one', () {
+      final n = R2Notes.parse('Secret Access Key\nlonely\nhttps://example.com/x');
+      expect(n.keys, isEmpty);
+      expect(n.publicUrl, isEmpty);
+      expect(R2Notes.parse('').isEmpty, isTrue);
+      expect(R2Notes.parse('just some words\nnothing here').isEmpty, isTrue);
+    });
+  });
+
   group('the settings screen', () {
     late FakeR2 r2;
     late CloudConfigStore store;
@@ -130,6 +203,117 @@ void main() {
       expect((c!.accountId, c.bucket), (config.accountId, 'remotetunes'));
     });
 
+    group('importing from a file', () {
+      final two = [
+        'bucket name',
+        'remotetunes',
+        'https://${config.accountId}.r2.cloudflarestorage.com/remotetunes',
+        'https://pub-123.r2.dev',
+        'Account ID',
+        config.accountId,
+        'Access Key ID',
+        'keyone',
+        'Secret Access Key',
+        'secretone',
+        'Access Key ID',
+        'keytwo',
+        'Secret Access Key',
+        'secrettwo',
+      ].join('\n');
+      String? picked;
+      var pickerAsked = 0;
+
+      Future<void> openWithFile(WidgetTester tester) async {
+        tester.view.physicalSize = const Size(500, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(ProviderScope(
+          overrides: [
+            cloudConfigStoreProvider.overrideWithValue(store),
+            cloudNotesPickerProvider.overrideWithValue(() async {
+              pickerAsked++;
+              return picked;
+            }),
+            cloudServiceFactoryProvider.overrideWithValue((c) => CloudLibraryService(
+                  c,
+                  client: MockClient((r) async => r2.handle(r)),
+                  now: () => DateTime.utc(2026),
+                )),
+          ],
+          child: const MaterialApp(home: CloudSettingsScreen()),
+        ));
+        await settle(tester);
+      }
+
+      setUp(() {
+        picked = two;
+        pickerAsked = 0;
+      });
+
+      screenTest('fills every field, tries the keys and saves', (tester) async {
+        await openWithFile(tester);
+        await tester.tap(find.byKey(const Key('cloud-import')));
+        await settle(tester);
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-url'))).controller!.text, 'https://pub-123.r2.dev');
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-account'))).controller!.text, config.accountId);
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-bucket'))).controller!.text, 'remotetunes');
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-key-id'))).controller!.text, 'keyone');
+        expect(find.textContaining('The keys work'), findsOneWidget);
+        final c = await tester.runAsync(store.load);
+        expect((c!.accessKeyId, c.secretKey, c.bucket, c.canWrite), ('keyone', 'secretone', 'remotetunes', true));
+      });
+
+      screenTest('goes on to the second pair when the first is refused', (tester) async {
+        r2.acceptKeyId = 'keytwo';
+        await openWithFile(tester);
+        await tester.tap(find.byKey(const Key('cloud-import')));
+        await settle(tester);
+        await settle(tester);
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-key-id'))).controller!.text, 'keytwo');
+        expect(find.textContaining('key set 2 of 2'), findsOneWidget);
+        expect((await tester.runAsync(store.load))!.secretKey, 'secrettwo');
+      });
+
+      screenTest('when no pair works, it says so and keeps what it read', (tester) async {
+        r2.refuse = true;
+        await openWithFile(tester);
+        await tester.tap(find.byKey(const Key('cloud-import')));
+        await settle(tester);
+        await settle(tester);
+        expect(find.textContaining('did not work'), findsOneWidget);
+        expect(find.textContaining('refused the keys'), findsOneWidget);
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-bucket'))).controller!.text, 'remotetunes');
+      });
+
+      screenTest('a file with no keys fills the rest and says so', (tester) async {
+        picked = 'https://aaaabbbbccccddddeeeeffff00001111.r2.cloudflarestorage.com/mybucket\nhttps://pub-123.r2.dev';
+        await openWithFile(tester);
+        await tester.tap(find.byKey(const Key('cloud-import')));
+        await settle(tester);
+        expect(find.textContaining('There were no keys'), findsOneWidget);
+        expect(tester.widget<TextField>(find.byKey(const Key('cloud-url'))).controller!.text, 'https://pub-123.r2.dev');
+        expect((await tester.runAsync(store.load))!.canRead, isTrue);
+      });
+
+      screenTest('a file that is not about Cloudflare changes nothing', (tester) async {
+        picked = 'shopping list: milk, eggs';
+        await openWithFile(tester);
+        await tester.tap(find.byKey(const Key('cloud-import')));
+        await settle(tester);
+        expect(find.textContaining('no Cloudflare R2 details'), findsOneWidget);
+        expect((await tester.runAsync(store.load))!.canRead, isFalse);
+      });
+
+      screenTest('cancelling the file choice does nothing', (tester) async {
+        picked = null;
+        await openWithFile(tester);
+        await tester.tap(find.byKey(const Key('cloud-import')));
+        await settle(tester);
+        expect(pickerAsked, 1);
+        expect(find.byKey(const Key('cloud-message')), findsNothing);
+      });
+    });
+
     screenTest('Save keeps what was typed', (tester) async {
       await open(tester);
       await fill(tester);
@@ -177,7 +361,7 @@ void main() {
       await fill(tester, keys: false);
       await tester.tap(find.byKey(const Key('cloud-test-keys')));
       await settle(tester);
-      expect(find.textContaining('account id'), findsOneWidget);
+      expect(find.textContaining('The account id is 32'), findsOneWidget);
       await fill(tester);
       await tester.tap(find.byKey(const Key('cloud-test-keys')));
       await settle(tester);

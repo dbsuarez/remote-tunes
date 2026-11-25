@@ -233,3 +233,79 @@ class CloudCatalog {
     return null;
   }
 }
+
+/// What was found in a notes file with the Cloudflare R2 details (the page Cloudflare shows after a token
+/// is made, copied into a text file): the labels, each on a line with the value on the next (or after a
+/// colon).
+class R2Notes {
+  const R2Notes({this.accountId = '', this.bucket = '', this.publicUrl = '', this.keys = const []});
+
+  final String accountId;
+  final String bucket;
+  final String publicUrl;
+
+  /// Every Access Key ID / Secret Access Key pair found, in the order they appear.
+  final List<({String id, String secret})> keys;
+
+  bool get isEmpty => accountId.isEmpty && bucket.isEmpty && publicUrl.isEmpty && keys.isEmpty;
+
+  /// The settings for the [n]th pair of keys (the first by default).
+  CloudConfig toConfig([int n = 0]) => CloudConfig(
+        accountId: accountId,
+        bucket: bucket,
+        publicUrl: publicUrl,
+        accessKeyId: n < keys.length ? keys[n].id : '',
+        secretKey: n < keys.length ? keys[n].secret : '',
+      );
+
+  /// Reads the notes. Anything that is not found is left empty; nothing is guessed.
+  static R2Notes parse(String text) {
+    final lines = [for (final l in text.split(RegExp(r'\r?\n'))) l.trim()];
+    String lower(String s) => s.toLowerCase();
+
+    /// The value of a label: after a colon on the same line, else the next line that is not empty.
+    String? valueOf(int i, String label) {
+      final line = lines[i];
+      final rest = line.substring(label.length).replaceFirst(RegExp(r'^\s*[:=]\s*'), '').trim();
+      if (rest.isNotEmpty) return rest;
+      for (var j = i + 1; j < lines.length && j <= i + 2; j++) {
+        if (lines[j].isNotEmpty) return lines[j];
+      }
+      return null;
+    }
+
+    var account = '', bucket = '', publicUrl = '';
+    final ids = <String>[];
+    final secrets = <String>[];
+    final keys = <({String id, String secret})>[];
+    for (var i = 0; i < lines.length; i++) {
+      final l = lower(lines[i]);
+      if (l.startsWith('account id')) {
+        account = valueOf(i, 'account id') ?? account;
+      } else if (l.startsWith('bucket name')) {
+        bucket = valueOf(i, 'bucket name') ?? bucket;
+      } else if (l.startsWith('access key id')) {
+        final v = valueOf(i, 'access key id');
+        if (v != null) ids.add(v);
+      } else if (l.startsWith('secret access key')) {
+        final v = valueOf(i, 'secret access key');
+        if (v != null) {
+          secrets.add(v);
+          if (ids.length >= secrets.length) keys.add((id: ids[secrets.length - 1], secret: v));
+        }
+      }
+      // The addresses can be anywhere: the S3 address gives the account and bucket, the r2.dev one is public.
+      final url = RegExp(r'https://[^\s]+').firstMatch(lines[i])?.group(0);
+      if (url != null) {
+        final s3 = CloudConfig.parseS3Address(url);
+        if (s3 != null) {
+          if (account.isEmpty) account = s3.accountId;
+          if (bucket.isEmpty) bucket = s3.bucket;
+        } else if (Uri.tryParse(url)?.host.endsWith('.r2.dev') ?? false) {
+          if (publicUrl.isEmpty) publicUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+        }
+      }
+    }
+    return R2Notes(accountId: account, bucket: bucket, publicUrl: publicUrl, keys: keys);
+  }
+}

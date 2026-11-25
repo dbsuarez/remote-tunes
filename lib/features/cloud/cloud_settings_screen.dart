@@ -106,6 +106,70 @@ class _CloudSettingsScreenState extends ConsumerState<CloudSettingsScreen> {
         _say('The keys work. The bucket holds $n song${n == 1 ? '' : 's'}.', good: true);
       }, writing: true);
 
+  /// Fills everything from a notes file (the details Cloudflare shows, saved as text). If it has more
+  /// than one pair of keys, the first one that Cloudflare accepts is used.
+  Future<void> _import() async {
+    final String? text;
+    try {
+      text = await ref.read(cloudNotesPickerProvider)();
+    } catch (_) {
+      _say("The file couldn't be opened.");
+      return;
+    }
+    if (text == null) return;
+    final notes = R2Notes.parse(text);
+    if (notes.isEmpty) {
+      _say('That file has no Cloudflare R2 details in it (account id, bucket, public address or keys).');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _url.text = notes.publicUrl.isNotEmpty ? notes.publicUrl : _url.text;
+      _account.text = notes.accountId.isNotEmpty ? notes.accountId : _account.text;
+      _bucket.text = notes.bucket.isNotEmpty ? notes.bucket : _bucket.text;
+    });
+    try {
+      if (notes.keys.isEmpty) {
+        final c = notes.toConfig();
+        await ref.read(cloudConfigStoreProvider).save(_config.copyWith(publicUrl: c.publicUrl.isEmpty ? _config.publicUrl : c.publicUrl));
+        ref.invalidate(cloudConfigProvider);
+        _say('Filled in the address, account and bucket. There were no keys in that file.', good: true);
+        return;
+      }
+      // Try each pair of keys until Cloudflare accepts one.
+      String? lastProblem;
+      for (var n = 0; n < notes.keys.length; n++) {
+        final c = _config.copyWith(accessKeyId: notes.keys[n].id, secretKey: notes.keys[n].secret);
+        setState(() {
+          _keyId.text = c.accessKeyId;
+          _secret.text = c.secretKey;
+        });
+        final problem = c.problem(forWriting: true);
+        if (problem != null) {
+          lastProblem = problem;
+          continue;
+        }
+        try {
+          final count = await ref.read(cloudServiceFactoryProvider)(c).testKeys();
+          await ref.read(cloudConfigStoreProvider).save(c);
+          ref.invalidate(cloudConfigProvider);
+          final which = notes.keys.length > 1 ? ' (key set ${n + 1} of ${notes.keys.length})' : '';
+          _say('Filled in from the file and saved$which. The keys work; the bucket holds $count song${count == 1 ? '' : 's'}.', good: true);
+          return;
+        } on R2Exception catch (e) {
+          lastProblem = e.message;
+          if (!e.refused) break; // no internet and the like: another pair would fail the same way
+        }
+      }
+      // Nothing was accepted: what was read stays in the fields so it can be fixed by hand.
+      await ref.read(cloudConfigStoreProvider).save(_config);
+      ref.invalidate(cloudConfigProvider);
+      _say('Filled in from the file, but the keys did not work: ${lastProblem ?? 'unknown problem'}');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _forgetKeys() async {
     await ref.read(cloudConfigStoreProvider).clearKeys();
     ref.invalidate(cloudConfigProvider);
@@ -130,6 +194,19 @@ class _CloudSettingsScreenState extends ConsumerState<CloudSettingsScreen> {
                     'Your own songs, stored in your own Cloudflare R2 bucket, and played from there. '
                     'Only upload songs you own or may share.',
                     style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    key: const Key('cloud-import'),
+                    onPressed: _busy ? null : _import,
+                    icon: const Icon(Icons.file_open_outlined),
+                    label: const Text('Import everything from a file'),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'A text file with the details Cloudflare shows (account id, bucket, public address, access key id and '
+                    'secret). Copy it to this phone, pick it here, and the fields are filled in and the keys tried.',
+                    style: muted,
                   ),
                   const SizedBox(height: 16),
                   Text('To browse and play', style: theme.textTheme.titleMedium),
