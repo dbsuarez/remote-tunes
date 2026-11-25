@@ -30,6 +30,7 @@ import '../features/player/audio/crossfade_backend.dart';
 import '../features/player/audio/player_audio_handler.dart';
 import '../features/player/eq/equalizer_controller.dart';
 import '../features/player/eq/settings_eq_store.dart';
+import '../features/player/play_modes_saver.dart';
 import '../features/player/player_core.dart';
 import '../features/player/player_host.dart';
 import '../features/player/sleep_timer.dart';
@@ -65,6 +66,19 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   );
   unawaited(localEngine.setReplayGainMode(settings.replayGainMode));
   unawaited(localEngine.setCrossfade(settings.crossfadeSeconds));
+  // Shuffle and repeat come back as they were left (and are kept whenever they
+  // change).
+  try {
+    await localEngine.setShuffle(settings.shuffleEnabled);
+    await localEngine.setRepeatMode(settings.repeatMode);
+  } catch (_) {}
+  final playModes = PlayModesSaver(
+    engine: localEngine,
+    store: ref.watch(settingsRepositoryProvider),
+    shuffle: settings.shuffleEnabled,
+    repeat: settings.repeatMode,
+  )..start();
+  ref.onDispose(playModes.dispose);
   // The queue is kept between runs: pick up where it was, paused.
   try {
     await localEngine.restoreQueue();

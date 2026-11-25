@@ -40,23 +40,23 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 ## Still to do
 
 ### Audio engine (Player side)
-- [ ] **Crossfade:** a fade between songs. A real overlap needs a second audio player running at the same time as the first, and a length setting; it has to stay compatible with gapless. Not started.
+- [x] **Crossfade** (Settings > Crossfade, 0 to 12 s): two audio players, one fading out while the next fades in (equal power). Only between songs that are files on this phone; with it on, gapless lining-up is replaced by the fade; short songs, repeat-one, internet tracks and the last song just change. Never tried on a phone: it needs listening tests.
 - [x] **EQ (built-in):** Android's own equalizer (usually 5 bands, differs per phone) with 9 presets, a slider per band, and settings remembered per sound output (speaker / wired / Bluetooth) that come back when that output is in use. Equalizer icon in the top bar and in Settings. Not done: a true 10-band EQ (needs our own audio processing), the response curve, Tone / Limit switches and Bass / Treble knobs.
 - [x] **Replay Gain from tags** (schema v8): Settings > Even out loudness (Off / By song / By album) turns loud songs down to the level in their Replay Gain tags (read by "Update tags from files" and on import). It never turns a song up. Not done: *measuring* loudness for files that have no tags (that needs decoding every file).
 
 ### Library and search
 - [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Still to do: Composers (the tag reader only gives it for MP3) and a folder tree next to the flat Folders list.
-- [ ] Search: an Album Artists scope, and a Shuffle / Play / Select row on the results.
+- [x] Search: Album Artists scope and Play / Shuffle for the results. (A Select row is not done.)
 - [ ] Tag editor: write the tags into the music files (needs a writer and Android 11+ file-edit permission); today it only changes RemoteTunes' listing.
 
 ### UI / UX
-- [x] **EQ screen** (sliders, presets, per-output memory); the extras (preamp, curve, Tone / Limit, Bass / Treble) are still to do.
+- [x] **EQ screen** with sliders, presets, per-output memory, a response curve, Preamp, Tone (Bass / Treble knobs) and Limit. Preamp up uses the phone's loudness enhancer, down lowers the volume. Not done: a true 10-band EQ.
 - [ ] **Bottom bar** (Library, EQ, Search, Queue) with a persistent mini player and progress line on every screen. A big navigation change: it would replace the top tabs.
 - [ ] **Menu with shortcuts** (Settings, Lyrics, Playlists, Skin settings, Library, Changelog, Help).
 - [ ] **Skinning engine** (JSON themes, named skins) that respects the album-art accent and the design guardrails.
 - [ ] **Visualizer tab** (Player only). Needs audio analysis; the microphone permission or a simulated animation.
 - [ ] Now Playing v2 on the **Player's own screen** (it still has the small card), and the edge swipes there.
-- [ ] A **favorite button** on the lock screen.
+- [x] A **favorite button** on the lock screen / notification (heart; shows only for library songs; may not appear on phones whose system hides notification buttons).
 
 ### Lyrics
 - [ ] Megalobiz fallback (scraping a site that asks for attribution; skipped unless LRCLIB misses a lot).
@@ -76,6 +76,13 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] The "Adding music" card has a fixed size (file names no longer make it jump).
 - [x] Notification: rebuilt only when something changes (it was rebuilt every second), and it has its own channel with normal importance and no sound. Lock-screen player: see the notes below.
 - [x] Group play and Auto-align verified by the owner on two phones.
+
+### Done in the batch after v0.9.0
+- [x] Pairing requests pop up over whatever screen is open (no need to open the Remote playback page).
+- [x] Keep the screen on while adding songs, updating tags and finding album art.
+- [x] Library > Folders: pick several folders (long-press) and add them to a playlist or the queue; Back from an opened folder (or artist, album, playlist, genre...) returns to the same spot in the list with that row quietly tinted, and a search is kept.
+- [x] Shuffle and repeat are remembered between runs (they use the Settings > Playback values, which now follow the Now Playing buttons).
+- [ ] Not done: retiring the classic Home / Player / Controller screens (kept: they still back the "Classic start screen" option and many tests).
 
 ### Verification and housekeeping (owner)
 - [ ] Try everything on the phones with `docs/19_PHONE_TEST_CHECKLIST.md`: gapless, lyrics, edge swipes, Now Playing v2, library list, search, album-art finder, lock screen, updates, and group play / Auto-align (never verified).

@@ -71,8 +71,12 @@ class FakeMusicSource implements MusicSource {
       int offset = 0,
       int limit = 50}) async {
     if (failWith != null) throw failWith!;
-    return _page(_filter(query, artist, album, view: view, playlistId: playlistId),
-        offset, limit);
+    var all = _filter(query, artist, album, view: view, playlistId: playlistId);
+    if (folderId != null) {
+      final ids = folderSongs[folderId] ?? const <int>[];
+      all = [for (final s in all) if (ids.contains(s.id)) s];
+    }
+    return _page(all, offset, limit);
   }
 
   final groupsByKind = <String, List<RemoteGroup>>{};
@@ -95,10 +99,20 @@ class FakeMusicSource implements MusicSource {
     return lyricsResult;
   }
 
+  /// The folders the fake Player has, and which songs are in each.
+  final folderList = <RemoteFolder>[];
+  final folderSongs = <int, List<int>>{};
+
   @override
   Future<LibraryPage<RemoteFolder>> folders(
           {String query = '', int offset = 0, int limit = 50}) async =>
-      _page(const <RemoteFolder>[], offset, limit);
+      _page(
+          [
+            for (final f in folderList)
+              if (query.isEmpty || f.name.toLowerCase().contains(query.toLowerCase())) f
+          ],
+          offset,
+          limit);
 
   @override
   Future<LibraryPage<RemotePlaylist>> playlists(

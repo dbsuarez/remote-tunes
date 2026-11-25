@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/screen_awake.dart';
 import '../../providers/providers.dart';
 import '../library/album_art_fetcher.dart';
 
@@ -69,7 +70,8 @@ class _AlbumArtDialogState extends ConsumerState<AlbumArtDialog> {
 
   Future<void> _start() async {
     setState(() => _phase = _Phase.working);
-    final r = await ref.read(albumArtFetcherProvider).run(
+    // The screen stays on while it works, so the phone does not lock halfway.
+    final r = await ScreenAwake.during(() => ref.read(albumArtFetcherProvider).run(
           onProgress: (d, t) {
             if (!mounted) return;
             setState(() {
@@ -78,7 +80,7 @@ class _AlbumArtDialogState extends ConsumerState<AlbumArtDialog> {
             });
           },
           isCancelled: () => _cancel,
-        );
+        ));
     if (!mounted) return;
     setState(() {
       _result = r;

@@ -181,6 +181,12 @@ class CrossfadeBackend implements AudioBackend {
   }
 
   @override
+  Future<void> setPreamp(double db) async {
+    await _a.setPreamp(db);
+    await _b.setPreamp(db);
+  }
+
+  @override
   Future<bool> crossfadeTo(String filePath, Duration length) async {
     if (_fade != null || length <= Duration.zero) return false;
     final incoming = _other;

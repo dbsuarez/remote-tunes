@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 
 import 'package:just_audio/just_audio.dart';
 
@@ -79,19 +80,48 @@ abstract class AudioBackend {
   /// Switches the equalizer on or off and sets the gain (dB) of each band.
   Future<void> setEqualizer({required bool enabled, required List<double> gains});
 
+  /// Raises (+) or lowers (-) the whole sound by [db], before the volume.
+  Future<void> setPreamp(double db);
+
   Future<void> dispose();
 }
 
 class JustAudioBackend implements AudioBackend {
-  JustAudioBackend() : this._(Platform.isAndroid ? AndroidEqualizer() : null);
+  JustAudioBackend()
+      : this._(
+          Platform.isAndroid ? AndroidEqualizer() : null,
+          Platform.isAndroid ? AndroidLoudnessEnhancer() : null,
+        );
 
-  JustAudioBackend._(this._eq)
+  JustAudioBackend._(this._eq, this._loudness)
       : _player = AudioPlayer(
-          audioPipeline: _eq == null ? null : AudioPipeline(androidAudioEffects: [_eq]),
+          audioPipeline: _eq == null
+              ? null
+              : AudioPipeline(androidAudioEffects: [_eq, if (_loudness != null) _loudness]),
         );
 
   final AndroidEqualizer? _eq;
+  final AndroidLoudnessEnhancer? _loudness;
   final AudioPlayer _player;
+
+  double _volume = 1.0;
+  double _preampFactor = 1.0;
+
+  /// Turning the whole sound up uses the phone's loudness enhancer; turning it
+  /// down lowers the player's volume.
+  @override
+  Future<void> setPreamp(double db) async {
+    _preampFactor = db < 0 ? math.pow(10, db / 20).toDouble() : 1.0;
+    await _player.setVolume((_volume * _preampFactor).clamp(0.0, 1.0));
+    final enhancer = _loudness;
+    if (enhancer == null) return;
+    try {
+      await enhancer.setTargetGain(db > 0 ? db : 0);
+      await enhancer.setEnabled(db > 0);
+    } catch (_) {
+      // Not available on this phone: the preamp then only lowers.
+    }
+  }
 
   @override
   bool get supportsCrossfade => false;
@@ -254,7 +284,10 @@ class JustAudioBackend implements AudioBackend {
   Future<void> seek(Duration position) => _player.seek(position);
 
   @override
-  Future<void> setVolume(double volume) => _player.setVolume(volume);
+  Future<void> setVolume(double volume) {
+    _volume = volume;
+    return _player.setVolume((volume * _preampFactor).clamp(0.0, 1.0));
+  }
 
   @override
   Future<void> setSpeed(double speed) => _player.setSpeed(speed);

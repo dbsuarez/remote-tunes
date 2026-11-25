@@ -88,7 +88,13 @@ class EqualizerController extends ChangeNotifier {
         _settings = _settings.copyWith(gains: gains);
       }
       try {
-        await _backend.setEqualizer(enabled: _settings.enabled, gains: gains);
+        // What each band is really set to (sliders plus Bass / Treble), and the
+        // preamp (plus Limit's turning down). Nothing changes while it is off.
+        await _backend.setEqualizer(
+          enabled: _settings.enabled,
+          gains: _settings.effectiveGains(b),
+        );
+        await _backend.setPreamp(_settings.enabled ? _settings.effectivePreampDb(b) : 0);
       } catch (_) {
         // The effect could not be changed; the settings are still kept.
       }
@@ -128,6 +134,41 @@ class EqualizerController extends ChangeNotifier {
     _settings = _settings.copyWith(gains: gains, clearPreset: true, enabled: true);
     notifyListeners();
     await _apply();
+  }
+
+  Future<void> setPreamp(double db) async {
+    _settings = _settings.copyWith(
+        preampDb: db.clamp(-EqSettings.preampRange, EqSettings.preampRange).toDouble());
+    notifyListeners();
+    await _apply();
+  }
+
+  Future<void> setToneOn(bool on) async {
+    _settings = _settings.copyWith(toneOn: on);
+    notifyListeners();
+    await _apply();
+    await _save();
+  }
+
+  Future<void> setBass(double db) async {
+    _settings = _settings.copyWith(
+        bassDb: db.clamp(-EqSettings.toneRange, EqSettings.toneRange).toDouble(), toneOn: true);
+    notifyListeners();
+    await _apply();
+  }
+
+  Future<void> setTreble(double db) async {
+    _settings = _settings.copyWith(
+        trebleDb: db.clamp(-EqSettings.toneRange, EqSettings.toneRange).toDouble(), toneOn: true);
+    notifyListeners();
+    await _apply();
+  }
+
+  Future<void> setLimit(bool on) async {
+    _settings = _settings.copyWith(limit: on);
+    notifyListeners();
+    await _apply();
+    await _save();
   }
 
   /// Saves after a slider was let go.

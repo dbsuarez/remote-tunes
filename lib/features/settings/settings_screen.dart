@@ -124,6 +124,10 @@ class SettingsScreen extends ConsumerWidget {
                 onSave: repo.setDefaultVolume,
               ),
               const SizedBox(height: 8),
+              Text('Repeat and shuffle are remembered: they stay as you leave them with the buttons on Now Playing.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 8),
               Text('Repeat', style: theme.textTheme.bodyMedium),
               const SizedBox(height: 8),
               SizedBox(

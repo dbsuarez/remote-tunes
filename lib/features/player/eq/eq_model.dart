@@ -80,9 +80,35 @@ class EqPreset {
 
 /// What the equalizer is set to.
 class EqSettings {
-  const EqSettings({this.enabled = false, this.preset, this.gains = const []});
+  const EqSettings({
+    this.enabled = false,
+    this.preset,
+    this.gains = const [],
+    this.preampDb = 0,
+    this.toneOn = false,
+    this.bassDb = 0,
+    this.trebleDb = 0,
+    this.limit = false,
+  });
 
   final bool enabled;
+
+  /// Overall level before the bands (dB, -12 to +12).
+  final double preampDb;
+
+  /// The Bass / Treble knobs are in use.
+  final bool toneOn;
+
+  /// Extra bass and treble (dB, -10 to +10), added on top of the bands.
+  final double bassDb;
+  final double trebleDb;
+
+  /// Turns everything down by as much as the bands boost, so loud passages do
+  /// not distort.
+  final bool limit;
+
+  static const preampRange = 12.0;
+  static const toneRange = 10.0;
 
   /// The preset these gains came from; null once a slider was moved by hand.
   final String? preset;
@@ -90,14 +116,76 @@ class EqSettings {
   /// dB per band (empty: not set yet, treated as flat).
   final List<double> gains;
 
-  EqSettings copyWith({bool? enabled, String? preset, bool clearPreset = false, List<double>? gains}) =>
+  EqSettings copyWith({
+    bool? enabled,
+    String? preset,
+    bool clearPreset = false,
+    List<double>? gains,
+    double? preampDb,
+    bool? toneOn,
+    double? bassDb,
+    double? trebleDb,
+    bool? limit,
+  }) =>
       EqSettings(
         enabled: enabled ?? this.enabled,
         preset: clearPreset ? null : (preset ?? this.preset),
         gains: gains ?? this.gains,
+        preampDb: preampDb ?? this.preampDb,
+        toneOn: toneOn ?? this.toneOn,
+        bassDb: bassDb ?? this.bassDb,
+        trebleDb: trebleDb ?? this.trebleDb,
+        limit: limit ?? this.limit,
       );
 
-  String toJson() => jsonEncode({'enabled': enabled, 'preset': preset, 'gains': gains});
+  /// What each band is really set to: the sliders plus, when Tone is on, the
+  /// Bass and Treble knobs (bass lifts the low bands, treble the high ones).
+  List<double> effectiveGains(EqBands bands) {
+    final base = gains.length == bands.count ? gains : List.filled(bands.count, 0.0);
+    return [
+      for (var i = 0; i < bands.count; i++)
+        (base[i] +
+                (toneOn
+                    ? bassDb * bassWeight(bands.centersHz[i]) +
+                        trebleDb * trebleWeight(bands.centersHz[i])
+                    : 0))
+            .clamp(bands.minDb, bands.maxDb)
+            .toDouble(),
+    ];
+  }
+
+  /// The level change to apply before the bands: the preamp, and with Limit on,
+  /// enough turning down to cancel the biggest boost.
+  double effectivePreampDb(EqBands bands) {
+    var db = preampDb;
+    if (limit) {
+      final boost = effectiveGains(bands).fold<double>(0, math.max);
+      db -= boost;
+    }
+    return db.clamp(-24.0, EqSettings.preampRange).toDouble();
+  }
+
+  /// 1 for deep bass, falling to 0 around 1.5 kHz.
+  static double bassWeight(double hz) =>
+      (1 - (math.log(hz) / math.ln10 - 2) / 1.2).clamp(0.0, 1.0).toDouble();
+
+  /// 0 below 1.5 kHz, rising to 1 for the highest treble.
+  static double trebleWeight(double hz) =>
+      ((math.log(hz) / math.ln10 - 3.2) / 1.0).clamp(0.0, 1.0).toDouble();
+
+  String toJson() => jsonEncode({
+        'enabled': enabled,
+        'preset': preset,
+        'gains': gains,
+        'preampDb': preampDb,
+        'toneOn': toneOn,
+        'bassDb': bassDb,
+        'trebleDb': trebleDb,
+        'limit': limit,
+      });
+
+  static double _num(Object? v, double range) =>
+      v is num ? v.toDouble().clamp(-range, range).toDouble() : 0.0;
 
   static EqSettings? fromJson(String? text) {
     if (text == null || text.isEmpty) return null;
@@ -109,6 +197,11 @@ class EqSettings {
         enabled: m['enabled'] == true,
         preset: m['preset'] is String ? m['preset'] as String : null,
         gains: g is List ? [for (final e in g) if (e is num) e.toDouble()] : const [],
+        preampDb: _num(m['preampDb'], EqSettings.preampRange),
+        toneOn: m['toneOn'] == true,
+        bassDb: _num(m['bassDb'], EqSettings.toneRange),
+        trebleDb: _num(m['trebleDb'], EqSettings.toneRange),
+        limit: m['limit'] == true,
       );
     } catch (_) {
       return null;

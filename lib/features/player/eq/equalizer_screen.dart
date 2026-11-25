@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -57,6 +59,8 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) c.refreshOutput();
   }
+
+  static String _db(double v) => '${v > 0 ? '+' : ''}${v.toStringAsFixed(1)} dB';
 
   static String _outputName(String route) => switch (route) {
         'speaker' => 'the phone speaker',
@@ -120,6 +124,24 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
               ],
             ),
             const SizedBox(height: 16),
+            // What the sound will look like: the bands and the Tone knobs together.
+            Opacity(
+              opacity: s.enabled ? 1 : 0.45,
+              child: SizedBox(
+                height: 96,
+                child: CustomPaint(
+                  key: const Key('eq-curve'),
+                  painter: EqCurvePainter(
+                    bands: bands,
+                    gains: s.effectiveGains(bands),
+                    line: theme.colorScheme.primary,
+                    grid: theme.colorScheme.outlineVariant,
+                  ),
+                  size: Size.infinite,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Opacity(
               opacity: s.enabled ? 1 : 0.45,
               child: SizedBox(
@@ -168,6 +190,90 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
               ),
             ),
             const Divider(),
+            // Preamp: the overall level before the bands.
+            Row(
+              children: [
+                SizedBox(
+                  width: 96,
+                  child: Text('Preamp\n${_db(s.preampDb)}', style: theme.textTheme.bodyMedium),
+                ),
+                Expanded(
+                  child: Slider(
+                    min: -EqSettings.preampRange,
+                    max: EqSettings.preampRange,
+                    divisions: 48,
+                    value: s.preampDb,
+                    onChanged: c.setPreamp,
+                    onChangeEnd: (_) => c.commit(),
+                  ),
+                ),
+              ],
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Tone'),
+              subtitle: const Text('Bass and Treble knobs on top of the bands.'),
+              value: s.toneOn,
+              onChanged: (v) {
+                Haptics.selection();
+                c.setToneOn(v);
+              },
+            ),
+            Opacity(
+              opacity: s.toneOn ? 1 : 0.45,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        child: Text('Bass\n${_db(s.bassDb)}', style: theme.textTheme.bodyMedium),
+                      ),
+                      Expanded(
+                        child: Slider(
+                          min: -EqSettings.toneRange,
+                          max: EqSettings.toneRange,
+                          divisions: 40,
+                          value: s.bassDb,
+                          onChanged: c.setBass,
+                          onChangeEnd: (_) => c.commit(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        child: Text('Treble\n${_db(s.trebleDb)}', style: theme.textTheme.bodyMedium),
+                      ),
+                      Expanded(
+                        child: Slider(
+                          min: -EqSettings.toneRange,
+                          max: EqSettings.toneRange,
+                          divisions: 40,
+                          value: s.trebleDb,
+                          onChanged: c.setTreble,
+                          onChangeEnd: (_) => c.commit(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Limit'),
+              subtitle: const Text(
+                  'Turns everything down by as much as the bands boost, so loud music does not distort.'),
+              value: s.limit,
+              onChanged: (v) {
+                Haptics.selection();
+                c.setLimit(v);
+              },
+            ),
+            const Divider(),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text('Remember for ${_outputName(c.output)}'),
@@ -181,4 +287,82 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
       },
     );
   }
+}
+
+/// The sound as a line: how much each frequency is raised or lowered.
+class EqCurvePainter extends CustomPainter {
+  EqCurvePainter({
+    required this.bands,
+    required this.gains,
+    required this.line,
+    required this.grid,
+  });
+
+  final EqBands bands;
+  final List<double> gains;
+  final Color line;
+  final Color grid;
+
+  static const _lowHz = 20.0;
+  static const _highHz = 20000.0;
+
+  /// Where a frequency sits across the width (0 to 1), on a log scale.
+  static double xFor(double hz) =>
+      ((math.log(hz) - math.log(_lowHz)) / (math.log(_highHz) - math.log(_lowHz))).clamp(0.0, 1.0);
+
+  /// The curve's gain at [hz]: smooth between the band centers.
+  double gainAt(double hz) {
+    final c = bands.centersHz;
+    if (c.isEmpty || gains.length != c.length) return 0;
+    if (hz <= c.first) return gains.first;
+    if (hz >= c.last) return gains.last;
+    for (var i = 0; i < c.length - 1; i++) {
+      if (hz <= c[i + 1]) {
+        final t = (math.log(hz) - math.log(c[i])) / (math.log(c[i + 1]) - math.log(c[i]));
+        final eased = (1 - math.cos(t * math.pi)) / 2;
+        return gains[i] + (gains[i + 1] - gains[i]) * eased;
+      }
+    }
+    return gains.last;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final range = math.max(bands.maxDb, -bands.minDb);
+    double yFor(double db) => size.height / 2 - (db / range) * (size.height / 2 - 4);
+
+    final gridPaint = Paint()
+      ..color = grid
+      ..strokeWidth = 1;
+    canvas.drawLine(Offset(0, yFor(0)), Offset(size.width, yFor(0)), gridPaint);
+    for (final hz in [100.0, 1000.0, 10000.0]) {
+      final x = xFor(hz) * size.width;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint..color = grid.withValues(alpha: 0.4));
+    }
+
+    final path = Path();
+    const steps = 120;
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final hz = math.exp(math.log(_lowHz) + t * (math.log(_highHz) - math.log(_lowHz)));
+      final p = Offset(t * size.width, yFor(gainAt(hz)));
+      i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = line
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round,
+    );
+    final dot = Paint()..color = line;
+    for (var i = 0; i < bands.count && i < gains.length; i++) {
+      canvas.drawCircle(Offset(xFor(bands.centersHz[i]) * size.width, yFor(gains[i])), 3.5, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(EqCurvePainter old) =>
+      old.gains != gains || old.bands != bands || old.line != line;
 }

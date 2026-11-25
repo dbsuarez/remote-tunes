@@ -66,6 +66,69 @@ void main() {
     });
   });
 
+  group('preamp, tone and limit', () {
+    test('with nothing set, the bands are as the sliders say', () {
+      const s = EqSettings(enabled: true, gains: [1, 2, 3, 4, 5]);
+      expect(s.effectiveGains(five), [1, 2, 3, 4, 5]);
+      expect(s.effectivePreampDb(five), 0);
+    });
+
+    test('bass lifts the low bands and leaves the high ones; treble the opposite', () {
+      const bass = EqSettings(gains: [0, 0, 0, 0, 0], toneOn: true, bassDb: 6);
+      final b = bass.effectiveGains(five);
+      expect(b[0], greaterThan(5));
+      expect(b[1], greaterThan(3));
+      expect(b[3], 0);
+      expect(b[4], 0);
+      const treble = EqSettings(gains: [0, 0, 0, 0, 0], toneOn: true, trebleDb: 6);
+      final t = treble.effectiveGains(five);
+      expect(t[0], 0);
+      expect(t[2], closeTo(0, 0.5));
+      expect(t[4], greaterThan(5));
+    });
+
+    test('the knobs do nothing while Tone is off', () {
+      const s = EqSettings(gains: [0, 0, 0, 0, 0], bassDb: 8, trebleDb: 8);
+      expect(s.effectiveGains(five), [0, 0, 0, 0, 0]);
+    });
+
+    test('the result is kept inside what the phone allows', () {
+      const s = EqSettings(gains: [11, 0, 0, 0, 0], toneOn: true, bassDb: 10);
+      expect(s.effectiveGains(five).first, 12);
+    });
+
+    test('Limit turns everything down by the biggest boost', () {
+      const s = EqSettings(gains: [6, 3, 0, 0, 0], limit: true, preampDb: 2);
+      expect(s.effectivePreampDb(five), closeTo(2 - 6, 1e-9));
+      const flat = EqSettings(gains: [0, 0, -3, 0, 0], limit: true);
+      expect(flat.effectivePreampDb(five), 0, reason: 'only cuts: nothing to cancel');
+    });
+
+    test('the preamp stays in its range', () {
+      expect(const EqSettings(preampDb: 99).effectivePreampDb(five), 12);
+      expect(const EqSettings(preampDb: -99).effectivePreampDb(five), -24);
+    });
+
+    test('they are saved and read back, and bad values are tamed', () {
+      const s = EqSettings(
+          enabled: true,
+          gains: [1, 2, 3, 4, 5],
+          preampDb: 3,
+          toneOn: true,
+          bassDb: -4,
+          trebleDb: 2.5,
+          limit: true);
+      final back = EqSettings.fromJson(s.toJson())!;
+      expect([back.preampDb, back.toneOn, back.bassDb, back.trebleDb, back.limit],
+          [3, true, -4, 2.5, true]);
+      final odd = EqSettings.fromJson('{"enabled":true,"gains":[],"preampDb":500,"bassDb":"x"}')!;
+      expect([odd.preampDb, odd.bassDb], [12, 0]);
+      // Older saved settings (without the new fields) still load.
+      final old = EqSettings.fromJson('{"enabled":true,"preset":"Pop","gains":[1,2,3,4,5]}')!;
+      expect([old.preampDb, old.toneOn, old.limit], [0, false, false]);
+    });
+  });
+
   group('the controller', () {
     late FakeAudioBackend backend;
     late MemoryEqStore store;
@@ -151,6 +214,44 @@ void main() {
       expect(c.settings.gains, [6, 4, 0, 0, 0]);
     });
 
+    test('the preamp and Limit reach the player, but only while the equalizer is on', () async {
+      final c = make();
+      await c.init();
+      await c.setPreamp(4);
+      expect(backend.preampDb, 0, reason: 'off: nothing changes');
+      await c.setEnabled(true);
+      expect(backend.preampDb, 4);
+      await c.applyPreset(EqPreset.byName('Bass boost')!);
+      await c.setLimit(true);
+      expect(backend.preampDb, closeTo(4 - 6, 1e-9));
+      await c.setEnabled(false);
+      expect(backend.preampDb, 0);
+    });
+
+    test('Bass and Treble change the bands sent to the player and switch Tone on', () async {
+      final c = make();
+      await c.init();
+      await c.setEnabled(true);
+      await c.setBass(6);
+      expect(c.settings.toneOn, isTrue);
+      expect(backend.eqCalls.last.gains.first, greaterThan(5));
+      expect(backend.eqCalls.last.gains.last, 0);
+      await c.setToneOn(false);
+      expect(backend.eqCalls.last.gains.first, 0);
+    });
+
+    test('the new settings are remembered', () async {
+      final a = make();
+      await a.init();
+      await a.setPreamp(-3);
+      await a.setTreble(4);
+      await a.setLimit(true);
+      await a.commit();
+      final b = make();
+      await b.init();
+      expect([b.settings.preampDb, b.settings.trebleDb, b.settings.limit], [-3, 4, true]);
+    });
+
     group('per output', () {
       test('what is remembered for the speaker is used when the sound is on the speaker',
           () async {
@@ -217,7 +318,7 @@ void main() {
     late EqualizerController c;
 
     Future<void> open(WidgetTester tester, {bool init = true}) async {
-      tester.view.physicalSize = const Size(420, 1200);
+      tester.view.physicalSize = const Size(420, 2000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       backend = FakeAudioBackend();
@@ -236,7 +337,8 @@ void main() {
       await open(tester);
       expect(find.text('Equalizer'), findsOneWidget);
       expect(find.text('Bass boost'), findsOneWidget);
-      expect(find.byType(Slider), findsNWidgets(5));
+      // Five bands, plus the preamp and the Bass and Treble knobs.
+      expect(find.byType(Slider), findsNWidgets(8));
       for (final l in ['60 Hz', '910 Hz', '3.6 kHz', '14 kHz']) {
         expect(find.text(l), findsOneWidget, reason: l);
       }
@@ -270,6 +372,26 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
       await tester.pump();
       expect(c.savedForOutput, isTrue);
+    });
+
+    testWidgets('a curve shows the sound, and the extra controls are there', (tester) async {
+      await open(tester);
+      expect(find.byKey(const Key('eq-curve')), findsOneWidget);
+      expect(find.text('Tone'), findsOneWidget);
+      expect(find.text('Limit'), findsOneWidget);
+      expect(find.textContaining('Preamp'), findsOneWidget);
+    });
+
+    testWidgets('Bass and Treble switch Tone on and change the curve', (tester) async {
+      await open(tester);
+      expect(c.settings.toneOn, isFalse);
+      final sliders = tester.widgetList<Slider>(find.byType(Slider)).toList();
+      sliders[6].onChanged!(5); // Bass
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+      expect(c.settings.toneOn, isTrue);
+      expect(c.settings.bassDb, 5);
+      expect(find.textContaining('+5.0 dB'), findsOneWidget);
     });
 
     testWidgets('before a song has played it says what to do', (tester) async {

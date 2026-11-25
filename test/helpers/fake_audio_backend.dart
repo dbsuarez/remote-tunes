@@ -142,6 +142,12 @@ class FakeAudioBackend implements AudioBackend {
   @override
   Future<void> setSpeed(double s) async => speed = s;
 
+  /// The last preamp given (dB).
+  double preampDb = 0;
+
+  @override
+  Future<void> setPreamp(double db) async => preampDb = db;
+
   /// Whether this fake can crossfade, and what it was asked to fade into.
   bool canCrossfade = false;
   final List<({String path, Duration length})> crossfades = [];

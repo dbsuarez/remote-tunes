@@ -163,6 +163,13 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Genres / Years / Album Artists:** Settings > Update tags from files, then Library > Genres, Years and Album Artists fill in and open like albums.
 - [ ] **Equalizer:** the equalizer icon in the top bar (or Settings > Equalizer). Play a song first. Pick Bass boost: the sliders move and the bass is clearly stronger. Switch it off: it sounds normal again. Turn on "Remember for ...", change to another output (headphones / Bluetooth) and back: the settings follow the output.
 - [ ] **Even out loudness:** Settings > Update tags from files, then Settings > Even out loudness > By song. Songs from albums with Replay Gain tags are turned down to about the same level (songs with no tags are unchanged).
+- [ ] **Crossfade:** Settings > Crossfade, set 5 s. Play an album from the phone: near the end of each song it fades out while the next fades in; skipping and pausing during a fade behave. Set it to Off for normal gapless.
+- [ ] **Equalizer extras:** the curve moves with the sliders; Preamp changes the overall loudness; Bass / Treble (Tone) and Limit work (Limit turns the music down when you boost).
+- [ ] **Folders:** long-press a folder, tap more, then add them to a playlist; open a folder far down the list, press Back: you are at the same spot and that folder is tinted.
+- [ ] **Shuffle and repeat:** switch both on, close the app completely, open it: both are still on.
+- [ ] **Pairing:** with Start remote playback on, the other phone connects and the request pops up on whatever screen you are on.
+- [ ] **Screen on:** adding a big folder, Update tags and Find album art do not let the screen lock while they run.
+- [ ] **Lock screen heart:** the notification has a heart button for the song playing (if your phone shows notification buttons).
 
 ---
 

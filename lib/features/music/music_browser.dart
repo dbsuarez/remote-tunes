@@ -153,6 +153,47 @@ class _MusicBrowserState extends State<MusicBrowser> {
           groupValue: widget.initialTarget!.groupValue,
         );
 
+  /// Folders picked for a bulk action (long-press a folder to start).
+  final Set<int> _selectedFolders = {};
+
+  /// What the search box said before a list was opened (restored on Back).
+  String _savedQuery = '';
+  String _savedText = '';
+
+  /// The last item opened from a list; it is marked when you come back.
+  String? _lastOpened;
+
+  /// The search text the lists behind an opened item were filtered with.
+  String get _listQuery => _drill == null ? _query : _savedQuery;
+
+  /// Opens an item of a list. The list is kept (scroll position, what was
+  /// loaded) and [mark] says which row to highlight on return.
+  void _openDrill(_Drill d, String mark) {
+    setState(() {
+      _savedQuery = _query;
+      _savedText = _search.text;
+      _search.clear();
+      _query = '';
+      _selectedFolders.clear();
+      _lastOpened = mark;
+      _drill = d;
+    });
+  }
+
+  /// Back from an opened item to the list it came from.
+  void _closeDrill() {
+    setState(() {
+      _drill = null;
+      _search.text = _savedText;
+      _query = _savedQuery;
+    });
+  }
+
+  /// A quiet tint for the row that was opened last.
+  Color? _markColor(String mark) => _lastOpened == mark
+      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.10)
+      : null;
+
   /// Showing the list of categories (only with [MusicBrowser.homeList]).
   late bool _home = widget.homeList && widget.initialTarget == null;
 
@@ -274,6 +315,82 @@ class _MusicBrowserState extends State<MusicBrowser> {
     setState(() {
       if (!_selected.remove(id)) _selected.add(id);
     });
+  }
+
+  /// Every song in the picked folders (bounded, like the other bulk actions).
+  Future<List<int>> _songIdsOfFolders(Iterable<int> folderIds) async {
+    final ids = <int>[];
+    for (final f in folderIds) {
+      var offset = 0;
+      while (ids.length < 2000) {
+        final page = await widget.source.songs(folderId: f, offset: offset, limit: 100);
+        ids.addAll([for (final s in page.items) s.id]);
+        offset += page.items.length;
+        if (!page.hasMore || page.items.isEmpty) break;
+      }
+    }
+    return ids;
+  }
+
+  Widget _folderSelectionBar() {
+    final n = _selectedFolders.length;
+    return Material(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Cancel selection',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => setState(_selectedFolders.clear),
+            ),
+            Expanded(
+              child: Text('$n folder${n == 1 ? '' : 's'} selected',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            IconButton(
+              tooltip: 'Select all folders',
+              icon: const Icon(Icons.select_all_rounded),
+              onPressed: () => _run(() async {
+                final all = <int>[];
+                var offset = 0;
+                while (all.length < 2000) {
+                  final page = await widget.source
+                      .folders(query: _listQuery, offset: offset, limit: 100);
+                  all.addAll([for (final f in page.items) f.id]);
+                  offset += page.items.length;
+                  if (!page.hasMore || page.items.isEmpty) break;
+                }
+                if (mounted) setState(() => _selectedFolders.addAll(all));
+              }),
+            ),
+            IconButton(
+              tooltip: 'Add selected folders to queue',
+              icon: const Icon(Icons.queue_music_rounded),
+              onPressed: () => _run(() async {
+                final ids = await _songIdsOfFolders(_selectedFolders);
+                if (ids.isEmpty) return;
+                await widget.source.queueSongs(ids);
+                if (mounted) setState(_selectedFolders.clear);
+              }, done: 'Added to queue'),
+            ),
+            IconButton(
+              tooltip: 'Add selected folders to playlist',
+              icon: const Icon(Icons.playlist_add_rounded),
+              onPressed: () async {
+                List<int> ids = const [];
+                await _run(() async => ids = await _songIdsOfFolders(_selectedFolders));
+                if (ids.isEmpty) return;
+                if (await _addIdsToPlaylist(ids) && mounted) {
+                  setState(_selectedFolders.clear);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _selectionBar(_Drill? drill, String? view) {
@@ -457,10 +574,10 @@ class _MusicBrowserState extends State<MusicBrowser> {
 
   /// A list of genres, years or album artists; opening one lists its songs.
   Widget _groupList(String kind, IconData icon) {
-    final key = ValueKey('$_scope|$_query|${widget.refreshToken}|$_generation');
+    final key = ValueKey('$_scope|$_listQuery|${widget.refreshToken}|$_generation');
     return _PagedList<RemoteGroup>(
       key: key,
-      emptyMessage: _query.isNotEmpty
+      emptyMessage: _listQuery.isNotEmpty
           ? 'No matches.'
           : switch (kind) {
               GroupKind.genre => 'No genres yet. In Settings, "Update tags from files" reads them.',
@@ -468,18 +585,16 @@ class _MusicBrowserState extends State<MusicBrowser> {
               _ => 'No album artists yet. In Settings, "Update tags from files" reads them.',
             },
       load: (offset, limit) =>
-          widget.source.groups(kind: kind, query: _query, offset: offset, limit: limit),
+          widget.source.groups(kind: kind, query: _listQuery, offset: offset, limit: limit),
       itemBuilder: (context, g) => ListTile(
         minTileHeight: 64,
         leading: CircleAvatar(child: Icon(icon)),
         title: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text('${g.songCount} song${g.songCount == 1 ? '' : 's'}'),
         trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => setState(() {
-          _search.clear();
-          _query = '';
-          _drill = _Drill(title: g.name, groupKind: kind, groupValue: g.name);
-        }),
+        tileColor: _markColor('group:$kind:${g.name}'),
+        onTap: () => _openDrill(
+            _Drill(title: g.name, groupKind: kind, groupValue: g.name), 'group:$kind:${g.name}'),
       ),
     );
   }
@@ -576,11 +691,143 @@ class _MusicBrowserState extends State<MusicBrowser> {
     );
   }
 
+  /// The list of the chosen kind (songs, artists, albums, folders...). It stays built,
+  /// just hidden, while one of its items is open, so Back finds it as it was.
+  Widget _scopeView(ValueKey<String> scopeKey) {
+    return switch (_scope) {
+                _Scope.songs => _songList(null),
+                _Scope.favorites => _songList(null, view: LibraryView.favorites),
+                _Scope.recent => _songList(null, view: LibraryView.recent),
+                _Scope.top => _songList(null, view: LibraryView.top),
+                _Scope.newest => _songList(null, view: LibraryView.newest),
+                _Scope.albumArtists => _groupList(GroupKind.albumArtist, Icons.mic_rounded),
+                _Scope.genres => _groupList(GroupKind.genre, Icons.piano_rounded),
+                _Scope.years => _groupList(GroupKind.year, Icons.calendar_month_rounded),
+                _Scope.folders => _PagedList<RemoteFolder>(
+                    key: scopeKey,
+                    emptyMessage: _listQuery.isEmpty ? widget.emptyMessage : 'No matches.',
+                    load: (offset, limit) => widget.source
+                        .folders(query: _listQuery, offset: offset, limit: limit),
+                    itemBuilder: (context, f) {
+                      final picked = _selectedFolders.contains(f.id);
+                      return ListTile(
+                        minTileHeight: 64,
+                        selected: picked,
+                        selectedTileColor:
+                            Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                        tileColor: _markColor('folder:${f.id}'),
+                        leading: CircleAvatar(
+                            child: Icon(picked ? Icons.check_rounded : Icons.folder_rounded)),
+                        title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                            '${f.parent.isEmpty ? '' : '${f.parent} · '}'
+                            '${f.songCount} song${f.songCount == 1 ? '' : 's'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        trailing: _selectedFolders.isEmpty
+                            ? const Icon(Icons.chevron_right_rounded)
+                            : null,
+                        onLongPress: () {
+                          Haptics.medium();
+                          setState(() => picked
+                              ? _selectedFolders.remove(f.id)
+                              : _selectedFolders.add(f.id));
+                        },
+                        onTap: () {
+                          if (_selectedFolders.isNotEmpty) {
+                            Haptics.selection();
+                            setState(() => picked
+                                ? _selectedFolders.remove(f.id)
+                                : _selectedFolders.add(f.id));
+                          } else {
+                            _openDrill(_Drill(title: f.name, folderId: f.id), 'folder:${f.id}');
+                          }
+                        },
+                      );
+                    },
+                  ),
+                _Scope.playlists => Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _newPlaylist,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('New playlist'),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _PagedList<RemotePlaylist>(
+                          key: scopeKey,
+                          emptyMessage: _listQuery.isEmpty
+                              ? 'No playlists yet. Make one with New playlist.'
+                              : 'No matches.',
+                          load: (offset, limit) => widget.source
+                              .playlists(query: _listQuery, offset: offset, limit: limit),
+                          itemBuilder: (context, l) => ListTile(
+                            minTileHeight: 64,
+                            leading: const CircleAvatar(
+                                child: Icon(Icons.queue_music_rounded)),
+                            title: Text(l.name,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                                '${l.songCount} song${l.songCount == 1 ? '' : 's'}'),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            tileColor: _markColor('playlist:${l.id}'),
+                            onTap: () =>
+                                _openDrill(_Drill(title: l.name, playlistId: l.id), 'playlist:${l.id}'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                _Scope.artists => _PagedList<RemoteArtist>(
+                    key: scopeKey,
+                    emptyMessage: _listQuery.isEmpty ? widget.emptyMessage : 'No matches.',
+                    load: (offset, limit) => widget.source
+                        .artists(query: _listQuery, offset: offset, limit: limit),
+                    itemBuilder: (context, a) => ListTile(
+                      minTileHeight: 64,
+                      leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+                      title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                          '${a.songCount} song${a.songCount == 1 ? '' : 's'} · '
+                          '${a.albumCount} album${a.albumCount == 1 ? '' : 's'}'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      tileColor: _markColor('artist:${a.name}'),
+                      onTap: () => _openDrill(_Drill(title: a.name, artist: a.name), 'artist:${a.name}'),
+                    ),
+                  ),
+                _Scope.albums => _PagedList<RemoteAlbum>(
+                    key: scopeKey,
+                    emptyMessage: _listQuery.isEmpty ? widget.emptyMessage : 'No matches.',
+                    load: (offset, limit) => widget.source
+                        .albums(query: _listQuery, offset: offset, limit: limit),
+                    itemBuilder: (context, a) => ListTile(
+                      minTileHeight: 64,
+                      leading: const CircleAvatar(child: Icon(Icons.album_rounded)),
+                      title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                          '${a.artist} · ${a.songCount} song${a.songCount == 1 ? '' : 's'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      tileColor: _markColor('album:${a.artist}|${a.name}'),
+                      onTap: () => _openDrill(
+                          _Drill(title: a.name, artist: a.artist, album: a.name),
+                          'album:${a.artist}|${a.name}'),
+                    ),
+                  ),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final drill = _drill;
-    final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
-        '${drill?.playlistId}|${widget.refreshToken}|$_generation');
+    final scopeKey = ValueKey('$_scope|$_listQuery|${widget.refreshToken}|$_generation');
     // Moving to another list drops the selection.
     final ctx =
         '$_scope|${drill?.artist}|${drill?.album}|${drill?.playlistId}|${drill?.folderId}|${drill?.groupValue}';
@@ -617,6 +864,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
               setState(() {
                 _home = false;
                 _scope = s;
+                _selectedFolders.clear();
+                _lastOpened = null;
                 _search.clear();
                 _query = '';
               });
@@ -656,6 +905,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
             ),
             if (_selected.isNotEmpty && songsShown)
               _selectionBar(drill, viewName)
+            else if (_selectedFolders.isNotEmpty && drill == null && _scope == _Scope.folders)
+              _folderSelectionBar()
             else if (drill == null && widget.homeList)
               _CategoryHeader(
                 title: _scopeTitle(_scope),
@@ -690,7 +941,11 @@ class _MusicBrowserState extends State<MusicBrowser> {
                         selected: _scope == s,
                         onSelected: (_) {
                           Haptics.selection();
-                          setState(() => _scope = s);
+                          setState(() {
+                            _scope = s;
+                            _selectedFolders.clear();
+                            _lastOpened = null;
+                          });
                         },
                       ),
                       const SizedBox(width: 8),
@@ -705,7 +960,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
                   if (widget.initialTarget != null) {
                     Navigator.of(context).maybePop();
                   } else {
-                    setState(() => _drill = null);
+                    _closeDrill();
                   }
                 },
                 onRename: drill.playlistId == null ? null : () => _renamePlaylist(drill),
@@ -722,119 +977,19 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 }, done: 'Added to queue'),
               ),
             Expanded(
-              child: switch (drill != null ? _Scope.songs : _scope) {
-                _Scope.songs => _songList(drill),
-                _Scope.favorites => _songList(null, view: LibraryView.favorites),
-                _Scope.recent => _songList(null, view: LibraryView.recent),
-                _Scope.top => _songList(null, view: LibraryView.top),
-                _Scope.newest => _songList(null, view: LibraryView.newest),
-                _Scope.albumArtists => _groupList(GroupKind.albumArtist, Icons.mic_rounded),
-                _Scope.genres => _groupList(GroupKind.genre, Icons.piano_rounded),
-                _Scope.years => _groupList(GroupKind.year, Icons.calendar_month_rounded),
-                _Scope.folders => _PagedList<RemoteFolder>(
-                    key: key,
-                    emptyMessage: _query.isEmpty ? widget.emptyMessage : 'No matches.',
-                    load: (offset, limit) => widget.source
-                        .folders(query: _query, offset: offset, limit: limit),
-                    itemBuilder: (context, f) => ListTile(
-                      minTileHeight: 64,
-                      leading: const CircleAvatar(child: Icon(Icons.folder_rounded)),
-                      title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(
-                          '${f.parent.isEmpty ? '' : '${f.parent} · '}'
-                          '${f.songCount} song${f.songCount == 1 ? '' : 's'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => setState(() {
-                        _search.clear();
-                        _query = '';
-                        _drill = _Drill(title: f.name, folderId: f.id);
-                      }),
-                    ),
-                  ),
-                _Scope.playlists => Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: _newPlaylist,
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('New playlist'),
-                          ),
-                        ),
+              child: Stack(
+                children: [
+                  if (widget.initialTarget == null)
+                    Offstage(
+                      offstage: drill != null,
+                      child: TickerMode(
+                        enabled: drill == null,
+                        child: _scopeView(scopeKey),
                       ),
-                      Expanded(
-                        child: _PagedList<RemotePlaylist>(
-                          key: key,
-                          emptyMessage: _query.isEmpty
-                              ? 'No playlists yet. Make one with New playlist.'
-                              : 'No matches.',
-                          load: (offset, limit) => widget.source
-                              .playlists(query: _query, offset: offset, limit: limit),
-                          itemBuilder: (context, l) => ListTile(
-                            minTileHeight: 64,
-                            leading: const CircleAvatar(
-                                child: Icon(Icons.queue_music_rounded)),
-                            title: Text(l.name,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(
-                                '${l.songCount} song${l.songCount == 1 ? '' : 's'}'),
-                            trailing: const Icon(Icons.chevron_right_rounded),
-                            onTap: () => setState(() {
-                              _search.clear();
-                              _query = '';
-                              _drill = _Drill(title: l.name, playlistId: l.id);
-                            }),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                _Scope.artists => _PagedList<RemoteArtist>(
-                    key: key,
-                    emptyMessage: _query.isEmpty ? widget.emptyMessage : 'No matches.',
-                    load: (offset, limit) => widget.source
-                        .artists(query: _query, offset: offset, limit: limit),
-                    itemBuilder: (context, a) => ListTile(
-                      minTileHeight: 64,
-                      leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
-                      title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(
-                          '${a.songCount} song${a.songCount == 1 ? '' : 's'} · '
-                          '${a.albumCount} album${a.albumCount == 1 ? '' : 's'}'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => setState(() {
-                        _search.clear();
-                        _query = '';
-                        _drill = _Drill(title: a.name, artist: a.name);
-                      }),
                     ),
-                  ),
-                _Scope.albums => _PagedList<RemoteAlbum>(
-                    key: key,
-                    emptyMessage: _query.isEmpty ? widget.emptyMessage : 'No matches.',
-                    load: (offset, limit) => widget.source
-                        .albums(query: _query, offset: offset, limit: limit),
-                    itemBuilder: (context, a) => ListTile(
-                      minTileHeight: 64,
-                      leading: const CircleAvatar(child: Icon(Icons.album_rounded)),
-                      title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(
-                          '${a.artist} · ${a.songCount} song${a.songCount == 1 ? '' : 's'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => setState(() {
-                        _search.clear();
-                        _query = '';
-                        _drill = _Drill(title: a.name, artist: a.artist, album: a.name);
-                      }),
-                    ),
-                  ),
-              },
+                  if (drill != null) _songList(drill),
+                ],
+              ),
             ),
           ],
         ),
