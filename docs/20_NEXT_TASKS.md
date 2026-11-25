@@ -47,7 +47,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 ### Library and search
 - [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Composers are in too (schema v9; MP3, FLAC, Ogg and APE files that have the tag), and a **Folder tree** (Library > Folder tree: folders inside folders, an arrow to go up, the folder you came from marked).
 - [x] Search: Album Artists scope and Play / Shuffle for the results. (A Select row is not done.)
-- [x] Tag editor: Edit info has *Also write into the music file* (title, artist, album, track number; other tags and the cover are kept; the result is read back to make sure). Android 11+ often refuses files in shared folders: then it is saved in RemoteTunes only and says so. An *All files access* switch could be added later if the phones refuse.
+- [x] Tag editor: Edit info has *Also write into the music file* (title, artist, album, track number; other tags and the cover are kept; the result is read back to make sure). Android 11+ often refuses files in shared folders: then it is saved in RemoteTunes only and says so. Settings has an *All files access* row (Android 11+, opens the phone's own page for the app) that lets it write to files in any folder.
 
 ### UI / UX
 - [x] **EQ screen** with sliders, presets, per-output memory, a response curve, Preamp, Tone (Bass / Treble knobs) and Limit. Preamp up uses the phone's loudness enhancer, down lowers the volume. Not done: a true 10-band EQ.

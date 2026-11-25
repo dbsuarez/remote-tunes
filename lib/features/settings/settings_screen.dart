@@ -1,3 +1,4 @@
+import 'file_access_tile.dart';
 import 'package:flutter/material.dart';
 import '../update/update_widgets.dart';
 import 'album_art_dialog.dart';
@@ -297,6 +298,7 @@ class SettingsScreen extends ConsumerWidget {
                     'Genres, Years and Album Artists lists fill in. Nothing is changed in the files.'),
                 onTap: () => refreshLibraryTags(context, ref),
               ),
+              const FileAccessTile(),
               const SizedBox(height: 16),
               const _SectionHeader('App updates'),
               UpdateSettingsTiles(settings: s),

@@ -45,6 +45,19 @@ class UpdateSupport(
                         ),
                     )
                 }
+                "canWriteAllFiles" -> result.success(
+                    if (Build.VERSION.SDK_INT >= 30) android.os.Environment.isExternalStorageManager() else true,
+                )
+                "openAllFilesSettings" -> {
+                    if (Build.VERSION.SDK_INT >= 30) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:${activity.packageName}"),
+                        )
+                        activity.startActivity(intent)
+                    }
+                    result.success(null)
+                }
                 "canInstall" -> result.success(activity.packageManager.canRequestPackageInstalls())
                 "openInstallSettings" -> {
                     val intent = Intent(

@@ -177,7 +177,7 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Skins:** Menu > Skins lists 7 looks; tapping one changes the colors straight away and it is remembered. Add (+) accepts pasted JSON (copy one with the copy button to see the format), explains mistakes, and an added skin can be removed.
 - [ ] **Queue scroll:** opening the Queue tab goes to the song playing; Settings > *Queue opens at the song playing* off keeps the list where it was.
 - [ ] **Up next sheet:** slide it up, then tap the player above it: it slides back down.
-- [ ] **Write tags into files:** Edit info on a song has *Also write into the music file*. Tick it and save: the message says whether the file was changed. If Android refuses it says *Saved in RemoteTunes only*. Report which phone and which folder the song was in.
+- [ ] **Write tags into files:** Edit info on a song has *Also write into the music file*. Tick it and save: the message says whether the file was changed. If Android refuses it says *Saved in RemoteTunes only*; then Settings > *All files access* opens Android's page for the app: switch it on, come back (the row shows Allowed) and save again. Report which phone and folder if it still refuses.
 - [ ] **Crossfade (again):** with crossfade on, the first change of a session fades once and the next song does not start over.
 
 ---

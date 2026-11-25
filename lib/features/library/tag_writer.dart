@@ -63,7 +63,7 @@ class TagWriter {
         TagWriteResult.written => 'Saved, and written into the music file',
         TagWriteResult.missing => 'Saved in RemoteTunes; the music file was not found',
         TagWriteResult.notAllowed =>
-          'Saved in RemoteTunes only: Android does not let the app change that file',
+          'Saved in RemoteTunes only: Android does not let the app change that file (Settings > All files access)',
         TagWriteResult.unsupported =>
           'Saved in RemoteTunes only: this kind of file cannot be tagged by the app',
         TagWriteResult.failed => 'Saved in RemoteTunes only: the file could not be changed',

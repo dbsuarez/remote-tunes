@@ -120,7 +120,7 @@ Future<void> settleUi(WidgetTester tester) async {
 void main() {
   group('Settings: External app control needs informed consent', () {
     Future<FakeSettings> openSettings(WidgetTester tester, {bool on = false}) async {
-      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.physicalSize = const Size(800, 4500);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final settings = FakeSettings(AppSettings(externalAppControlEnabled: on));
@@ -343,7 +343,7 @@ void main() {
       PlaybackState playback, {
       ControllerStatus status = ControllerStatus.connected,
     }) async {
-      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.physicalSize = const Size(800, 4500);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final client = FakeClient(ControllerClientState(
