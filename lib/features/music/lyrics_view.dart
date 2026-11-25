@@ -98,6 +98,7 @@ class CoverWithLyrics extends StatefulWidget {
     this.onSeek,
     this.enabled = true,
     this.openRequests,
+    this.coverAction,
   });
 
   /// Asked to show the lyrics (the menu's Lyrics shortcut): each time it
@@ -121,6 +122,10 @@ class CoverWithLyrics extends StatefulWidget {
   /// Called with a position in seconds when a line is tapped.
   final ValueChanged<int>? onSeek;
   final bool enabled;
+
+  /// A button in the top-left corner while the cover shows (for example "add to a playlist").
+  /// When the lyrics show, that corner belongs to *Show fullscreen*, so it goes away.
+  final Widget? coverAction;
 
   @override
   State<CoverWithLyrics> createState() => _CoverWithLyricsState();
@@ -260,6 +265,19 @@ class _CoverWithLyricsState extends State<CoverWithLyrics> with SingleTickerProv
                     onSeek: widget.onSeek,
                     onFullscreen: _fullscreen,
                   ),
+                ),
+              ),
+            ),
+          if (widget.coverAction != null)
+            Positioned(
+              top: 6,
+              left: 6,
+              child: FadeTransition(
+                opacity: coverOpacity,
+                child: IgnorePointer(
+                  // Gone with the cover: the lyrics' own button takes the corner.
+                  ignoring: _open,
+                  child: widget.coverAction,
                 ),
               ),
             ),

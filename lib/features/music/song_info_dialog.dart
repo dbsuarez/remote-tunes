@@ -59,7 +59,9 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
     super.dispose();
   }
 
-  bool _writeToFile = false;
+  /// Ticked from the start (where it is offered): the change goes into the file too. If Android
+  /// does not allow that, it is still saved in the library and the message says so.
+  bool _writeToFile = true;
 
   bool get _valid => _title.text.trim().isNotEmpty;
 

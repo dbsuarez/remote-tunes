@@ -1,3 +1,4 @@
+import '../../data/repositories/settings_repository.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -28,8 +29,10 @@ class VisualizerService {
   /// Where the audible sound's session id comes from (set when the player starts).
   static int? Function() currentSessionId = () => null;
 
-  /// Asks for the permission (from Settings, when the visualizer is switched on).
-  static Future<bool> requestPermission() async =>
+  /// Asks for the permission (when the visualizer is switched on). Tests replace this.
+  static Future<bool> Function() requestPermission = _requestMicrophone;
+
+  static Future<bool> _requestMicrophone() async =>
       (await Permission.microphone.request()).isGranted;
 
   static Future<bool> _micGranted() async => (await Permission.microphone.status).isGranted;
@@ -111,6 +114,21 @@ class VisualizerService {
     bars.dispose();
     problem.dispose();
   }
+}
+
+/// Switches the visualizer on or off (from Settings or from the button on Now Playing).
+/// Turning it on first asks for the microphone permission (Android needs it to read the
+/// sound; nothing is recorded); if that is refused it stays off and says why.
+Future<void> switchVisualizer(BuildContext context, SettingsRepository repo, bool on) async {
+  if (on && !await VisualizerService.requestPermission()) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('The visualizer needs the microphone permission.')));
+    }
+    return;
+  }
+  await repo.setVisualizerEnabled(on);
 }
 
 /// The moving bars under the cover. Follows the sound while [isPlaying].

@@ -144,6 +144,23 @@ void main() {
     expect(d.settings, isEmpty);
   });
 
+  testWidgets('"lyrics and album art only" turns the other things off and the backup holds only those',
+      (tester) async {
+    final id = await repo.addSong(
+        title: 'Alpha', artist: 'Ann', album: 'First', filePath: '/m/a.mp3', durationSeconds: 100);
+    await repo.setFavorite(id, true);
+    await SettingsRepository(db).writeValue('skin_id', 'ember');
+    await open(tester);
+    await tester.tap(find.byKey(const Key('lyrics-art-only')));
+    await tester.pump();
+    await tester.tap(find.text('Back up to a file'));
+    await settle(tester);
+    final d = BackupData.decode(picker.saved.values.single);
+    expect(d.songs, isEmpty);
+    expect(d.playlists, isEmpty);
+    expect(d.settings, isEmpty);
+  });
+
   testWidgets('Restore: choose a file, say where the music is, and it reports', (tester) async {
     // The new phone has the same song, somewhere else.
     await repo.addSong(

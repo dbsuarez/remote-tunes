@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart' show Variable, driftRuntimeOptions;
+import 'package:drift/drift.dart' show Value, Variable, driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/data/database/app_database.dart';
@@ -190,6 +190,52 @@ void main() {
       await fresh.song('Alpha', 'Ann', 'First', '/new/Rock/alpha.mp3');
       final r = await fresh.service.restore(await old.service.create(), newRoot: '/new');
       expect(r.infoRestored, 0);
+    });
+  });
+
+  group('lyrics and art only', () {
+    test('a backup without the activity holds no songs, playlists or left-out list', () async {
+      final id = (await old.db.customSelect("SELECT id FROM songs WHERE title = 'Alpha'").getSingle())
+          .read<int>('id');
+      await old.library.setFavorite(id, true);
+      final list = await old.library.createPlaylist('Gym');
+      await old.library.addToPlaylist(list, [id]);
+      old.out.paths = {'/old/Music/Podcasts'};
+      await old.giveArt('Alpha', cover('a.jpg', [1, 2, 3]));
+      await old.db.into(old.db.lyricsCache).insert(LyricsCacheCompanion.insert(
+          trackKey: 'alpha|ann|first|200',
+          found: const Value(true),
+          plainLyrics: const Value('words'),
+          fetchedAt: DateTime.now()));
+      final data = BackupData.decode(
+          (await old.service.create(activity: false, settings: false, art: true)).encode());
+      expect(data.songs, isEmpty);
+      expect(data.playlists, isEmpty);
+      expect(data.leftOut, 0);
+      expect(data.settings, isEmpty);
+      expect(data.lyrics, hasLength(1));
+      expect(data.art, hasLength(1));
+    });
+
+    test('and it restores: lyrics and covers arrive, nothing else is touched', () async {
+      await old.giveArt('Alpha', cover('a.jpg', [7, 7, 7]));
+      await old.db.into(old.db.lyricsCache).insert(LyricsCacheCompanion.insert(
+          trackKey: 'alpha|ann|first|200',
+          found: const Value(true),
+          plainLyrics: const Value('words'),
+          fetchedAt: DateTime.now()));
+      final data = BackupData.decode(
+          (await old.service.create(activity: false, settings: false, art: true)).encode());
+      await fresh.song('Alpha', 'Ann', 'First', '/new/a.mp3');
+      final own = await fresh.library.createPlaylist('Mine');
+      final r = await fresh.service.restore(data);
+      expect(r.lyricsAdded, 1);
+      expect(r.artRestored, 1);
+      expect(r.playlistsCreated + r.playlistsMerged, 0);
+      expect(r.favoritesSet, 0);
+      expect(own, isPositive);
+      final lists = await fresh.db.customSelect('SELECT COUNT(*) AS c FROM playlists').getSingle();
+      expect(lists.read<int>('c'), 1, reason: 'only the one that was already there');
     });
   });
 }

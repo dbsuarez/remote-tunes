@@ -126,7 +126,14 @@ class BackupService {
     return [for (final r in rows) r.read<String>('p')];
   }
 
-  Future<BackupData> create({bool lyrics = true, bool settings = true, bool art = false}) async {
+  /// [activity] is what you did with your music: playlists, favorites, play and skip counts,
+  /// edited song info and the left-out list. Off, the backup can hold just lyrics and covers.
+  Future<BackupData> create({
+    bool lyrics = true,
+    bool settings = true,
+    bool art = false,
+    bool activity = true,
+  }) async {
     final rows = await db.customSelect(
       'SELECT id, title, artist, album, duration_seconds, file_path, file_size_bytes, favorite, '
       'play_count, skip_count, last_played_at, info_edited, track_number FROM songs ORDER BY id',
@@ -138,7 +145,7 @@ class BackupService {
 
     // Only songs that have something worth keeping: a playlist, a heart, plays or skips.
     final chosen = <QueryRow>[];
-    for (final r in rows) {
+    for (final r in activity ? rows : const <QueryRow>[]) {
       if (inPlaylist.contains(r.read<int>('id')) ||
           r.read<bool>('favorite') ||
           r.read<int>('play_count') > 0 ||
@@ -183,7 +190,9 @@ class BackupService {
     }
 
     final playlists = <BackupPlaylist>[];
-    for (final pl in await db.customSelect('SELECT id, name FROM playlists ORDER BY id').get()) {
+    for (final pl in activity
+        ? await db.customSelect('SELECT id, name FROM playlists ORDER BY id').get()
+        : const <QueryRow>[]) {
       final members = await db.customSelect(
         'SELECT song_id FROM playlist_songs WHERE playlist_id = ? ORDER BY position, id',
         variables: [Variable<int>(pl.read<int>('id'))],
@@ -196,7 +205,7 @@ class BackupService {
 
     final leftRel = <String>[];
     final leftAbs = <String>[];
-    for (final path in await exclusions.load()) {
+    for (final path in activity ? await exclusions.load() : const <String>{}) {
       if (root.isNotEmpty && (path == root || _p.isWithin(root, path))) {
         leftRel.add(path == root ? '' : _p.relative(path, from: root));
       } else {

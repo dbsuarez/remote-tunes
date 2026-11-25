@@ -104,7 +104,8 @@ void main() {
     await settleUi(tester);
     expect(source.calls, ['jump 11'], reason: 'the real queue entry, not its place in the list');
 
-    await tester.tap(find.byTooltip('Remove from queue'));
+    await tester.drag(find.text('Red Sun'), const Offset(-600, 0));
+    await tester.pumpAndSettle();
     await settleUi(tester);
     expect(source.calls.last, 'remove 11');
   });

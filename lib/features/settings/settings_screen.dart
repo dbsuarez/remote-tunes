@@ -278,23 +278,7 @@ final List<_Group> _groups = [
                   'permission to read the sound; nothing is recorded. Uses a little more battery.',
                 ),
                 value: s.visualizerEnabled,
-                onChanged: (on) async {
-                  if (on && !await VisualizerService.requestPermission()) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'The visualizer needs the microphone permission.',
-                            ),
-                          ),
-                        );
-                    }
-                    return;
-                  }
-                  await repo.setVisualizerEnabled(on);
-                },
+                onChanged: (on) => switchVisualizer(context, repo, on),
               ),
               if (s.visualizerEnabled)
                 Padding(

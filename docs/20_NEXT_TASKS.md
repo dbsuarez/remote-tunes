@@ -102,6 +102,23 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - Optional: a switch *Rescan when the app opens* (quiet, a few seconds, only when the folder changed).
 - [ ] remember folders · [ ] Rescan button and report · [ ] new-subfolder question · [ ] missing-file handling · [ ] optional automatic rescan
 
+**11. Edit info: look the song up (metadata, lyrics and cover in one go)** (the owner's idea)
+- In a song's menu > Edit info, a button **Look up this song**: one query for the one song, with a result sheet to choose from.
+  - **Details:** a search of MusicBrainz by title + artist (+ album, length) lists up to five matches, each with title, artist, album, year and track number; tap one to fill the Edit info fields (you can still change them before saving). Only the title, artist, album and length are sent, as the art finder already does.
+  - **Lyrics:** shows whether lyrics were found (LRCLIB, then Megalobiz, then lyrics.ovh, as in the lyrics view) and a preview of the first lines, with *Use these* (kept on the phone like any lyrics) or *Not these*. This is also the way to get lyrics again after a miss (a miss is otherwise remembered for a day).
+  - **Cover:** the cover from the Cover Art Archive for the chosen match, shown as a picture to accept or skip; accepted, it becomes the album's picture on this phone (all songs of that album).
+  - One *Apply* saves what was ticked: the fields (and, with *Also write into the music file* ticked, into the file), the lyrics, the cover.
+- Reuses: the album-art finder (MusicBrainz + Cover Art Archive), `LyricsService`, `TagWriter`. New: a MusicBrainz recording search and the result sheet.
+- Privacy page: add *looking up one song* (the same names and the same two services as the art finder).
+- [ ] the search and result sheet · [ ] lyrics preview · [ ] cover preview · [ ] Apply · [ ] tests with a fake MusicBrainz
+
+**12. Edit info for several songs at once** (the owner's idea)
+- In the Library, after **Select** (long-press) and picking songs, an **Edit info** button opens a version of the dialog that only has the fields that make sense for a group: **Artist, Album, Album artist, Genre, Year** (and Composer). **Title and track number are never offered** (they belong to one song).
+- Each field starts as *unchanged*: it shows the value when every picked song has the same one, or *(different)* when they differ; only the fields you type into are changed, on every picked song. A tick on a field can *clear* it.
+- *Also write into the music file* is ticked from the start, as in the single-song dialog; the report says how many files were written and how many were refused by Android (with the *All files access* hint). Each changed song is marked as edited, so a backup carries the change.
+- Needs: the tag writer to also write year, genre and album artist (title, artist, album and track number only today); a repository method that changes the same fields on many songs in one go.
+- [ ] the group dialog · [ ] repository update for many songs · [ ] tag writer: year, genre, album artist · [ ] report · [ ] tests
+
 Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
@@ -161,6 +178,13 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Lyrics
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
+
+### Queue, cover buttons, backup and write-to-file (built after `v1.0.9`; not tried on a phone yet)
+- [x] **Queue rows:** swipe **left** to remove (a message with **Undo** puts it back where it was; a link from the Online Library is removed without Undo), swipe **right** to add the song to a playlist (the row stays). The cross and the add-to-playlist buttons are gone from the rows. **Long-press** a row to pick several (tap picks more, *Select all*, *Cancel*): then **Add selected to a playlist** (links are left out of the list) or **Remove selected from the queue**. Swiping and dragging are off while picking.
+- [x] **Cover buttons swap:** the *Add to a playlist* button on the cover (top left) gives that corner to *Show fullscreen* while the lyrics show, and comes back with the cover.
+- [x] **Edit info:** *Also write into the music file* is **ticked from the start** (untick it to change the library listing only; if Android refuses the file, the change is still saved and the message says so).
+- [x] **Visualizer button on Now Playing:** in the row of quick actions (favorite, shuffle, repeat, speed, sleep timer), just to the **left of the volume button**: a tap shows or hides the visualizer (saved, same as the Settings switch; turning it on asks for the microphone permission first). On a narrow phone the seven buttons get a slightly smaller touch area so they all fit.
+- [x] **Backup:** *Playlists, favorites and counts* is its own switch, and *Choose lyrics and album art only* sets the switches for a backup that holds just those two.
 
 ### Settings, grouped (built after `v1.0.7`)
 - [x] Settings opens on a short list of **groups** (Playback and sound, Library, Look, Lyrics and online, Other phones and connection, Updates and about) plus a **Backup and restore** row; each group opens its own page. A **search box** at the top finds a setting by its name or by other words people use (vibration, replay gain, spotify, supabase...) and shows it in place, ready to change. Nothing about how settings are saved changed.

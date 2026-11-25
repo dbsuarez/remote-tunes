@@ -28,7 +28,12 @@ class NowPlayingView extends StatefulWidget {
     this.onOpenLibrary,
     this.lyricsRequests,
     this.visualizer,
+    this.visualizerButton,
   });
+
+  /// A button in the row of quick actions, to the left of the volume button, that shows or
+  /// hides the visualizer (null: none, e.g. when controlling another phone).
+  final Widget? visualizerButton;
 
   /// Moving bars under the cover (built with whether music is playing).
   final Widget Function(bool isPlaying)? visualizer;
@@ -108,31 +113,22 @@ class NowPlayingViewState extends State<NowPlayingView> {
     _run(() => session.seek(to));
   }
 
-  /// The cover with a small "add to a playlist" button in its top-left corner (the
-  /// lyrics button is in the top-right one).
-  Widget _withPlaylistButton(BuildContext context, PlaybackState p, Widget cover) {
+  /// The small "add to a playlist" button on the cover's top-left corner (it gives that corner
+  /// to *Show fullscreen* while the lyrics show).
+  Widget? _playlistButton(BuildContext context, PlaybackState p) {
     final id = p.songId ?? 0;
-    if (id <= 0 || p.isExternal) return cover;
-    return Stack(
-      children: [
-        cover,
-        Positioned(
-          left: 8,
-          top: 8,
-          child: Material(
-            color: Colors.black54,
-            shape: const CircleBorder(),
-            child: IconButton(
-              tooltip: 'Add to a playlist',
-              iconSize: 22,
-              visualDensity: VisualDensity.compact,
-              color: Colors.white,
-              icon: const Icon(Icons.playlist_add_rounded),
-              onPressed: () => addSongsToPlaylistFlow(context, session.source, [id]),
-            ),
-          ),
-        ),
-      ],
+    if (id <= 0 || p.isExternal) return null;
+    return Material(
+      color: Colors.black54,
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: 'Add to a playlist',
+        iconSize: 22,
+        visualDensity: VisualDensity.compact,
+        color: Colors.white,
+        icon: const Icon(Icons.playlist_add_rounded),
+        onPressed: () => addSongsToPlaylistFlow(context, session.source, [id]),
+      ),
     );
   }
 
@@ -144,65 +140,89 @@ class NowPlayingViewState extends State<NowPlayingView> {
       RepeatMode.one => Icons.repeat_one_rounded,
       _ => Icons.repeat_rounded,
     };
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        HapticButton(
-          kind: HapticKind.selection,
-          tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
-          onPressed: enabled && hasSong
-              ? () => _run(() => session.setFavorite(p.songId!, !p.favorite))
-              : null,
-          icon: Icon(
-            p.favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            color: p.favorite ? primary : null,
+    final count = widget.visualizerButton == null ? 6 : 7;
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Seven buttons need a little less room each on a narrow phone.
+        final tight = box.maxWidth < count * 48;
+        final row = Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            HapticButton(
+              kind: HapticKind.selection,
+              tooltip: p.favorite
+                  ? 'Remove from favorites'
+                  : 'Add to favorites',
+              onPressed: enabled && hasSong
+                  ? () =>
+                        _run(() => session.setFavorite(p.songId!, !p.favorite))
+                  : null,
+              icon: Icon(
+                p.favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: p.favorite ? primary : null,
+              ),
+            ),
+            HapticButton(
+              kind: HapticKind.selection,
+              tooltip: p.shuffleEnabled ? 'Shuffle is on' : 'Shuffle is off',
+              onPressed: enabled
+                  ? () => _run(() => session.setShuffle(!p.shuffleEnabled))
+                  : null,
+              icon: Icon(
+                Icons.shuffle_rounded,
+                color: p.shuffleEnabled ? primary : null,
+              ),
+            ),
+            HapticButton(
+              kind: HapticKind.selection,
+              tooltip: 'Repeat: ${p.repeatMode.label}',
+              onPressed: enabled
+                  ? () => _run(
+                      () => session.setRepeat(switch (p.repeatMode) {
+                        RepeatMode.off => RepeatMode.queue,
+                        RepeatMode.queue => RepeatMode.one,
+                        RepeatMode.one => RepeatMode.off,
+                      }),
+                    )
+                  : null,
+              icon: Icon(
+                repeatIcon,
+                color: p.repeatMode == RepeatMode.off ? null : primary,
+              ),
+            ),
+            SpeedButton(
+              speed: p.speed,
+              enabled: enabled,
+              onSet: (v) => _run(() => session.setSpeed(v)),
+            ),
+            SleepTimerControl(
+              compact: true,
+              secondsLeft: p.sleepTimerSeconds,
+              enabled: enabled,
+              onSet: (m) => _run(() => session.setSleepTimer(m)),
+            ),
+            if (widget.visualizerButton != null) widget.visualizerButton!,
+            VolumeButton(
+              volume: p.volume,
+              enabled: enabled,
+              onChanged: (v) => _run(() => session.setVolume(v)),
+            ),
+          ],
+        );
+        if (!tight) return row;
+        return Theme(
+          data: Theme.of(context).copyWith(
+            iconButtonTheme: IconButtonThemeData(
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           ),
-        ),
-        HapticButton(
-          kind: HapticKind.selection,
-          tooltip: p.shuffleEnabled ? 'Shuffle is on' : 'Shuffle is off',
-          onPressed: enabled
-              ? () => _run(() => session.setShuffle(!p.shuffleEnabled))
-              : null,
-          icon: Icon(
-            Icons.shuffle_rounded,
-            color: p.shuffleEnabled ? primary : null,
-          ),
-        ),
-        HapticButton(
-          kind: HapticKind.selection,
-          tooltip: 'Repeat: ${p.repeatMode.label}',
-          onPressed: enabled
-              ? () => _run(
-                  () => session.setRepeat(switch (p.repeatMode) {
-                    RepeatMode.off => RepeatMode.queue,
-                    RepeatMode.queue => RepeatMode.one,
-                    RepeatMode.one => RepeatMode.off,
-                  }),
-                )
-              : null,
-          icon: Icon(
-            repeatIcon,
-            color: p.repeatMode == RepeatMode.off ? null : primary,
-          ),
-        ),
-        SpeedButton(
-          speed: p.speed,
-          enabled: enabled,
-          onSet: (v) => _run(() => session.setSpeed(v)),
-        ),
-        SleepTimerControl(
-          compact: true,
-          secondsLeft: p.sleepTimerSeconds,
-          enabled: enabled,
-          onSet: (m) => _run(() => session.setSleepTimer(m)),
-        ),
-        VolumeButton(
-          volume: p.volume,
-          enabled: enabled,
-          onChanged: (v) => _run(() => session.setVolume(v)),
-        ),
-      ],
+          child: row,
+        );
+      },
     );
   }
 
@@ -252,10 +272,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
                         enabled: enabled,
                         onSeek: (s) => _run(() => session.seek(s)),
                         // The cover, with the lyrics button in its corner.
-                        art: _withPlaylistButton(
-                        context,
-                        p,
-                        CoverWithLyrics(
+                        art: CoverWithLyrics(
                           cover: session.art(
                             (p.songId ?? 0) <= 0 ? null : p.songId,
                             size: heroSize,
@@ -272,7 +289,10 @@ class NowPlayingViewState extends State<NowPlayingView> {
                           enabled: enabled,
                           fetch: session.lyrics,
                           onSeek: (s) => _run(() => session.seek(s)),
-                        )),
+                          // Top-left while the cover shows; the lyrics' fullscreen button
+                          // has that corner when they show.
+                          coverAction: _playlistButton(context, p),
+                        ),
                         actions: _quickActions(p, enabled),
                       ),
                     if (widget.visualizer != null && !p.isExternal)

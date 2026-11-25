@@ -116,14 +116,31 @@ void main() {
       expect(find.text('Also write into the music file'), findsNothing);
     });
 
-    testWidgets('is off unless ticked', (tester) async {
+    testWidgets('is ticked from the start', (tester) async {
       final r = await open(tester, canWrite: true);
+      expect(r!.writeToFile, isTrue);
+    });
+
+    testWidgets('unticking it keeps the change in the library only', (tester) async {
+      final r = await open(tester, canWrite: true, tick: true);
       expect(r!.writeToFile, isFalse);
     });
 
-    testWidgets('ticking it asks to write the file too', (tester) async {
-      final r = await open(tester, canWrite: true, tick: true);
-      expect(r!.writeToFile, isTrue);
+    testWidgets('the box is shown ticked', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showSongInfoDialog(
+                context, const RemoteSong(id: 1, title: 'T', artist: 'A', album: 'B'),
+                canWriteFile: true),
+            child: const Text('go'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final box = tester.widget<CheckboxListTile>(find.byType(CheckboxListTile));
+      expect(box.value, isTrue);
     });
   });
 }

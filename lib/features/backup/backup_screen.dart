@@ -78,6 +78,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _lyrics = true;
   bool _settings = true;
   bool _art = true;
+  bool _activity = true;
   bool _restoreArt = true;
   bool _busy = false;
 
@@ -98,7 +99,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     try {
       final service = await ref.read(backupServiceProvider.future);
-      final data = await service.create(lyrics: _lyrics, settings: _settings, art: _art);
+      final data = await service.create(
+          lyrics: _lyrics, settings: _settings, art: _art, activity: _activity);
       final bytes = data.encode();
       final d = data.created;
       String two(int n) => n.toString().padLeft(2, '0');
@@ -223,6 +225,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             Text('Back up', style: theme.textTheme.titleMedium),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              title: const Text('Playlists, favorites and counts'),
+              subtitle: const Text(
+                  'Also play and skip counts, edited song info and the left-out list'),
+              value: _activity,
+              onChanged: (v) => setState(() => _activity = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
               title: const Text('Include lyrics'),
               value: _lyrics,
               onChanged: (v) => setState(() => _lyrics = v),
@@ -249,6 +259,18 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               onPressed: _busy ? null : _makeBackup,
               icon: const Icon(Icons.save_alt_rounded),
               label: const Text('Back up to a file'),
+            ),
+            TextButton(
+              key: const Key('lyrics-art-only'),
+              onPressed: _busy
+                  ? null
+                  : () => setState(() {
+                        _activity = false;
+                        _settings = false;
+                        _lyrics = true;
+                        _art = true;
+                      }),
+              child: const Text('Choose lyrics and album art only'),
             ),
             const SizedBox(height: 4),
             Text(

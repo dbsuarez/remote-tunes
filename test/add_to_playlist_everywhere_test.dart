@@ -99,7 +99,7 @@ void main() {
   });
 
   group('the queue', () {
-    testWidgets('each row can be added to a playlist', (tester) async {
+    testWidgets('swiping a row to the right adds that song to a playlist', (tester) async {
       await bigScreen(tester);
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
@@ -114,9 +114,11 @@ void main() {
         ),
       ));
       await settleUi(tester);
-      await tester.tap(find.byTooltip('Add Queued Two to a playlist'));
+      await tester.drag(find.text('Queued Two'), const Offset(600, 0));
       await pickGym(tester);
       expect(source.calls.last, 'addToPlaylist 4 [11]');
+      expect(find.text('Queued Two'), findsOneWidget, reason: 'the row stays in the queue');
+      expect(find.byTooltip('Add Queued Two to a playlist'), findsNothing, reason: 'no button any more');
     });
   });
 

@@ -1,3 +1,4 @@
+import '../../core/widgets/haptic_button.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -437,6 +438,17 @@ class _Active {
         sleepTimer: core.sleepTimer,
         onOpenLibrary: goLibrary,
         lyricsRequests: lyricsRequests,
+        // Shows or hides the visualizer without going to Settings.
+        visualizerButton: Builder(
+          builder: (context) => HapticButton(
+            kind: HapticKind.selection,
+            tooltip: visualizer ? 'Hide the visualizer' : 'Show the visualizer',
+            onPressed: () =>
+                switchVisualizer(context, ref.read(settingsRepositoryProvider), !visualizer),
+            icon: Icon(Icons.graphic_eq_rounded,
+                color: visualizer ? Theme.of(context).colorScheme.primary : null),
+          ),
+        ),
         visualizer: visualizer
             ? (playing) => VisualizerStrip(
                   isPlaying: playing,

@@ -75,7 +75,7 @@ Every add ends with a report: songs **found**, **added**, **already in your libr
 
 ### The queue
 - At the bottom of Now Playing, a thin **handle**: tap it or swipe it up to see **Up next** (the song playing and what follows); swipe up again for the whole list. Tap a row to jump to it. **Tap the player above the sheet to put it away.**
-- The **Queue tab** is the full list: drag to reorder, remove, clear, search it. Opening it **scrolls to the song playing** (Settings > *Queue opens at the song playing*, on by default; switch it off if you don't like it).
+- The **Queue tab** is the full list: drag the handle to reorder, **swipe a song left to remove it** (a message offers *Undo*), **swipe it right to add it to a playlist**, **long-press to pick several** and add them to a playlist or remove them together, clear, search it. Opening it **scrolls to the song playing** (Settings > *Queue opens at the song playing*, on by default; switch it off if you don't like it).
 
 ---
 
@@ -94,7 +94,7 @@ One song fades out while the next fades in. Works between songs that are files o
 Off / By song / By album. Turns loud songs **down** to the level in their Replay Gain tags (it never turns a song up). Run *Update tags from files* first; songs with no tags are unchanged.
 
 ### Visualizer (Settings, off by default)
-Moving bars under the cover. **Tap them on Now Playing to change the style** (its name shows for a moment). Six styles, all horizontal: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Wave** (a glowing line), **LED** (columns of lit squares), **Spread** (the bass in the middle, spreading out to both sides) and **Dots** (a row of glowing dots). You can also pick one in Settings. Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
+Moving bars under the cover. **Show or hide them with the button just left of the volume button on Now Playing** (no need to open Settings), and **tap the bars to change the style** (its name shows for a moment). Six styles, all horizontal: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Wave** (a glowing line), **LED** (columns of lit squares), **Spread** (the bass in the middle, spreading out to both sides) and **Dots** (a row of glowing dots). You can also pick one in Settings. Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
 
 ---
 
@@ -102,7 +102,7 @@ Moving bars under the cover. **Tap them on Now Playing to change the style** (it
 
 **Song menu > Edit info:** title, artist, album, track number.
 - By default this only changes **how RemoteTunes lists the song**; the file is untouched.
-- Tick **Also write into the music file** to change the file's tags too (so other players see it). Android may refuse files in shared folders. Then it says *Saved in RemoteTunes only*. Fix: **Settings > All files access**, which opens Android's page for the app; switch it on, come back (the row says Allowed), save again.
+- **Also write into the music file** is ticked from the start, so the file's tags change too (so other players see it). Android may refuse files in shared folders. Then it says *Saved in RemoteTunes only*. Fix: **Settings > All files access**, which opens Android's page for the app; switch it on, come back (the row says Allowed), save again.
 
 ---
 

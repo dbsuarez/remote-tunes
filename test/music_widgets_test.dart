@@ -207,8 +207,16 @@ class FakeMusicSource implements MusicSource {
       calls.add('play $songIds start=$startSongId${keepQueue ? ' keep' : ''}');
 
   @override
-  Future<void> queueSongs(List<int> songIds, {bool playNext = false}) async =>
-      calls.add('queue $songIds next=$playNext');
+  Future<void> queueSongs(List<int> songIds, {bool playNext = false}) async {
+    calls.add('queue $songIds next=$playNext');
+    // Songs of the library join the end of the queue (as on the Player).
+    for (final id in songIds) {
+      final songs = library.where((s) => s.id == id);
+      if (songs.isEmpty) continue;
+      final next = queue.fold<int>(0, (m, e) => e.queueItemId > m ? e.queueItemId : m) + 1;
+      queue.add(RemoteQueueItem(queueItemId: next, isCurrent: false, song: songs.first));
+    }
+  }
 
   @override
   Future<QueueSnapshot> loadQueue() async {
@@ -483,13 +491,14 @@ void main() {
       expect(find.textContaining('The queue is empty'), findsOneWidget);
     });
 
-    testWidgets('tap jumps to the entry; X removes it', (tester) async {
+    testWidgets('tap jumps to the entry; a swipe to the left removes one', (tester) async {
       final s = FakeMusicSource(queue: [item(10, 'One'), item(11, 'Two')]);
       await tester.pumpWidget(queue(s));
       await settleUi(tester);
       await tester.tap(find.text('Two'));
       await settleUi(tester);
-      await tester.tap(find.byTooltip('Remove from queue').first);
+      await tester.drag(find.text('One'), const Offset(-600, 0));
+      await tester.pumpAndSettle();
       await settleUi(tester);
       expect(s.calls, ['jump 11', 'remove 10']);
       expect(find.text('One'), findsNothing);

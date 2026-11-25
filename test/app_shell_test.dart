@@ -20,6 +20,7 @@ import 'package:remote_tunes/features/player/queue/playable_song.dart';
 import 'package:remote_tunes/features/player/queue_playback_engine.dart';
 import 'package:remote_tunes/features/player/server/player_library.dart';
 import 'package:remote_tunes/features/player/sleep_timer.dart';
+import 'package:remote_tunes/features/player/visualizer.dart';
 import 'package:remote_tunes/providers/connection_providers.dart';
 import 'package:remote_tunes/providers/providers.dart';
 import 'package:remote_tunes/providers/shell_providers.dart';
@@ -190,6 +191,69 @@ void main() {
     expect(find.text('Start as PLAYER'), findsNothing);
     expect(find.text('Alpha Song'), findsWidgets, reason: 'the song playing');
     expect(find.text('Ann · First'), findsOneWidget);
+  });
+
+  group('the visualizer button on Now Playing', () {
+    late bool Function() permissionAsked;
+
+    setUp(() {
+      var asked = false;
+      permissionAsked = () => asked;
+      VisualizerService.requestPermission = () async {
+        asked = true;
+        return true;
+      };
+    });
+    tearDown(() => VisualizerService.requestPermission = () async => false);
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('sits just to the left of the volume button, in the row of quick actions',
+        (tester) async {
+      await open(tester);
+      final viz = tester.getCenter(find.byTooltip('Show the visualizer'));
+      final vol = tester.getCenter(find.byTooltip('Volume'));
+      final sleep = tester.getCenter(find.byTooltip('Set sleep timer'));
+      expect(viz.dx, greaterThan(sleep.dx));
+      expect(viz.dx, lessThan(vol.dx));
+      expect((viz.dy - vol.dy).abs(), lessThan(1), reason: 'the same row');
+    });
+
+    testWidgets('it fits on a narrow phone too (no overflow)', (tester) async {
+      await open(tester, size: const Size(360, 780));
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip('Show the visualizer'), findsOneWidget);
+      expect(find.byTooltip('Volume'), findsOneWidget);
+    });
+
+    testWidgets('a tap shows it, and again hides it, with no trip to Settings', (tester) async {
+      final container = await open(tester);
+      expect((await container.read(settingsRepositoryProvider).load()).visualizerEnabled, isFalse);
+      await tester.tap(find.byTooltip('Show the visualizer'));
+      await settle(tester);
+      expect(permissionAsked(), isTrue, reason: 'Android needs the microphone permission');
+      expect((await container.read(settingsRepositoryProvider).load()).visualizerEnabled, isTrue);
+      expect(find.byTooltip('Hide the visualizer'), findsOneWidget);
+      await tester.tap(find.byTooltip('Hide the visualizer'));
+      await settle(tester);
+      expect((await container.read(settingsRepositoryProvider).load()).visualizerEnabled, isFalse);
+      expect(find.byTooltip('Show the visualizer'), findsOneWidget);
+    });
+
+    testWidgets('without the permission it stays off and says why', (tester) async {
+      VisualizerService.requestPermission = () async => false;
+      final container = await open(tester);
+      await tester.tap(find.byTooltip('Show the visualizer'));
+      await settle(tester);
+      expect((await container.read(settingsRepositoryProvider).load()).visualizerEnabled, isFalse);
+      expect(find.text('The visualizer needs the microphone permission.'), findsOneWidget);
+      expect(find.byTooltip('Show the visualizer'), findsOneWidget);
+    });
   });
 
   testWidgets('Now Playing has the same controls as the Controller', (tester) async {
