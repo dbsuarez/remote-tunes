@@ -1,3 +1,4 @@
+import '../../core/widgets/default_art.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -47,19 +48,9 @@ class _RemoteArtState extends State<RemoteArt> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final size = widget.size;
     final radius = widget.radius ?? size / 5;
-    final placeholder = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(radius),
-      ),
-      child: Icon(Icons.music_note_rounded,
-          color: theme.colorScheme.primary, size: size / 2),
-    );
+    final placeholder = DefaultArt.album(size: size, radius: radius);
     final art = _art;
     if (art == null) return placeholder;
     return FutureBuilder<Uint8List?>(

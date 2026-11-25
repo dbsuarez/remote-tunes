@@ -158,8 +158,16 @@ class CrossfadeBackend implements AudioBackend {
 
   @override
   Future<void> seek(Duration position) async {
-    // Jumping in the song ends a fade (the song fades in no more).
-    if (_fade != null) await _cancelFade();
+    if (_fade != null) {
+      if (_ramp != null) {
+        // Fading: the next song takes over now, and it is the one that is sought.
+        _ramp?.cancel();
+        await _finishFade(_other, _pendingPath ?? '');
+      } else {
+        // Still loading it: forget the fade.
+        await _cancelFade();
+      }
+    }
     await _active.seek(position);
   }
 
@@ -230,7 +238,7 @@ class CrossfadeBackend implements AudioBackend {
   }
 
   @override
-  Future<bool> crossfadeTo(String filePath, Duration length) async {
+  Future<bool> crossfadeTo(String filePath, Duration length, {bool immediate = false}) async {
     if (_fade != null || length <= Duration.zero) return false;
     final incoming = _other;
     final done = Completer<bool>();
@@ -262,7 +270,7 @@ class CrossfadeBackend implements AudioBackend {
     // fade if the load took too long.
     var fadeLength = length;
     final total = _lastDuration[_active];
-    if (total != null && total > Duration.zero) {
+    if (!immediate && total != null && total > Duration.zero) {
       final remaining = total - _active.position;
       if (remaining > length + const Duration(milliseconds: 80)) {
         await Future<void>.delayed(remaining - length);

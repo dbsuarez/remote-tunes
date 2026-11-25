@@ -1,3 +1,4 @@
+import '../../core/widgets/default_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -585,15 +586,7 @@ class _TrackTile extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final art = track.imageUrl;
-    final placeholder = Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(Icons.music_note_rounded, color: theme.colorScheme.primary),
-    );
+    final placeholder = DefaultArt.album(size: 52, radius: 10);
     return ListTile(
       minTileHeight: 72,
       onTap: onPlay,
@@ -739,15 +732,7 @@ class _Cover extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final art = track.imageUrl;
-    final placeholder = Container(
-      width: 120,
-      height: 120,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(Icons.music_note_rounded, color: theme.colorScheme.primary, size: 36),
-    );
+    final placeholder = DefaultArt.album(size: 120, radius: 12);
     return Semantics(
       label: '${track.title} by ${track.artist}',
       button: true,

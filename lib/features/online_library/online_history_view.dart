@@ -1,3 +1,4 @@
+import '../../core/widgets/default_art.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/protocol/library_models.dart';
@@ -266,15 +267,7 @@ class _HistoryTile extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     final art = item.imageUrl;
-    final placeholder = Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(Icons.music_note_rounded, color: theme.colorScheme.primary),
-    );
+    final placeholder = DefaultArt.album(size: 52, radius: 10);
     return ListTile(
       minTileHeight: 72,
       onTap: onPlay,

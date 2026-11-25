@@ -183,13 +183,17 @@ class FakeAudioBackend implements AudioBackend {
   bool canCrossfade = false;
   final List<({String path, Duration length})> crossfades = [];
 
+  /// Which of those were asked for at once (Next pressed), not timed to the song's end.
+  final List<bool> crossfadeImmediate = [];
+
   @override
   bool get supportsCrossfade => canCrossfade;
 
   @override
-  Future<bool> crossfadeTo(String filePath, Duration length) async {
+  Future<bool> crossfadeTo(String filePath, Duration length, {bool immediate = false}) async {
     if (!canCrossfade) return false;
     crossfades.add((path: filePath, length: length));
+    crossfadeImmediate.add(immediate);
     currentPath = filePath;
     position = Duration.zero;
     nextPath = null;

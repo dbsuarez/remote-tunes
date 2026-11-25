@@ -255,7 +255,7 @@ class _Row extends StatelessWidget {
       ),
       title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        song.available ? song.artist : 'File missing from the Player',
+        song.available ? '${song.artist} · ${song.album}' : 'File missing from the Player',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

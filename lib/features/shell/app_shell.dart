@@ -442,6 +442,12 @@ class _Active {
                   isPlaying: playing,
                   style: VisualizerStyle.byName(
                       ref.read(settingsProvider).valueOrNull?.visualizerStyle),
+                  // A tap moves to the next style (and it is remembered).
+                  onCycle: () {
+                    final now = VisualizerStyle.byName(
+                        ref.read(settingsProvider).valueOrNull?.visualizerStyle);
+                    ref.read(settingsRepositoryProvider).setVisualizerStyle(now.next.name);
+                  },
                 )
             : null,
       ),

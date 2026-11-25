@@ -148,4 +148,11 @@ void main() {
         isTrue);
     expect(tester.widget<ListTile>(find.widgetWithText(ListTile, 'Blue Moon')).selected, isFalse);
   });
+
+  testWidgets('each queue row shows the artist and the album the song belongs to', (tester) async {
+    await open(tester);
+    expect(find.text('Ann · Night'), findsOneWidget);
+    expect(find.text('Bob · Day'), findsOneWidget);
+    expect(find.text('Cy · Night'), findsOneWidget);
+  });
 }

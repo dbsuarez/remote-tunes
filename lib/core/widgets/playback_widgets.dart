@@ -1,3 +1,4 @@
+import 'default_art.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -6,6 +7,17 @@ import 'package:flutter/material.dart';
 import '../haptics.dart';
 import '../protocol/protocol.dart';
 import 'haptic_button.dart';
+
+/// 2043 -> "2,043".
+String formatCount(int n) {
+  final s = n.abs().toString();
+  final out = StringBuffer(n < 0 ? '-' : '');
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) out.write(',');
+    out.write(s[i]);
+  }
+  return out.toString();
+}
 
 String formatDuration(int seconds) {
   final s = seconds < 0 ? 0 : seconds;
@@ -380,17 +392,7 @@ class _ArtTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final placeholder = Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(Icons.music_note_rounded,
-          color: theme.colorScheme.primary, size: 32),
-    );
+    final placeholder = DefaultArt.album(size: 64, radius: 12);
     final p = path;
     if (p == null) return placeholder;
     return ClipRRect(

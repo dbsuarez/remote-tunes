@@ -299,6 +299,20 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
 
   /// The backend moved on by itself to the lined-up file.
   Future<void> _onAdvanced(String? path) async {
+    final fadedInto = _manualFade;
+    if (fadedInto != null) {
+      // Next / Previous faded into this one: the screen already shows it.
+      _manualFade = null;
+      _crossfading = false;
+      PlaybackLog.add('engine: the fade into entry $fadedInto finished');
+      if (_loadedEntryId == fadedInto) {
+        if (_replayGain != ReplayGainMode.off) {
+          unawaited(_backend.setVolume(_effectiveVolume()));
+        }
+        _emit();
+        return;
+      }
+    }
     final expected = _preloadedEntryId;
     _preloadedEntryId = null;
     _crossfading = false;
@@ -412,6 +426,10 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   int _crossfadeSeconds = 0;
   bool _crossfading = false;
 
+  /// The entry Next / Previous is fading into right now (the screen already shows
+  /// it; the old song is still fading out under it).
+  int? _manualFade;
+
   bool get _crossfadeActive => _crossfadeSeconds > 0 && _backend.supportsCrossfade;
 
   /// How long one song fades into the next (0: off). Only works when the audio
@@ -421,6 +439,72 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         _preloadKey = null;
         _preloadIfChanged();
       });
+
+  /// Pressing Next (or Previous) can fade too: only while a song plays, into a file on
+  /// this phone, and not while another fade is running.
+  bool _canFadeInto(QueueEntry entry, bool wasPlaying) {
+    final path = entry.song.filePath;
+    return _crossfadeActive &&
+        wasPlaying &&
+        !_crossfading &&
+        !_loading &&
+        _loadedEntryId != null &&
+        entry.id != _loadedEntryId &&
+        !entry.song.isUrl &&
+        path != null &&
+        _fileExists(path);
+  }
+
+  /// Starts the fade into [entry] at once. The screen switches to it straight away;
+  /// the old song fades out underneath. False if the fade could not start.
+  Future<bool> _fadeInto(QueueEntry entry) async {
+    final song = entry.song;
+    final path = song.filePath!;
+    final len = _crossfadeSeconds;
+    _endTracking(finished: false);
+    _manualFade = entry.id;
+    _crossfading = true;
+    _preloadedEntryId = null;
+    PlaybackLog.add('engine: fade ${len}s into entry ${entry.id} (Next / Previous)');
+    // Not awaited: the answer comes when the fade is over (the command must not hold
+    // up pause / next for the whole fade).
+    unawaited(() async {
+      var ok = false;
+      try {
+        ok = await _backend.crossfadeTo(path, Duration(seconds: len), immediate: true);
+      } catch (_) {
+        ok = false;
+      }
+      if (!ok && !_disposed && _manualFade == entry.id) {
+        // It could not fade: change the ordinary way.
+        PlaybackLog.add('engine: the fade failed, changing without it');
+        _crossfading = false;
+        await _serial(() async {
+          if (_manualFade != entry.id) return;
+          try {
+            await _startEntry(entry, autoplay: true);
+          } on PlaybackException {
+            // Reported through state.
+          }
+        });
+      }
+    }());
+    // The screen shows the new song now.
+    _loadedEntryId = entry.id;
+    _readFormat(entry);
+    _positionSeconds = 0;
+    _durationSeconds = song.durationSeconds;
+    _error = '';
+    _loading = false;
+    _playing = true;
+    final id = song.libraryId;
+    if (id != null) {
+      onSongStarted?.call(id);
+      _beginTracking(song);
+    }
+    _emit();
+    return true;
+  }
 
   /// Near the end of a song, starts fading into the next one.
   void _maybeCrossfade(Duration position) {
@@ -464,6 +548,8 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   }
 
   void _onPosition(Duration d) {
+    // The old song's positions while it fades out are not the new song's.
+    if (_manualFade != null) return;
     _trackListening(d);
     _maybeCrossfade(d);
     final s = d.inSeconds;
@@ -503,6 +589,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   /// Loads [entry] and optionally starts it. If its file is missing or broken
   /// it is skipped and the next entry is tried; throws if none can play.
   Future<void> _startEntry(QueueEntry entry, {required bool autoplay}) async {
+    _manualFade = null;
     _endTracking(finished: false);
     var current = entry;
     var attempts = 0;
@@ -626,6 +713,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         final wasPlaying = _playing;
         final next = _queue.advance(auto: false);
         if (next == null) return; // End of queue: nothing to do.
+        if (_canFadeInto(next, wasPlaying) && await _fadeInto(next)) return;
         await _startEntry(next, autoplay: wasPlaying);
       });
 
@@ -643,6 +731,8 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         if (target == null) return;
         if (target.id == before) {
           await _seekTo(0);
+        } else if (_canFadeInto(target, wasPlaying) && await _fadeInto(target)) {
+          return;
         } else {
           await _startEntry(target, autoplay: wasPlaying);
         }

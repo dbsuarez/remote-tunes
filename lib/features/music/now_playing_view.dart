@@ -1,3 +1,4 @@
+import 'playlist_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/haptics.dart';
@@ -105,6 +106,34 @@ class NowPlayingViewState extends State<NowPlayingView> {
   void _jump(PlaybackState p, int seconds) {
     final to = (p.positionSeconds + seconds).clamp(0, p.durationSeconds);
     _run(() => session.seek(to));
+  }
+
+  /// The cover with a small "add to a playlist" button in its top-left corner (the
+  /// lyrics button is in the top-right one).
+  Widget _withPlaylistButton(BuildContext context, PlaybackState p, Widget cover) {
+    final id = p.songId ?? 0;
+    if (id <= 0 || p.isExternal) return cover;
+    return Stack(
+      children: [
+        cover,
+        Positioned(
+          left: 8,
+          top: 8,
+          child: Material(
+            color: Colors.black54,
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: 'Add to a playlist',
+              iconSize: 22,
+              visualDensity: VisualDensity.compact,
+              color: Colors.white,
+              icon: const Icon(Icons.playlist_add_rounded),
+              onPressed: () => addSongsToPlaylistFlow(context, session.source, [id]),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   /// Favorite, shuffle, repeat, speed and the sleep timer, right under the title.
@@ -223,7 +252,10 @@ class NowPlayingViewState extends State<NowPlayingView> {
                         enabled: enabled,
                         onSeek: (s) => _run(() => session.seek(s)),
                         // The cover, with the lyrics button in its corner.
-                        art: CoverWithLyrics(
+                        art: _withPlaylistButton(
+                        context,
+                        p,
+                        CoverWithLyrics(
                           cover: session.art(
                             (p.songId ?? 0) <= 0 ? null : p.songId,
                             size: heroSize,
@@ -240,7 +272,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
                           enabled: enabled,
                           fetch: session.lyrics,
                           onSeek: (s) => _run(() => session.seek(s)),
-                        ),
+                        )),
                         actions: _quickActions(p, enabled),
                       ),
                     if (widget.visualizer != null && !p.isExternal)

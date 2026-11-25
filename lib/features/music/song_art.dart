@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/default_art.dart';
 import 'music_source.dart';
 
 /// The round picture at the start of a song row: the album art if the song has
@@ -64,13 +65,24 @@ class _SongArtState extends State<SongArt> {
           child: Icon(icon, size: r * 1.2, color: iconColor),
         );
 
+    // No cover: the default picture (a state like "playing" or "selected" keeps its icon).
+    Widget none() => widget.overlayIcon == null
+        ? DefaultArt.albumAvatar(radius: r)
+        : note(widget.overlayIcon!);
     final art = _art;
-    if (art == null) return note(widget.overlayIcon ?? Icons.music_note_rounded);
+    if (art == null) return none();
     return FutureBuilder<Uint8List?>(
       future: art,
       builder: (context, snap) {
         final bytes = snap.data;
-        if (bytes == null) return note(widget.overlayIcon ?? Icons.music_note_rounded);
+        // While it loads, a plain circle (not the default picture, which would flash).
+        if (snap.connectionState != ConnectionState.done && bytes == null) {
+          return widget.overlayIcon != null
+              ? note(widget.overlayIcon!)
+              : CircleAvatar(
+                  radius: r, backgroundColor: theme.colorScheme.surfaceContainerHighest);
+        }
+        if (bytes == null) return none();
         return CircleAvatar(
           radius: r,
           backgroundColor: theme.colorScheme.surfaceContainerHighest,

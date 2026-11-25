@@ -119,11 +119,15 @@ class VisualizerStrip extends StatefulWidget {
     super.key,
     required this.isPlaying,
     this.style = VisualizerStyle.bars,
+    this.onCycle,
     this.service,
   });
 
   final bool isPlaying;
   final VisualizerStyle style;
+
+  /// A tap on the visualizer asks for the next style (null: a tap does nothing).
+  final VoidCallback? onCycle;
 
   /// For tests.
   final VisualizerService? service;
@@ -138,6 +142,10 @@ class _VisualizerStripState extends State<VisualizerStrip> with SingleTickerProv
   final _animator = VisualizerAnimator();
   late final Ticker _ticker = createTicker(_onTick);
   Duration _last = Duration.zero;
+
+  /// The style's name is shown for a moment after it changes.
+  bool _showName = false;
+  Timer? _nameTimer;
 
   @override
   void initState() {
@@ -171,6 +179,13 @@ class _VisualizerStripState extends State<VisualizerStrip> with SingleTickerProv
   @override
   void didUpdateWidget(VisualizerStrip old) {
     super.didUpdateWidget(old);
+    if (old.style != widget.style) {
+      _nameTimer?.cancel();
+      setState(() => _showName = true);
+      _nameTimer = Timer(const Duration(milliseconds: 1400), () {
+        if (mounted) setState(() => _showName = false);
+      });
+    }
     if (old.isPlaying != widget.isPlaying) {
       if (widget.isPlaying) {
         _service.start();
@@ -186,6 +201,7 @@ class _VisualizerStripState extends State<VisualizerStrip> with SingleTickerProv
 
   @override
   void dispose() {
+    _nameTimer?.cancel();
     _ticker.dispose();
     _service.bars.removeListener(_onReading);
     _service.dispose();
@@ -212,17 +228,48 @@ class _VisualizerStripState extends State<VisualizerStrip> with SingleTickerProv
             ),
           );
         }
-        return SizedBox(
-          height: widget.style == VisualizerStyle.circle ? 150 : 72,
-          child: CustomPaint(
-            key: const Key('visualizer-bars'),
-            painter: VisualizerPainter(
-              animator: _animator,
-              style: widget.style,
-              low: theme.colorScheme.primary,
-              high: theme.colorScheme.secondary,
+        return Semantics(
+          label: 'Visualizer, ${widget.style.label}. Tap to change the style.',
+          button: widget.onCycle != null,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onCycle,
+            child: SizedBox(
+              height: 72,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      key: const Key('visualizer-bars'),
+                      painter: VisualizerPainter(
+                        animator: _animator,
+                        style: widget.style,
+                        low: theme.colorScheme.primary,
+                        high: theme.colorScheme.secondary,
+                      ),
+                    ),
+                  ),
+                  // The name of the style, for a moment after a tap.
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    child: AnimatedOpacity(
+                      key: const Key('visualizer-name'),
+                      opacity: _showName ? 1 : 0,
+                      duration: const Duration(milliseconds: 250),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(widget.style.label, style: theme.textTheme.labelSmall),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            size: Size.infinite,
           ),
         );
       },

@@ -141,10 +141,24 @@ void main() {
       });
     }
 
-    test('a style is found by its saved name, and an unknown one is Bars', () {
-      expect(VisualizerStyle.byName('circle'), VisualizerStyle.circle);
+    test('a style is found by its saved name; an unknown or removed one is Bars', () {
+      expect(VisualizerStyle.byName('led'), VisualizerStyle.led);
+      expect(VisualizerStyle.byName('circle'), VisualizerStyle.bars, reason: 'the ring was removed');
       expect(VisualizerStyle.byName('nothing'), VisualizerStyle.bars);
       expect(VisualizerStyle.byName(null), VisualizerStyle.bars);
+    });
+
+    test('they are all horizontal: six styles, and a tap goes round in a circle of its own', () {
+      expect(VisualizerStyle.values.map((s) => s.name),
+          ['bars', 'mirror', 'wave', 'led', 'spread', 'dots']);
+      var s = VisualizerStyle.bars;
+      final seen = <VisualizerStyle>[];
+      for (var i = 0; i < 6; i++) {
+        seen.add(s);
+        s = s.next;
+      }
+      expect(seen.toSet().length, 6);
+      expect(s, VisualizerStyle.bars, reason: 'after the last it starts again');
     });
   });
 

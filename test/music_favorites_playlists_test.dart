@@ -22,7 +22,7 @@ void main() {
     await settleUi(tester);
   }
 
-  testWidgets('song rows show album art when the song has it, a note otherwise',
+  testWidgets('song rows show album art when the song has it, the default picture otherwise',
       (tester) async {
     source.withArt.add(2); // only Banana
     await open(tester);
@@ -34,13 +34,13 @@ void main() {
             of: find.byType(SongArt), matching: find.byType(CircleAvatar))));
 
     expect(avatarOf('Banana Song').backgroundImage, isA<MemoryImage>());
-    expect(avatarOf('Apple Song').backgroundImage, isNull);
-    // The note shows for the one without art.
+    // The one without art shows the default picture (not a plain note).
+    expect(avatarOf('Apple Song').backgroundImage, isA<ResizeImage>());
     expect(
         find.descendant(
             of: find.ancestor(of: find.text('Apple Song'), matching: find.byType(ListTile)),
             matching: find.byIcon(Icons.music_note_rounded)),
-        findsOneWidget);
+        findsNothing);
   });
 
   testWidgets('a selected row with art keeps the picture and adds a check',
@@ -164,6 +164,56 @@ void main() {
     expect(find.text('Added 2 songs to "Gym"'), findsOneWidget);
     expect(find.textContaining('selected'), findsNothing,
         reason: 'the selection ends after the action');
+  });
+
+  group('taking songs out of a playlist', () {
+    Future<void> openPlaylist(WidgetTester tester) async {
+      source.playlistList.add(const RemotePlaylist(id: 4, name: 'Gym', songCount: 3));
+      source.playlistSongs[4] = [1, 2, 3];
+      await open(tester);
+      await tester.tap(find.text('Playlists'));
+      await settleUi(tester);
+      await tester.tap(find.text('Gym'));
+      await settleUi(tester);
+      expect(find.text('Apple Song'), findsOneWidget);
+    }
+
+    testWidgets('one song, from its menu', (tester) async {
+      await openPlaylist(tester);
+      await tester.tap(find.byTooltip('More').at(1)); // Banana
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove from playlist'));
+      await settleUi(tester);
+      expect(source.calls.last, 'removeFromPlaylist 4 2');
+      expect(find.text('Banana Song'), findsNothing);
+      expect(find.text('Apple Song'), findsOneWidget);
+    });
+
+    testWidgets('several at once: pick them, then use the bar', (tester) async {
+      await openPlaylist(tester);
+      await tester.longPress(find.text('Apple Song'));
+      await settleUi(tester);
+      await tester.tap(find.text('Cherry Song'));
+      await settleUi(tester);
+      expect(find.text('2 selected'), findsOneWidget);
+      await tester.tap(find.byTooltip('Remove selected from the playlist'));
+      await settleUi(tester);
+      expect(source.calls.where((c) => c.startsWith('removeFromPlaylist')).toList(),
+          ['removeFromPlaylist 4 1', 'removeFromPlaylist 4 3']);
+      expect(find.text('Apple Song'), findsNothing);
+      expect(find.text('Cherry Song'), findsNothing);
+      expect(find.text('Banana Song'), findsOneWidget, reason: 'the one not picked stays');
+      expect(find.textContaining('selected'), findsNothing, reason: 'the selection ends');
+      expect(find.text('Removed from the playlist'), findsOneWidget);
+    });
+
+    testWidgets('the button is only there inside a playlist', (tester) async {
+      await open(tester);
+      await tester.longPress(find.text('Apple Song'));
+      await settleUi(tester);
+      expect(find.byTooltip('Remove selected from the playlist'), findsNothing);
+      expect(find.byTooltip('Add selected to playlist'), findsOneWidget);
+    });
   });
 
   testWidgets('select all, add to queue, and cancel', (tester) async {

@@ -58,6 +58,8 @@ Every add ends with a report: songs **found**, **added**, **already in your libr
 - **Tap a song** in a list to play it; the rest of that list becomes the queue.
 - **Long-press a song** (or use *Select* in a search) to pick several, then add them to the queue or a playlist.
 - A song's **menu** (three dots): add to queue, add to playlist, favorite, **Edit info**, remove from library.
+- **Add to playlist is nearly everywhere:** on artist, album, genre and year rows (their menu adds all their songs), at the top of an album or artist page, in search results, in the folder tree, on every Queue row, and on the cover on Now Playing. Inside a playlist, pick several songs and use the remove button to take them out.
+- The Library list shows **how many** are in each category.
 - **Library categories:** All Songs, Folders, **Folder tree** (folders inside folders, arrow to go up), Albums, Artists, Album Artists, Composers, Genres, Years, Favorites, Recent, **Most played** (with how many plays), **Most skipped** (how many times you moved on before 30 seconds), **Never played**, New, Playlists. Settings > *Reset play and skip counts* starts the counts again.
 - **Back from a folder, album or artist** returns to the same spot in the list, with the one you came from lightly tinted.
 - **Search:** songs, albums, artists, album artists and folders in sections; *See all* narrows to one kind; your recent searches are listed when the box is empty. *Play* and *Shuffle* work on the results.
@@ -66,7 +68,7 @@ Every add ends with a report: songs **found**, **added**, **already in your libr
 
 ## 5. Now Playing
 
-- Big cover, title in the cover's color, then a row of: **favorite**, **shuffle**, **repeat**, **speed**, **sleep timer**, **volume** (the speaker button opens a small slider). Shuffle and repeat are remembered when you close the app.
+- Big cover, title in the cover's color, then a row of: **favorite**, **shuffle**, **repeat**, **speed**, **sleep timer**, **volume** (the speaker button opens a small slider). Shuffle and repeat are remembered when you close the app. **Shuffle never repeats a song until all of them have played** (then a new round starts if Repeat is on). With Crossfade on, **Next and Previous fade too**.
 - Round **play/pause**, previous, next, and **10-second back / forward**.
 - The line between the times shows the file's quality (for example "44.1 kHz · 320 kbps · MP3").
 - **Lyrics:** the button in the cover's top-right corner fades the cover into the lyrics. The line being sung is big and bright; tap any line to jump there; **Show fullscreen** opens a big version. The same button brings the cover back. Lyrics come from the internet (LRCLIB, then Megalobiz for timed lyrics, then lyrics.ovh) and are kept on the phone. Switch it off in Settings.
@@ -92,7 +94,7 @@ One song fades out while the next fades in. Works between songs that are files o
 Off / By song / By album. Turns loud songs **down** to the level in their Replay Gain tags (it never turns a song up). Run *Update tags from files* first; songs with no tags are unchanged.
 
 ### Visualizer (Settings, off by default)
-Moving bars under the cover, in four styles you pick in Settings: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Circle** (a ring) and **Wave** (a glowing line). Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
+Moving bars under the cover. **Tap them on Now Playing to change the style** (its name shows for a moment). Six styles, all horizontal: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Wave** (a glowing line), **LED** (columns of lit squares), **Spread** (the bass in the middle, spreading out to both sides) and **Dots** (a row of glowing dots). You can also pick one in Settings. Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
 
 ---
 

@@ -1,3 +1,4 @@
+import '../../core/widgets/default_art.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -102,17 +103,8 @@ class LocalArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final r = radius ?? size / 5;
-    final placeholder = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(r),
-      ),
-      child: Icon(Icons.music_note_rounded, color: theme.colorScheme.primary, size: size / 2),
-    );
+    final placeholder = DefaultArt.album(size: size, radius: r);
     final p = path;
     if (p == null) return placeholder;
     return ClipRRect(

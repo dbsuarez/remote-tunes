@@ -176,15 +176,17 @@ void main() {
       expect(b.playing, isFalse);
     });
 
-    test('seeking ends a fade too', () async {
+    test('seeking during a fade lets the next song take over, and it is the one sought', () async {
       await x.load('/m/1.mp3');
       await x.play();
       final fade = x.crossfadeTo('/m/2.mp3', const Duration(milliseconds: 500));
       await wait(30);
       await x.seek(const Duration(seconds: 10));
-      expect(await fade, isFalse);
-      expect(b.playing, isFalse);
-      expect(a.position, const Duration(seconds: 10));
+      expect(await fade, isTrue);
+      expect(a.playing, isFalse, reason: 'the old song stopped');
+      expect(b.playing, isTrue);
+      expect(b.position, const Duration(seconds: 10));
+      expect(a.position, isNot(const Duration(seconds: 10)));
     });
 
     test('a song that cannot be loaded does not start a fade', () async {
@@ -345,14 +347,16 @@ void main() {
       expect(backend.crossfades, isEmpty);
     });
 
-    test('skipping during the last seconds loads the song normally', () async {
+    test('pressing Next fades into the next song at once (not timed to the end)', () async {
       await engine.setCrossfade(3);
       await engine.playSongs([song(1), song(2), song(3)]);
       await settle();
       await engine.next();
       await settle();
       expect(engine.state.title, 'S2');
-      expect(backend.crossfades, isEmpty);
+      expect(backend.crossfades, hasLength(1));
+      expect(backend.crossfades.single.length, const Duration(seconds: 3));
+      expect(backend.crossfadeImmediate.single, isTrue);
     });
 
     test('the volume and tags still apply to the song faded into', () async {

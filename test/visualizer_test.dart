@@ -142,4 +142,53 @@ void main() {
     expect(find.byKey(const Key('visualizer-bars')), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  group('a tap changes the style', () {
+    testWidgets('it asks for the next style, and the name shows for a moment', (tester) async {
+      final v = make();
+      var taps = 0;
+      var style = VisualizerStyle.bars;
+      late StateSetter set;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(builder: (context, setState) {
+            set = setState;
+            return VisualizerStrip(
+              isPlaying: true,
+              service: v,
+              style: style,
+              onCycle: () {
+                taps++;
+                setState(() => style = style.next);
+              },
+            );
+          }),
+        ),
+      ));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+      await tester.pump();
+      expect(tester.widget<AnimatedOpacity>(find.byKey(const Key('visualizer-name'))).opacity, 0);
+      await tester.tap(find.byKey(const Key('visualizer-bars')));
+      await tester.pump();
+      expect(taps, 1);
+      expect(style, VisualizerStyle.mirror);
+      expect(tester.widget<AnimatedOpacity>(find.byKey(const Key('visualizer-name'))).opacity, 1);
+      expect(find.text('Mirror'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+      expect(tester.widget<AnimatedOpacity>(find.byKey(const Key('visualizer-name'))).opacity, 0);
+      set(() {});
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('without a callback a tap does nothing', (tester) async {
+      final v = make();
+      await tester.pumpWidget(
+          MaterialApp(home: Scaffold(body: VisualizerStrip(isPlaying: true, service: v))));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+      await tester.tap(find.byKey(const Key('visualizer-bars')));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
 }

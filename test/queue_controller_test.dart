@@ -260,4 +260,173 @@ void main() {
       expect(after, before);
     });
   });
+
+  group('shuffle keeps track of what has played', () {
+    /// Plays through with Next and returns the song ids in the order they came.
+    List<int> playRound(QueueController q, int count) {
+      final out = <int>[q.current!.song.id];
+      for (var i = 1; i < count; i++) {
+        final next = q.advance(auto: false);
+        if (next == null) break;
+        out.add(next.song.id);
+      }
+      return out;
+    }
+
+    test('every song plays once before any plays again', () {
+      for (var seed = 0; seed < 20; seed++) {
+        final q = QueueController(random: Random(seed))
+          ..replace(songs(8))
+          ..setShuffle(true);
+        final round = playRound(q, 8);
+        expect(round.toSet().length, 8, reason: 'seed $seed: $round');
+      }
+    });
+
+    test('at the end with repeat off, it stops (nothing is repeated)', () {
+      final q = QueueController(random: Random(1))
+        ..replace(songs(5))
+        ..setShuffle(true);
+      playRound(q, 5);
+      expect(q.advance(auto: false), isNull);
+    });
+
+    test('with repeat on, a new round plays everything again, and the round change is not the same song twice',
+        () {
+      for (var seed = 0; seed < 20; seed++) {
+        final q = QueueController(random: Random(seed))
+          ..replace(songs(6))
+          ..setShuffle(true)
+          ..setRepeat(RepeatMode.queue);
+        final all = playRound(q, 12);
+        expect(all.sublist(0, 6).toSet().length, 6, reason: 'round one, seed $seed');
+        expect(all.sublist(6, 12).toSet().length, 6, reason: 'round two, seed $seed');
+        expect(all[5], isNot(all[6]), reason: 'no song twice in a row, seed $seed');
+      }
+    });
+
+    test('choosing a song counts it as played: it does not come round again, the others still do',
+        () {
+      final q = QueueController(random: Random(3))
+        ..replace(songs(6))
+        ..setShuffle(true);
+      final first = q.current!.song.id;
+      final target = q.entries.last; // jump to a song far away
+      q.jumpTo(target.id);
+      final rest = <int>[];
+      for (var i = 0; i < 4; i++) {
+        rest.add(q.advance(auto: false)!.song.id);
+      }
+      expect(rest, isNot(contains(target.song.id)));
+      expect(rest, isNot(contains(first)));
+      expect(rest.toSet().length, 4, reason: 'the four others each came once: $rest');
+      expect(q.advance(auto: false), isNull);
+    });
+
+    test('choosing a song that already played does not make it play twice more', () {
+      final q = QueueController(random: Random(5))
+        ..replace(songs(5))
+        ..setShuffle(true);
+      final first = q.current!;
+      q.advance(auto: false);
+      q.advance(auto: false);
+      q.jumpTo(first.id); // back to the first one on purpose
+      final next = <int>[];
+      while (true) {
+        final n = q.advance(auto: false);
+        if (n == null) break;
+        next.add(n.song.id);
+      }
+      expect(next.where((i) => i == first.song.id), isEmpty);
+      expect(next.toSet().length, next.length, reason: 'no repeats: $next');
+    });
+
+    test('Back goes to what really played, and Next goes the same way again', () {
+      final q = QueueController(random: Random(7))
+        ..replace(songs(6))
+        ..setShuffle(true);
+      final a = q.current!.song.id;
+      final b = q.advance(auto: false)!.song.id;
+      final c = q.advance(auto: false)!.song.id;
+      expect(q.back()!.song.id, b);
+      expect(q.back()!.song.id, a);
+      expect(q.advance(auto: false)!.song.id, b, reason: 'the same song, not a new one');
+      expect(q.advance(auto: false)!.song.id, c);
+      expect(q.peekNext()?.song.id, isNot(anyOf(a, b, c)));
+    });
+
+    test('peekNext is the song that will really come, even after Back', () {
+      final q = QueueController(random: Random(9))
+        ..replace(songs(6))
+        ..setShuffle(true);
+      q.advance(auto: false);
+      final peek = q.peekNext()!;
+      expect(q.advance(auto: false)!.id, peek.id);
+      q.back();
+      expect(q.peekNext()!.id, peek.id);
+    });
+
+    test('Play next comes right after the song playing', () {
+      final q = QueueController(random: Random(2))
+        ..replace(songs(5))
+        ..setShuffle(true);
+      final added = q.add([song(99)], playNext: true);
+      expect(q.advance(auto: false)!.id, added.single.id);
+    });
+
+    test('a song added to the queue joins the round: it plays once, in what is still to come', () {
+      final q = QueueController(random: Random(4))
+        ..replace(songs(4))
+        ..setShuffle(true);
+      q.add([song(50)]);
+      final round = playRound(q, 5);
+      expect(round.toSet().length, 5);
+      expect(round, contains(50));
+    });
+
+    test('removing a song takes it out of the round', () {
+      final q = QueueController(random: Random(6))
+        ..replace(songs(5))
+        ..setShuffle(true);
+      final gone = q.peekNext()!;
+      q.remove(gone.id);
+      final round = playRound(q, 4);
+      expect(round.toSet().length, 4);
+      expect(round, isNot(contains(gone.song.id)));
+    });
+
+    test('removing the song playing moves on to the next one of the round', () {
+      final q = QueueController(random: Random(8))
+        ..replace(songs(5))
+        ..setShuffle(true);
+      final expected = q.peekNext()!;
+      final r = q.remove(q.current!.id);
+      expect(r.wasCurrent, isTrue);
+      expect(q.current!.id, expected.id);
+    });
+
+    test('turning shuffle off goes back to the list order from the song playing', () {
+      final q = QueueController(random: Random(11))
+        ..replace(songs(5))
+        ..setShuffle(true);
+      q.advance(auto: false);
+      final at = q.current!.song.id;
+      q.setShuffle(false);
+      expect(q.advance(auto: false)?.song.id, at == 5 ? isNull : at + 1);
+    });
+
+    test('turning shuffle on mid-song: the song playing counts as played', () {
+      final q = QueueController(random: Random(13))..replace(songs(6), startIndex: 2);
+      q.setShuffle(true);
+      final cur = q.current!.song.id;
+      final rest = <int>[];
+      while (true) {
+        final n = q.advance(auto: false);
+        if (n == null) break;
+        rest.add(n.song.id);
+      }
+      expect(rest.length, 5);
+      expect(rest, isNot(contains(cur)));
+    });
+  });
 }

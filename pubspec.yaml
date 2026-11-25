@@ -50,4 +50,6 @@ flutter:
   assets:
     # The owner's guide, shown in Help (the same file as in the docs folder).
     - docs/22_USER_GUIDE.md
+    # Shown where a song has no cover and an artist has no photo.
+    - assets/art/
 

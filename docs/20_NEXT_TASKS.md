@@ -140,10 +140,19 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
 
+### Built after `v1.0.4` (none of it tried on a phone yet)
+- [x] **Shuffle keeps track of what has played:** a round plays every song once; a song that played (or was chosen) does not come up again until the round is over; with repeat on a new round starts and never opens with the song that just ended. Back and Next walk the same path, *Play next* joins right after the song playing, added songs join the round, removed songs leave it.
+- [x] **Next and Previous crossfade** (when Crossfade is on, a song is playing and the next is a file on this phone): the screen switches at once and the old song fades out underneath. Paused, links, or a fade already running: the ordinary change. A seek during the fade seeks the new song.
+- [x] **Visualizer:** tap it on Now Playing to go to the next style (the name shows for a moment; the choice is remembered). The Circle style is gone; there are six horizontal ones: Bars, Mirror, Wave, **LED**, **Spread**, **Dots**.
+- [x] **Default pictures** (from `docs/arts`, cropped square into `assets/art`): songs without a cover show the default album art (lists, Now Playing, mini player, Online Library); artists show the default artist picture.
+- [x] **Add to playlist everywhere:** artist, album, genre, year, album artist and composer rows have a menu (Play / Add to queue / Add to playlist) and the page of one of them has *Add all to a playlist*; search results (songs, albums, artists, album artists) and songs in the folder tree have a menu; every Queue row has an add-to-playlist button; Now Playing has one on the cover (top left). Inside a playlist you can also remove several songs at once (pick them, then the remove button).
+- [x] **Counts:** the Library list shows how many are in each category (All Songs, Folders, Albums, Artists, Genres... Most played, Never played, Playlists), and Most played / Most skipped show the number in bold at the right of each song ("12 plays", "3 skips").
+- [x] The Queue shows *Artist · Album* on each row (and the Up next sheet too).
+
 ### Most played, most skipped, never played (built after `v1.0.3`; schema v10)
 - [x] Library > **Most played** (was *Top*; shows how many plays), **Most skipped** (how many skips) and **Never played**. A **skip** is leaving a song before 30 seconds of it were heard (or before half of a shorter song) by pressing next or choosing another song; finishing a song, seeking, and paused time are never skips; links and Online Library tracks are not counted. Counts start from zero now (older plays stay as they were). They also show on the other phone when controlling it.
 - [x] Settings > *Reset play and skip counts* starts them again from zero.
-- Not done: a play-by-play log, *plays this week*, *listening time*, header totals and charts (see Insights below).
+- Not done: playlists cannot hold Online Library (Jamendo) tracks (they are not in the library); a menu for whole *folders* (the Folders list already has multi-select to a playlist); a play-by-play log, *plays this week*, *listening time*, header totals and charts (see Insights below).
 
 ### Visualizer, second version (built after `v1.0.2`)
 - [x] The bars are smoothed at **60 frames a second** (Android's about 20 readings a second are eased between: quick rise, slow fall), with **caps** that hold a moment and then fall; the spectrum is **evened out** (bass eased, treble lifted), the song's loudness is followed (a quiet song fills the display like a loud one), and a noise gate keeps silence flat.

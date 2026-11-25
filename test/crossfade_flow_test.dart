@@ -108,4 +108,96 @@ void main() {
     expect(b.loaded, hasLength(1), reason: '${b.loaded}');
     expect(b.seekCount, 0);
   }, timeout: const Timeout(Duration(seconds: 30)));
+
+  group('pressing Next or Previous', () {
+    Future<void> playing({required int fadeSeconds, int count = 3}) async {
+      await engine.setCrossfade(fadeSeconds);
+      await engine.playSongs([for (var i = 1; i <= count; i++) song(i, duration: 60)]);
+      a.emitDuration(const Duration(seconds: 60));
+      a.position = const Duration(seconds: 20);
+      b.durations['/m/2.mp3'] = const Duration(seconds: 60);
+      startClock(const Duration(seconds: 60));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+
+    test('fades into the next song: the screen changes at once, the old one fades under it',
+        () async {
+      await playing(fadeSeconds: 1);
+      unawaited(engine.next());
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(engine.state.queueIndex, 1, reason: 'the screen already shows the next song');
+      expect(engine.state.positionSeconds, 0);
+      expect(b.loaded, ['/m/2.mp3'], reason: 'the other player loaded it');
+      expect(b.playing, isTrue, reason: 'and it started under the old one');
+      expect(a.playing, isTrue, reason: 'the old one is still fading out');
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      expect(a.playing, isFalse, reason: 'the old one stopped when the fade ended');
+      expect(b.playing, isTrue);
+      expect(a.loaded, ['/m/1.mp3'], reason: 'the first player was never reloaded');
+      expect(b.loaded, hasLength(1));
+      expect(b.seekCount, 0);
+      expect(engine.state.queueIndex, 1);
+      expect(engine.state.isPlaying, isTrue);
+    });
+
+    test('the position shown is the new song, not the old one, while it fades', () async {
+      await playing(fadeSeconds: 1);
+      unawaited(engine.next());
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(engine.state.positionSeconds, lessThan(3), reason: 'it was about 20 in the old song');
+    });
+
+    test('while paused it changes the ordinary way (no fade)', () async {
+      await playing(fadeSeconds: 1);
+      await engine.pause();
+      await engine.next();
+      expect(a.loaded, ['/m/1.mp3', '/m/2.mp3']);
+      expect(b.loaded, isEmpty);
+    });
+
+    test('with crossfade off, Next is the ordinary change', () async {
+      await playing(fadeSeconds: 0);
+      await engine.next();
+      expect(a.loaded, ['/m/1.mp3', '/m/2.mp3']);
+      expect(b.loaded, isEmpty);
+    });
+
+    test('pressing Next again during a fade changes at once, never restarts either song twice',
+        () async {
+      await playing(fadeSeconds: 1);
+      unawaited(engine.next());
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await engine.next();
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(engine.state.queueIndex, 2);
+      expect(engine.state.isPlaying, isTrue);
+      final all = [...a.loaded, ...b.loaded];
+      expect(all.where((f) => f == '/m/3.mp3'), hasLength(1), reason: 'song 3 loaded once: $all');
+    });
+
+    test('Previous fades back too', () async {
+      await playing(fadeSeconds: 1);
+      await engine.next();
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      // Past the first seconds of the song, so Previous goes to the one before.
+      b.position = const Duration(milliseconds: 300);
+      unawaited(engine.previous());
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(engine.state.queueIndex, 0);
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      expect(engine.state.queueIndex, 0);
+      expect(engine.state.isPlaying, isTrue);
+    });
+
+    test('a seek during the fade is a seek in the new song', () async {
+      await playing(fadeSeconds: 1);
+      unawaited(engine.next());
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await engine.seek(30);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(b.seekCount, 1, reason: 'the new song was sought');
+      expect(a.seekCount, 0, reason: 'not the one fading out');
+      expect(a.playing, isFalse);
+    });
+  });
 }

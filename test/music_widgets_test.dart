@@ -168,8 +168,10 @@ class FakeMusicSource implements MusicSource {
   }
 
   @override
-  Future<void> removeFromPlaylist(int playlistId, int songId) async =>
-      calls.add('removeFromPlaylist $playlistId $songId');
+  Future<void> removeFromPlaylist(int playlistId, int songId) async {
+    calls.add('removeFromPlaylist $playlistId $songId');
+    playlistSongs[playlistId]?.remove(songId);
+  }
 
   @override
   Future<LibraryPage<RemoteArtist>> artists(

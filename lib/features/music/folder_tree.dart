@@ -1,3 +1,4 @@
+import 'group_menu.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/haptics.dart';
@@ -203,6 +204,8 @@ class _FolderTreeViewState extends State<FolderTreeView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            trailing: SongMenuButton(
+                                source: widget.source, songId: s.id, title: s.title),
                             onTap: () => _playFrom(s),
                           ),
                       ],

@@ -1,3 +1,5 @@
+import 'group_menu.dart';
+import '../../core/widgets/default_art.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -403,6 +405,9 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
               title: Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text('${s.artist} · ${s.album}',
                   maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: _selecting
+                  ? null
+                  : SongMenuButton(source: widget.source, songId: s.id, title: s.title),
               onLongPress: () {
                 Haptics.medium();
                 setState(() => _selecting = true);
@@ -419,7 +424,17 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
               title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text('${a.artist} · ${a.songCount} song${a.songCount == 1 ? '' : 's'}',
                   maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: const Icon(Icons.chevron_right_rounded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GroupMenuButton(
+                    source: widget.source,
+                    name: a.name,
+                    loadIds: () => songIdsOf(widget.source, artist: a.artist, album: a.name),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
               onTap: () => _open(LibraryTarget(title: a.name, artist: a.artist, album: a.name)),
             ),
         ],
@@ -427,10 +442,20 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
           if (all) _section(theme, 'Artists', _Where.artists),
           for (final a in _artists)
             ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+              leading: DefaultArt.artistAvatar(),
               title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text('${a.songCount} song${a.songCount == 1 ? '' : 's'}'),
-              trailing: const Icon(Icons.chevron_right_rounded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GroupMenuButton(
+                    source: widget.source,
+                    name: a.name,
+                    loadIds: () => songIdsOf(widget.source, artist: a.name),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
               onTap: () => _open(LibraryTarget(title: a.name, artist: a.name)),
             ),
         ],
@@ -441,7 +466,18 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
               leading: const CircleAvatar(child: Icon(Icons.mic_rounded)),
               title: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text('${g.songCount} song${g.songCount == 1 ? '' : 's'}'),
-              trailing: const Icon(Icons.chevron_right_rounded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GroupMenuButton(
+                    source: widget.source,
+                    name: g.name,
+                    loadIds: () => songIdsOf(widget.source,
+                        groupKind: GroupKind.albumArtist, groupValue: g.name),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
               onTap: () => _open(LibraryTarget(
                   title: g.name, groupKind: GroupKind.albumArtist, groupValue: g.name)),
             ),

@@ -1,3 +1,5 @@
+import 'group_menu.dart';
+import '../../core/widgets/default_art.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -204,6 +206,71 @@ class _MusicBrowserState extends State<MusicBrowser> {
   Color? _markColor(String mark) => _lastOpened == mark
       ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.10)
       : null;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCounts();
+  }
+
+  @override
+  void didUpdateWidget(MusicBrowser old) {
+    super.didUpdateWidget(old);
+    // The library changed (songs added or removed): the numbers are stale.
+    if (old.refreshToken != widget.refreshToken) _loadCounts(force: true);
+  }
+
+  /// How many there are in each category, for the Library list (null: not known yet).
+  Map<_Scope, int> _counts = const {};
+  DateTime? _countsAt;
+  bool _countsBusy = false;
+
+  /// Asks the source for the size of every category (one tiny request each).
+  Future<void> _loadCounts({bool force = false}) async {
+    if (!widget.homeList || _countsBusy) return;
+    final at = _countsAt;
+    if (!force && at != null && DateTime.now().difference(at) < const Duration(seconds: 15)) {
+      return;
+    }
+    _countsBusy = true;
+    final s = widget.source;
+    Future<int?> total<T>(Future<LibraryPage<T>> f) async {
+      try {
+        return (await f).total;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final scopes = <_Scope, Future<int?>>{
+      _Scope.songs: total(s.songs(limit: 1)),
+      _Scope.folders: total(s.folders(limit: 1)),
+      _Scope.albums: total(s.albums(limit: 1)),
+      _Scope.artists: total(s.artists(limit: 1)),
+      _Scope.albumArtists: total(s.groups(kind: GroupKind.albumArtist, limit: 1)),
+      _Scope.genres: total(s.groups(kind: GroupKind.genre, limit: 1)),
+      _Scope.years: total(s.groups(kind: GroupKind.year, limit: 1)),
+      _Scope.composers: total(s.groups(kind: GroupKind.composer, limit: 1)),
+      _Scope.favorites: total(s.songs(view: LibraryView.favorites, limit: 1)),
+      _Scope.recent: total(s.songs(view: LibraryView.recent, limit: 1)),
+      _Scope.top: total(s.songs(view: LibraryView.top, limit: 1)),
+      _Scope.skipped: total(s.songs(view: LibraryView.skipped, limit: 1)),
+      _Scope.never: total(s.songs(view: LibraryView.never, limit: 1)),
+      _Scope.newest: total(s.songs(view: LibraryView.newest, limit: 1)),
+      _Scope.playlists: total(s.playlists(limit: 1)),
+    };
+    final got = <_Scope, int>{};
+    for (final e in scopes.entries) {
+      final n = await e.value;
+      if (n != null) got[e.key] = n;
+    }
+    _countsBusy = false;
+    if (!mounted) return;
+    setState(() {
+      _counts = got;
+      _countsAt = DateTime.now();
+    });
+  }
 
   /// Showing the list of categories (only with [MusicBrowser.homeList]).
   late bool _home =
@@ -451,6 +518,25 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 }
               },
             ),
+            // Inside a playlist: take the picked songs out of it (the songs stay in
+            // the library).
+            if (drill?.playlistId != null)
+              IconButton(
+                tooltip: 'Remove selected from the playlist',
+                icon: const Icon(Icons.playlist_remove_rounded),
+                onPressed: () => _run(() async {
+                  final ids = _selected.toList();
+                  for (final id in ids) {
+                    await widget.source.removeFromPlaylist(drill!.playlistId!, id);
+                  }
+                  if (mounted) {
+                    setState(() {
+                      _selected.clear();
+                      _generation++;
+                    });
+                  }
+                }, done: 'Removed from the playlist'),
+              ),
           ],
         ),
       ),
@@ -608,7 +694,17 @@ class _MusicBrowserState extends State<MusicBrowser> {
         leading: CircleAvatar(child: Icon(icon)),
         title: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text('${g.songCount} song${g.songCount == 1 ? '' : 's'}'),
-        trailing: const Icon(Icons.chevron_right_rounded),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GroupMenuButton(
+              source: widget.source,
+              name: g.name,
+              loadIds: () => songIdsOf(widget.source, groupKind: kind, groupValue: g.name),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
         tileColor: _markColor('group:$kind:${g.name}'),
         onTap: () => _openDrill(
             _Drill(title: g.name, groupKind: kind, groupValue: g.name), 'group:$kind:${g.name}'),
@@ -650,7 +746,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
       itemBuilder: (context, song) => _SongTile(
         song: song,
         source: widget.source,
-        showCounts: view == LibraryView.top || view == LibraryView.skipped,
+        countView: view == LibraryView.top || view == LibraryView.skipped ? view : null,
         onTap: () => _selected.isNotEmpty
             ? _toggleSelected(song.id)
             : _run(() async {
@@ -816,12 +912,22 @@ class _MusicBrowserState extends State<MusicBrowser> {
                         .artists(query: _listQuery, offset: offset, limit: limit),
                     itemBuilder: (context, a) => ListTile(
                       minTileHeight: 64,
-                      leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
+                      leading: DefaultArt.artistAvatar(),
                       title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: Text(
                           '${a.songCount} song${a.songCount == 1 ? '' : 's'} · '
                           '${a.albumCount} album${a.albumCount == 1 ? '' : 's'}'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GroupMenuButton(
+                            source: widget.source,
+                            name: a.name,
+                            loadIds: () => songIdsOf(widget.source, artist: a.name),
+                          ),
+                          const Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
                       tileColor: _markColor('artist:${a.name}'),
                       onTap: () => _openDrill(_Drill(title: a.name, artist: a.name), 'artist:${a.name}'),
                     ),
@@ -839,7 +945,18 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           '${a.artist} · ${a.songCount} song${a.songCount == 1 ? '' : 's'}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
-                      trailing: const Icon(Icons.chevron_right_rounded),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GroupMenuButton(
+                            source: widget.source,
+                            name: a.name,
+                            loadIds: () =>
+                                songIdsOf(widget.source, artist: a.artist, album: a.name),
+                          ),
+                          const Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
                       tileColor: _markColor('album:${a.artist}|${a.name}'),
                       onTap: () => _openDrill(
                           _Drill(title: a.name, artist: a.artist, album: a.name),
@@ -886,6 +1003,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
         child: Opacity(
           opacity: widget.enabled ? 1 : 0.5,
           child: _CategoryList(
+            counts: _counts,
             extras: widget.extraCategories,
             onSearch: widget.onSearch,
             onPick: (s) {
@@ -941,6 +1059,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 title: _scopeTitle(_scope),
                 onBack: () => setState(() {
                   _home = true;
+                  _loadCounts();
                   _search.clear();
                   _query = '';
                 }),
@@ -1007,6 +1126,11 @@ class _MusicBrowserState extends State<MusicBrowser> {
                   if (ids.isEmpty) return;
                   await widget.source.queueSongs(ids);
                 }, done: 'Added to queue'),
+                onPlaylistAll: () => _run(() async {
+                  final ids = await _allSongIds(drill);
+                  if (ids.isEmpty) return;
+                  await _addIdsToPlaylist(ids);
+                }),
               ),
             Expanded(
               child: Stack(
@@ -1032,9 +1156,17 @@ class _MusicBrowserState extends State<MusicBrowser> {
 
 /// The list of categories shown first when the browser is in home-list mode.
 class _CategoryList extends StatelessWidget {
-  const _CategoryList({required this.onPick, this.onSearch, this.extras = const []});
+  const _CategoryList({
+    required this.onPick,
+    this.onSearch,
+    this.extras = const [],
+    this.counts = const {},
+  });
 
   final ValueChanged<_Scope> onPick;
+
+  /// How many in each category (a category with no entry shows nothing).
+  final Map<_Scope, int> counts;
   final VoidCallback? onSearch;
   final List<LibraryExtra> extras;
 
@@ -1085,6 +1217,12 @@ class _CategoryList extends StatelessWidget {
             ),
             title: Text(_MusicBrowserState._scopeTitle(scope),
                 style: theme.textTheme.titleMedium),
+            trailing: counts[scope] == null
+                ? null
+                : Text(formatCount(counts[scope]!),
+                    key: ValueKey('count-${scope.name}'),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             onTap: () => onPick(scope),
           ),
         for (final e in extras)
@@ -1147,6 +1285,7 @@ class _DrillHeader extends StatelessWidget {
     required this.onBack,
     required this.onPlayAll,
     required this.onQueueAll,
+    required this.onPlaylistAll,
     this.onRename,
     this.onDelete,
   });
@@ -1157,6 +1296,7 @@ class _DrillHeader extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onPlayAll;
   final VoidCallback onQueueAll;
+  final VoidCallback onPlaylistAll;
 
   @override
   Widget build(BuildContext context) {
@@ -1184,6 +1324,11 @@ class _DrillHeader extends StatelessWidget {
             tooltip: 'Add all to queue',
             icon: const Icon(Icons.queue_music_rounded),
             onPressed: onQueueAll,
+          ),
+          IconButton(
+            tooltip: 'Add all to a playlist',
+            icon: const Icon(Icons.playlist_add_rounded),
+            onPressed: onPlaylistAll,
           ),
           if (onRename != null || onDelete != null)
             PopupMenuButton<bool>(
@@ -1215,14 +1360,14 @@ class _SongTile extends StatelessWidget {
     required this.selecting,
     required this.selected,
     required this.onSelect,
-    this.showCounts = false,
+    this.countView,
     this.onRemoveFromPlaylist,
     this.onEdit,
     this.onRemove,
   });
 
-  /// Add how often it was played and skipped to the second line.
-  final bool showCounts;
+  /// In Most played / Most skipped: which number to show, big, at the right.
+  final String? countView;
 
   final SongListSize size;
 
@@ -1251,8 +1396,15 @@ class _SongTile extends StatelessWidget {
     final subtitle = dim
         ? 'File missing from the Player'
         : '${song.artist} · ${song.album}'
-            '${showCounts && song.plays > 0 ? ' · ${song.plays} play${song.plays == 1 ? '' : 's'}' : ''}'
-            '${showCounts && song.skips > 0 ? ' · ${song.skips} skip${song.skips == 1 ? '' : 's'}' : ''}';
+            // The other number, small, in the second line.
+            '${countView == LibraryView.top && song.skips > 0 ? ' · ${song.skips} skip${song.skips == 1 ? '' : 's'}' : ''}'
+            '${countView == LibraryView.skipped && song.plays > 0 ? ' · ${song.plays} play${song.plays == 1 ? '' : 's'}' : ''}';
+    // The number the list is about, bold at the right.
+    final countText = switch (countView) {
+      LibraryView.top when song.plays > 0 => '${song.plays} play${song.plays == 1 ? '' : 's'}',
+      LibraryView.skipped when song.skips > 0 => '${song.skips} skip${song.skips == 1 ? '' : 's'}',
+      _ => null,
+    };
 
     final k = size.scale;
     return ListTile(
@@ -1292,7 +1444,12 @@ class _SongTile extends StatelessWidget {
           : Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (song.durationSeconds > 0)
+          if (countText != null)
+            Text(countText,
+                key: const Key('song-count'),
+                style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.primary, fontWeight: FontWeight.w700))
+          else if (song.durationSeconds > 0)
             Text(formatDuration(song.durationSeconds),
                 style: theme.textTheme.bodySmall?.copyWith(fontSize: 12 * k)),
           _FavoriteButton(initial: song.favorite, onChanged: onFavorite),

@@ -6,13 +6,18 @@ import 'package:flutter/material.dart';
 enum VisualizerStyle {
   bars('Bars', 'Rounded bars with small caps that fall slowly'),
   mirror('Mirror', 'Bars growing up and down from the middle'),
-  circle('Circle', 'Bars around a ring'),
-  wave('Wave', 'A smooth, glowing line');
+  wave('Wave', 'A smooth, glowing line'),
+  led('LED', 'Columns of lit squares, like a stereo'),
+  spread('Spread', 'The bass in the middle, spreading out to both sides'),
+  dots('Dots', 'A row of glowing dots that swell with the sound');
 
   const VisualizerStyle(this.label, this.hint);
 
   final String label;
   final String hint;
+
+  /// The one after this (after the last, the first): what a tap moves to.
+  VisualizerStyle get next => values[(index + 1) % values.length];
 
   static VisualizerStyle byName(String? name) =>
       values.firstWhere((s) => s.name == name, orElse: () => bars);
@@ -130,6 +135,14 @@ class VisualizerPainter extends CustomPainter {
 
   Color _at(double t) => Color.lerp(low, high, t.clamp(0.0, 1.0))!;
 
+  /// Space between [count] bars and each bar's width: 3 px when there is room,
+  /// less when narrow, never a negative width.
+  static ({double gap, double w}) _fit(int count, double width) {
+    final gap = math.min(3.0, width / count * 0.3);
+    final w = math.max(1.0, (width - gap * (count - 1)) / count);
+    return (gap: gap, w: w);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final v = animator.values;
@@ -139,17 +152,21 @@ class VisualizerPainter extends CustomPainter {
         _bars(canvas, size, v);
       case VisualizerStyle.mirror:
         _mirror(canvas, size, v);
-      case VisualizerStyle.circle:
-        _circle(canvas, size, v);
       case VisualizerStyle.wave:
         _wave(canvas, size, v);
+      case VisualizerStyle.led:
+        _led(canvas, size, v);
+      case VisualizerStyle.spread:
+        _spread(canvas, size, v);
+      case VisualizerStyle.dots:
+        _dots(canvas, size, v);
     }
   }
 
   void _bars(Canvas canvas, Size size, List<double> v) {
     final n = v.length;
-    const gap = 3.0;
-    final w = (size.width - gap * (n - 1)) / n;
+    final fit = _fit(n, size.width);
+    final gap = fit.gap, w = fit.w;
     final glow = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
     for (var i = 0; i < n; i++) {
       final h = 3 + (size.height - 8) * v[i];
@@ -180,8 +197,8 @@ class VisualizerPainter extends CustomPainter {
 
   void _mirror(Canvas canvas, Size size, List<double> v) {
     final n = v.length;
-    const gap = 3.0;
-    final w = (size.width - gap * (n - 1)) / n;
+    final fit = _fit(n, size.width);
+    final gap = fit.gap, w = fit.w;
     final mid = size.height / 2;
     for (var i = 0; i < n; i++) {
       final h = 2 + (mid - 3) * v[i];
@@ -193,24 +210,65 @@ class VisualizerPainter extends CustomPainter {
     }
   }
 
-  void _circle(Canvas canvas, Size size, List<double> v) {
+  /// Columns of small lit squares, the way a stereo's level meter looks.
+  void _led(Canvas canvas, Size size, List<double> v) {
     final n = v.length;
-    final c = size.center(Offset.zero);
-    final r0 = math.min(size.width, size.height) * 0.28;
-    final maxLen = math.min(size.width, size.height) * 0.22;
-    final stroke = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = math.max(2.5, 2 * math.pi * r0 / n * 0.55);
+    final fit = _fit(n, size.width);
+    final gap = fit.gap, w = fit.w;
+    final cell = w.clamp(4.0, 12.0);
+    final rows = ((size.height + 2) / (cell + 2)).floor().clamp(3, 12);
+    final h = (size.height - 2 * (rows - 1)) / rows;
     for (var i = 0; i < n; i++) {
-      // Mirrored left and right, so the bass is at the bottom and the treble at the top.
-      final a = math.pi / 2 + (i / n) * math.pi;
-      for (final dir in [1.0, -1.0]) {
-        final angle = dir > 0 ? a : math.pi - a;
-        final len = 2 + maxLen * v[i];
-        final from = c + Offset(math.cos(angle), math.sin(angle)) * r0;
-        final to = c + Offset(math.cos(angle), math.sin(angle)) * (r0 + len);
-        canvas.drawLine(from, to, stroke..color = _at(i / (n - 1)));
+      final x = i * (w + gap);
+      final lit = (v[i] * rows).round();
+      for (var r = 0; r < rows; r++) {
+        final y = size.height - (r + 1) * h - r * 2;
+        final on = r < lit;
+        // Low rows in the first color, the top rows in the second.
+        final color = _at(r / (rows - 1));
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(2)),
+          Paint()..color = on ? color : color.withValues(alpha: 0.10),
+        );
       }
+    }
+  }
+
+  /// The lowest sounds in the middle and the highest at both edges.
+  void _spread(Canvas canvas, Size size, List<double> v) {
+    final n = v.length;
+    // Every reading is drawn twice (left and right of the middle).
+    final slots = n * 2;
+    final fit = _fit(slots, size.width);
+    final gap = fit.gap, w = fit.w;
+    final mid = size.height / 2;
+    for (var i = 0; i < n; i++) {
+      final h = 2 + (mid - 3) * v[i];
+      final color = _at(i / (n - 1));
+      final paint = Paint()..color = color;
+      // i = 0 is next to the middle.
+      final right = (n + i) * (w + gap);
+      final left = (n - 1 - i) * (w + gap);
+      for (final x in [left, right]) {
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromLTWH(x, mid - h, w, h * 2), Radius.circular(w / 2)),
+            paint);
+      }
+    }
+  }
+
+  /// A row of dots that grow and brighten with the sound.
+  void _dots(Canvas canvas, Size size, List<double> v) {
+    final n = v.length;
+    final step = size.width / n;
+    final maxR = math.min(step / 2 - 1, size.height / 2 - 2);
+    final glow = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    for (var i = 0; i < n; i++) {
+      final c = Offset(step * (i + 0.5), size.height / 2);
+      final r = 2 + (maxR - 2) * v[i];
+      final color = _at(i / (n - 1));
+      canvas.drawCircle(c, r * 1.4, glow..color = color.withValues(alpha: 0.45 * v[i]));
+      canvas.drawCircle(c, r, Paint()..color = color.withValues(alpha: 0.35 + 0.65 * v[i]));
     }
   }
 
