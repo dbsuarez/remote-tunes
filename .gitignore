@@ -54,3 +54,6 @@ app.*.map.json
 # Local API credentials (never commit)
 docs/jamendo.txt
 docs/jamendo.json
+
+# Cloudflare R2 keys (never commit)
+docs/cloudflare_r2.txt

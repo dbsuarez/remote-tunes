@@ -1,4 +1,5 @@
 // ignore_for_file: unused_local_variable
+import '../cloud/cloud_settings_screen.dart';
 import '../../core/visualizer_position.dart';
 import '../library/music_folders_screen.dart';
 import '../backup/backup_screen.dart';
@@ -841,6 +842,24 @@ final List<_Group> _groups = [
                 onChanged: repo.setLyricsEnabled,
               ),
             ],
+          );
+        },
+      ),
+      _Entry(
+        id: 'cloud',
+        title: 'Cloud Library',
+        keywords: 'cloud library r2 cloudflare upload songs bucket keys storage',
+        build: (c) {
+          final context = c.context;
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.cloud_outlined),
+            title: const Text('Cloud Library'),
+            subtitle: const Text('Your own songs in your own Cloudflare R2 bucket: the address, and the keys to upload.'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
+            ),
           );
         },
       ),

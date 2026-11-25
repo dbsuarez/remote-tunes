@@ -40,6 +40,18 @@ class CloudConfig {
         secretKey: secretKey ?? this.secretKey,
       );
 
+  /// Reads the S3 address Cloudflare shows (`https://<account id>.r2.cloudflarestorage.com/<bucket>`) and
+  /// returns the account id and, if the address has one, the bucket. Null if it is not such an address.
+  static ({String accountId, String bucket})? parseS3Address(String text) {
+    final uri = Uri.tryParse(text.trim());
+    if (uri == null || !uri.host.endsWith('.r2.cloudflarestorage.com')) return null;
+    final account = uri.host.substring(0, uri.host.length - '.r2.cloudflarestorage.com'.length);
+    // A jurisdiction (eu, fedramp) sits between, as <account>.eu; keep the account part only.
+    final id = account.split('.').first;
+    final bucket = uri.pathSegments.where((s) => s.isNotEmpty).firstOrNull ?? '';
+    return (accountId: id, bucket: bucket);
+  }
+
   /// A plain sentence about what is wrong with these settings, or null. [forWriting] also checks the
   /// keys and the S3 address.
   String? problem({bool forWriting = false}) {
