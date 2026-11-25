@@ -23,6 +23,22 @@ class _Drill {
   final int? folderId;
 }
 
+/// An extra row on the Library list (for example the Online Library) that opens
+/// its own page.
+class LibraryExtra {
+  const LibraryExtra({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.builder,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color color;
+  final WidgetBuilder builder;
+}
+
 /// Something to open straight away in the browser (an album, an artist or a
 /// folder), used by the search screen.
 class LibraryTarget {
@@ -50,7 +66,11 @@ class MusicBrowser extends StatefulWidget {
     this.homeList = false,
     this.onSearch,
     this.initialTarget,
+    this.extraCategories = const [],
   });
+
+  /// More rows for the category list (home-list mode only).
+  final List<LibraryExtra> extraCategories;
 
   /// Start on a list of categories (All Songs, Folders, Albums...) instead of
   /// the row of filter chips. Opening one shows it with a back arrow.
@@ -514,6 +534,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
         child: Opacity(
           opacity: widget.enabled ? 1 : 0.5,
           child: _CategoryList(
+            extras: widget.extraCategories,
             onSearch: widget.onSearch,
             onPick: (s) {
               Haptics.selection();
@@ -742,10 +763,11 @@ class _MusicBrowserState extends State<MusicBrowser> {
 
 /// The list of categories shown first when the browser is in home-list mode.
 class _CategoryList extends StatelessWidget {
-  const _CategoryList({required this.onPick, this.onSearch});
+  const _CategoryList({required this.onPick, this.onSearch, this.extras = const []});
 
   final ValueChanged<_Scope> onPick;
   final VoidCallback? onSearch;
+  final List<LibraryExtra> extras;
 
   static const _items = <(_Scope, IconData, Color)>[
     (_Scope.songs, Icons.music_note_rounded, Color(0xFF22E5D0)),
@@ -789,6 +811,25 @@ class _CategoryList extends StatelessWidget {
             title: Text(_MusicBrowserState._scopeTitle(scope),
                 style: theme.textTheme.titleMedium),
             onTap: () => onPick(scope),
+          ),
+        for (final e in extras)
+          ListTile(
+            minTileHeight: 60,
+            leading: CircleAvatar(
+              backgroundColor: e.color.withValues(alpha: 0.18),
+              child: Icon(e.icon, color: e.color),
+            ),
+            title: Text(e.title, style: theme.textTheme.titleMedium),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () {
+              Haptics.selection();
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (ctx) => Scaffold(
+                  appBar: AppBar(title: Text(e.title)),
+                  body: SafeArea(child: e.builder(ctx)),
+                ),
+              ));
+            },
           ),
       ],
     );

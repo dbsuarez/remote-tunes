@@ -21,7 +21,11 @@ class LibrarySearchScreen extends ConsumerStatefulWidget {
     super.key,
     required this.source,
     this.size = SongListSize.small,
+    this.embedded = false,
   });
+
+  /// Shown as a tab (no back arrow, and no screen of its own).
+  final bool embedded;
 
   final MusicSource source;
   final SongListSize size;
@@ -160,24 +164,23 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
+    final content = Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 12, 0),
+              padding: EdgeInsets.fromLTRB(widget.embedded ? 12 : 4, 8, 12, 0),
               child: Row(
                 children: [
-                  IconButton(
-                    tooltip: 'Back',
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
+                  if (!widget.embedded)
+                    IconButton(
+                      tooltip: 'Back',
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
                   Expanded(
                     child: TextField(
                       controller: _text,
                       focusNode: _focus,
-                      autofocus: true,
+                      autofocus: !widget.embedded,
                       textInputAction: TextInputAction.search,
                       onChanged: _onChanged,
                       onSubmitted: (v) {
@@ -233,9 +236,9 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
             ),
             Expanded(child: _body(theme)),
           ],
-        ),
-      ),
-    );
+        );
+    if (widget.embedded) return content;
+    return Scaffold(body: SafeArea(child: content));
   }
 
   Widget _body(ThemeData theme) {

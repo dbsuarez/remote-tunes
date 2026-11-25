@@ -14,6 +14,7 @@ import '../../core/online/room_code.dart';
 import '../../core/router/app_router.dart';
 import '../online/online_status.dart';
 import '../../providers/providers.dart';
+import '../../providers/shell_providers.dart';
 import '../external/external_limits.dart';
 import '../library/import_actions.dart';
 import 'playback_engine.dart';
@@ -1018,6 +1019,125 @@ class _AccessSteps extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Everything about letting other phones control this one: start and stop it,
+/// who is connected, the QR code and pairing requests, and the online room.
+class RemotePlaybackScreen extends ConsumerWidget {
+  const RemotePlaybackScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(remotePlaybackProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Remote playback')),
+      body: SafeArea(child: on ? const _RemoteOn() : const _RemoteOff()),
+    );
+  }
+}
+
+class _RemoteOff extends ConsumerWidget {
+  const _RemoteOff();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Remote playback is off', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  'While it is off this phone only plays its own music and nothing '
+                  'listens on the network. Start it to let another phone (or the '
+                  'web page) control what plays here.',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => ref.read(remotePlaybackProvider.notifier).state = true,
+                  icon: const Icon(Icons.cast_connected_rounded),
+                  label: const Text('Start remote playback'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RemoteOn extends ConsumerWidget {
+  const _RemoteOn();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final server = ref.watch(playerServerStateProvider);
+    final host = ref.watch(playerHostProvider).valueOrNull;
+    final onlineProblem = host?.onlineProblem;
+    final showExternal = host?.controlEngine?.externalAvailable ?? false;
+    return server.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => const _Message('Remote playback could not start. Try again.'),
+      data: (s) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Align(alignment: Alignment.centerLeft, child: _StatusPill(state: s)),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => ref.read(remotePlaybackProvider.notifier).state = false,
+            icon: const Icon(Icons.stop_circle_outlined),
+            label: const Text('Stop remote playback'),
+          ),
+          const SizedBox(height: 16),
+          if (s.error != null) ...[
+            _ErrorCard(s.error!),
+            const SizedBox(height: 16),
+          ],
+          if (s.pending != null) ...[
+            _PairingCard(info: s.pending!),
+            const SizedBox(height: 16),
+          ],
+          if (onlineProblem != null) ...[
+            _ErrorCard(onlineProblem),
+            const SizedBox(height: 16),
+          ],
+          if (s.pending == null &&
+              s.running &&
+              s.pairingTicket != null &&
+              !(s.controller?.connected ?? false)) ...[
+            _QrCard(state: s),
+            const SizedBox(height: 16),
+          ],
+          if (s.controller != null) ...[
+            _ControllerCard(info: s.controller!),
+            const SizedBox(height: 16),
+          ],
+          if (s.online != null) ...[
+            _OnlineCard(info: s.online!),
+            const SizedBox(height: 16),
+          ],
+          if (s.running && s.port != null) ...[
+            _ConnectCard(state: s),
+            const SizedBox(height: 16),
+          ],
+          if (s.trusted.isNotEmpty) ...[
+            _TrustedCard(devices: s.trusted),
+            const SizedBox(height: 16),
+          ],
+          if (showExternal) const _ExternalCard(),
         ],
       ),
     );

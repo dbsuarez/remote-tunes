@@ -28,6 +28,8 @@ class SettingKeys {
   static const autoUpdateCheck = 'auto_update_check';
   static const lyricsEnabled = 'lyrics_enabled';
   static const pendingUpdate = 'pending_update';
+  static const startMode = 'start_mode';
+  static const remoteAutoStart = 'remote_auto_start';
   static const searchHistory = 'search_history';
   static const lastUpdateCheck = 'last_update_check';
 }
@@ -61,6 +63,8 @@ class AppSettings {
     this.autoUpdateCheck = true,
     this.lyricsEnabled = true,
     this.pendingUpdate = false,
+    this.startMode = StartMode.thisPhone,
+    this.remoteAutoStart = false,
     this.searchHistory = const [],
     this.lastUpdateCheck = 0,
   });
@@ -96,6 +100,13 @@ class AppSettings {
   /// installs" switch.
   final bool pendingUpdate;
 
+  /// What the app shows when it opens.
+  final StartMode startMode;
+
+  /// Start remote playback (let other phones control this one) when the app
+  /// opens.
+  final bool remoteAutoStart;
+
   /// What was searched for lately, newest first (kept on this phone).
   final List<String> searchHistory;
 
@@ -130,6 +141,8 @@ class AppSettings {
       autoUpdateCheck: m[SettingKeys.autoUpdateCheck] != 'false',
       lyricsEnabled: m[SettingKeys.lyricsEnabled] != 'false',
       pendingUpdate: m[SettingKeys.pendingUpdate] == 'true',
+      startMode: StartModeX.parse(m[SettingKeys.startMode]),
+      remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
     );
@@ -228,6 +241,11 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setStartMode(StartMode v) => _put(SettingKeys.startMode, v.name);
+
+  Future<void> setRemoteAutoStart(bool v) =>
+      _put(SettingKeys.remoteAutoStart, v.toString());
 
   Future<void> setPendingUpdate(bool v) =>
       _put(SettingKeys.pendingUpdate, v.toString());

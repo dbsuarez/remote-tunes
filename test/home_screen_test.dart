@@ -18,7 +18,7 @@ import 'package:remote_tunes/providers/providers.dart';
 /// async work does not run inside testWidgets' fake-async zone). Drift itself
 /// is covered by settings_repository_test.dart.
 class _FakeSettingsRepository implements SettingsRepository {
-  AppSettings _current = const AppSettings();
+  AppSettings _current = const AppSettings(startMode: StartMode.classic);
   final _controller = StreamController<AppSettings>.broadcast();
 
   @override
@@ -29,7 +29,7 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setConnectionMode(ConnectionMode v) async {
-    _current = AppSettings(deviceName: _current.deviceName, connectionMode: v);
+    _current = AppSettings(startMode: StartMode.classic, deviceName: _current.deviceName, connectionMode: v);
     _controller.add(_current);
   }
 

@@ -21,7 +21,11 @@ import 'trusted_players.dart';
 
 /// Controller flow in one screen: find a Player -> enter code -> dashboard.
 class ControllerScreen extends ConsumerStatefulWidget {
-  const ControllerScreen({super.key});
+  const ControllerScreen({super.key, this.popWhenConnected = false});
+
+  /// Used from the music player: once connected, go back to it (it then
+  /// controls that Player). The connection is kept when the screen closes.
+  final bool popWhenConnected;
 
   @override
   ConsumerState<ControllerScreen> createState() => _ControllerScreenState();
@@ -130,13 +134,16 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
   }
 
   GroupFollower? _group;
+  bool _handedOver = false;
 
   @override
   void dispose() {
     // Leaving the screen ends group play and the connection (and revokes the
-    // session).
-    unawaited(_group?.leave());
-    unawaited(_client.disconnect());
+    // session), unless the music player has taken the connection over.
+    if (!_handedOver) {
+      unawaited(_group?.leave());
+      unawaited(_client.disconnect());
+    }
     super.dispose();
   }
 
@@ -145,6 +152,10 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
     ref.listen(controllerStateProvider, (_, next) {
       final s = next.valueOrNull;
       if (s != null) _onClientState(s);
+      if (s != null && widget.popWhenConnected && s.status == ControllerStatus.connected) {
+        _handedOver = true;
+        Navigator.of(context).maybePop();
+      }
     });
     final state =
         ref.watch(controllerStateProvider).valueOrNull ?? _client.current;
@@ -153,7 +164,7 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Controller'),
+        title: Text(widget.popWhenConnected ? 'Control another phone' : 'Controller'),
         actions: [
           if (connected)
             IconButton(

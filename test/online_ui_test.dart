@@ -67,7 +67,7 @@ Future<void> openController(
   await tester.pumpWidget(ProviderScope(
     overrides: [
       settingsRepositoryProvider
-          .overrideWithValue(FakeSettings(AppSettings(connectionMode: mode))),
+          .overrideWithValue(FakeSettings(AppSettings(startMode: StartMode.classic, connectionMode: mode))),
       playerDiscoveryProvider.overrideWithValue(FakeDiscovery(players)),
     ],
     child: const RemoteTunesApp(),
@@ -89,7 +89,7 @@ Future<void> openPlayer(
   final server = PlayerServer(engine: engine, deviceName: 'Test');
   await tester.pumpWidget(ProviderScope(
     overrides: [
-      settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings())),
+      settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings(startMode: StartMode.classic))),
       playerHostProvider.overrideWith((ref) async => PlayerHost(
             engine: engine,
             server: server,
@@ -299,7 +299,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(
         overrides: [
           settingsRepositoryProvider.overrideWithValue(FakeSettings(
-            const AppSettings(
+            const AppSettings(startMode: StartMode.classic, 
               onlineRelayEnabled: true,
               supabaseUrl: 'https://abc.supabase.co',
               supabaseAnonKey: 'key',

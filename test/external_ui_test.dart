@@ -42,7 +42,7 @@ class FakeSettings implements SettingsRepository {
   @override
   Future<void> setExternalAppControlEnabled(bool v) async {
     changes.add('external:$v');
-    current = AppSettings(
+    current = AppSettings(startMode: StartMode.classic, 
       externalAppControlEnabled: v,
       deviceName: current.deviceName,
       connectionMode: current.connectionMode,
@@ -119,7 +119,7 @@ void main() {
       tester.view.physicalSize = const Size(800, 3000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      final settings = FakeSettings(AppSettings(externalAppControlEnabled: on));
+      final settings = FakeSettings(AppSettings(startMode: StartMode.classic, externalAppControlEnabled: on));
       await tester.pumpWidget(ProviderScope(
         overrides: [settingsRepositoryProvider.overrideWithValue(settings)],
         child: const RemoteTunesApp(),
@@ -205,7 +205,7 @@ void main() {
 
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings())),
+          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings(startMode: StartMode.classic))),
           externalMediaBridgeProvider.overrideWithValue(bridge),
           playerHostProvider
               .overrideWith((ref) async => PlayerHost(engine: engine, server: server)),
@@ -352,7 +352,7 @@ void main() {
       ));
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings())),
+          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings(startMode: StartMode.classic))),
           playerDiscoveryProvider.overrideWithValue(FakeDiscovery()),
           controllerClientProvider.overrideWithValue(client),
           controllerStateProvider.overrideWith((ref) async* {

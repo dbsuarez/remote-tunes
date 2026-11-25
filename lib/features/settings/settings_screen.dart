@@ -160,6 +160,34 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              const _SectionHeader('When the app opens'),
+              RadioGroup<StartMode>(
+                groupValue: s.startMode,
+                onChanged: (v) {
+                  if (v != null) repo.setStartMode(v);
+                },
+                child: Column(
+                  children: [
+                    for (final m in StartMode.values)
+                      RadioListTile<StartMode>(
+                        contentPadding: EdgeInsets.zero,
+                        value: m,
+                        title: Text(m.label),
+                        subtitle: Text(m.description),
+                      ),
+                  ],
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Start remote playback when the app opens'),
+                subtitle: const Text(
+                    'Lets other phones control this one without pressing the button. '
+                    'Uses a little battery and the network while the app runs.'),
+                value: s.remoteAutoStart,
+                onChanged: repo.setRemoteAutoStart,
+              ),
+              const SizedBox(height: 16),
               const _SectionHeader('Look and feel'),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

@@ -1,9 +1,9 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/controller/controller_screen.dart';
-import '../../features/home/home_screen.dart';
 import '../../features/player/player_library_screens.dart';
 import '../../features/player/player_screen.dart';
+import '../../features/shell/start_gate.dart';
 import '../../features/settings/diagnostics_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
@@ -18,6 +18,8 @@ class AppRoutes {
   static const playerQueue = '/player/queue';
   static const playerUrl = '/player/url';
   static const controller = '/controller';
+  static const connect = '/connect';
+  static const remotePlayback = '/remote-playback';
 }
 
 GoRouter createRouter() {
@@ -26,7 +28,8 @@ GoRouter createRouter() {
     routes: [
       GoRoute(
         path: AppRoutes.home,
-        builder: (context, state) => const HomeScreen(),
+        // What opens first follows the setting "When the app opens".
+        builder: (context, state) => const StartGate(),
       ),
       GoRoute(
         path: AppRoutes.settings,
@@ -59,6 +62,16 @@ GoRouter createRouter() {
       GoRoute(
         path: AppRoutes.controller,
         builder: (context, state) => const ControllerScreen(),
+      ),
+      // From the music player: find a Player and use this phone as its remote.
+      GoRoute(
+        path: AppRoutes.connect,
+        builder: (context, state) => const ControllerScreen(popWhenConnected: true),
+      ),
+      // Start / stop remote playback and see who is connected.
+      GoRoute(
+        path: AppRoutes.remotePlayback,
+        builder: (context, state) => const RemotePlaybackScreen(),
       ),
     ],
   );

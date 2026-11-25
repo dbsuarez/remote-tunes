@@ -225,7 +225,7 @@ class ControllerDashboard extends StatelessWidget {
                     session: RemoteSession(client: client, connection: state),
                     // Only offered when the Player turned External App Control on.
                     header: p.externalEnabled
-                        ? _ControlModeSwitch(
+                        ? ExternalModeSwitch(
                             external: p.isExternal,
                             enabled: enabled,
                             onChanged: (mode) => _switchMode(context, client, mode),
@@ -458,8 +458,9 @@ class _KeepAliveState extends State<_KeepAlive>
 
 /// Switch between RemoteTunes' own player and another music app on the Player
 /// phone. Only shown when the Player has External App Control turned on.
-class _ControlModeSwitch extends StatelessWidget {
-  const _ControlModeSwitch({
+class ExternalModeSwitch extends StatelessWidget {
+  const ExternalModeSwitch({
+    super.key,
     required this.external,
     required this.enabled,
     required this.onChanged,
