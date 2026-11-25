@@ -15,6 +15,7 @@ import 'package:remote_tunes/features/controller/controller_client.dart';
 import 'package:remote_tunes/features/controller/trusted_players.dart';
 import 'package:remote_tunes/features/external/control_mode_engine.dart';
 import 'package:remote_tunes/features/player/player_core.dart';
+import 'package:remote_tunes/features/player/server/player_server.dart';
 import 'package:remote_tunes/features/player/queue/playable_song.dart';
 import 'package:remote_tunes/features/player/queue_playback_engine.dart';
 import 'package:remote_tunes/features/player/server/player_library.dart';
@@ -389,6 +390,63 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
       expect(find.text('Reconnecting to Living room…'), findsOneWidget);
+    });
+  });
+
+  group('a pairing request', () {
+    testWidgets('shows over whatever is open and goes when it is answered', (tester) async {
+      final server = StreamController<PlayerServerState>.broadcast();
+      tester.view.physicalSize = const Size(520, 1300);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(server.close);
+      final container = ProviderContainer(overrides: [
+        databaseProvider.overrideWithValue(db),
+        playerCoreProvider.overrideWith((ref) async => core),
+        controllerClientProvider.overrideWithValue(client),
+        trustedPlayersStoreProvider.overrideWithValue(_FakeTrusted(const [])),
+        playerServerStateProvider.overrideWith((ref) async* {
+          yield const PlayerServerState(running: true);
+          yield* server.stream;
+        }),
+      ]);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(
+          container: container, child: const RemoteTunesApp()));
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // Browsing the Library when the request arrives.
+      await tester.tap(find.text('Library'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pairing request'), findsNothing);
+
+      server.add(PlayerServerState(
+        running: true,
+        pending: PendingPairingInfo(
+          controllerName: 'Living room phone',
+          address: '192.168.1.9',
+          connectionType: ConnectionType.local,
+          code: '123456',
+          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+          codeVerified: false,
+        ),
+      ));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      expect(find.text('Pairing request'), findsOneWidget);
+      expect(find.text('Living room phone wants to control this Player.'), findsOneWidget);
+      expect(find.text('123456'), findsOneWidget);
+      expect(find.text('Accept'), findsOneWidget);
+
+      // Answered elsewhere / expired: the dialog goes by itself.
+      server.add(const PlayerServerState(running: true));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      expect(find.text('Pairing request'), findsNothing);
     });
   });
 

@@ -66,7 +66,18 @@ class LibraryExtra {
 /// Something to open straight away in the browser (an album, an artist or a
 /// folder), used by the search screen.
 class LibraryTarget {
-  const LibraryTarget({required this.title, this.artist, this.album, this.folderId});
+  const LibraryTarget({
+    required this.title,
+    this.artist,
+    this.album,
+    this.folderId,
+    this.groupKind,
+    this.groupValue,
+  });
+
+  /// A genre, a year or an album artist ([GroupKind]) and which one.
+  final String? groupKind;
+  final String? groupValue;
 
   final String title;
   final String? artist;
@@ -138,6 +149,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
           artist: widget.initialTarget!.artist,
           album: widget.initialTarget!.album,
           folderId: widget.initialTarget!.folderId,
+          groupKind: widget.initialTarget!.groupKind,
+          groupValue: widget.initialTarget!.groupValue,
         );
 
   /// Showing the list of categories (only with [MusicBrowser.homeList]).

@@ -20,6 +20,7 @@ import '../controller/controller_client.dart';
 import '../controller/remote_session.dart';
 import '../group/group_card.dart';
 import '../library/import_actions.dart';
+import '../player/player_screen.dart' show showPairingDialog;
 import '../music/library_search.dart';
 import '../music/music_browser.dart';
 import '../music/music_source.dart';
@@ -86,10 +87,21 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _openSource() => showSourceSheet(context, ref);
 
+  bool _pairingOpen = false;
+
   @override
   Widget build(BuildContext context) {
     // While remote playback is on, the Player server is kept alive.
     if (ref.watch(remotePlaybackProvider)) ref.watch(playerHostProvider);
+
+    // Another phone asks to pair: show it over whatever is open.
+    ref.listen(playerServerStateProvider, (prev, next) {
+      final pending = next.valueOrNull?.pending;
+      if (pending != null && !_pairingOpen) {
+        _pairingOpen = true;
+        showPairingDialog(context).whenComplete(() => _pairingOpen = false);
+      }
+    });
 
     final wantRemote = ref.watch(controlRemoteProvider);
     final client = ref.watch(controllerClientProvider);

@@ -35,6 +35,17 @@ class _Source extends FakeMusicSource {
   }
 
   @override
+  Future<LibraryPage<RemoteGroup>> groups(
+      {required String kind, String query = '', int offset = 0, int limit = 50}) async {
+    final all = kind == GroupKind.albumArtist
+        ? [const RemoteGroup(name: 'Alpha Group', songCount: 6)]
+            .where((g) => g.name.toLowerCase().contains(query.toLowerCase()))
+            .toList()
+        : <RemoteGroup>[];
+    return LibraryPage(items: all, total: all.length, offset: 0);
+  }
+
+  @override
   Future<LibraryPage<RemoteFolder>> folders(
       {String query = '', int offset = 0, int limit = 50}) async {
     final all = [const RemoteFolder(id: 7, name: 'Alpha Rock', parent: 'Music', songCount: 2)]
@@ -178,7 +189,7 @@ void main() {
       expect(find.text('Alpha Band'), findsOneWidget);
       expect(find.text('Alpha Rock'), findsOneWidget);
       expect(find.text('Beta Song'), findsNothing);
-      expect(find.text('See all'), findsNWidgets(4));
+      expect(find.text('See all'), findsNWidgets(5), reason: 'songs, albums, artists, album artists, folders');
     });
 
     testWidgets('a kind can be chosen, and then shows more of it', (tester) async {
@@ -199,6 +210,31 @@ void main() {
       await settleUi(tester);
       expect(find.text('Alpha Song'), findsNothing);
       expect(find.text('Alpha Album'), findsOneWidget);
+    });
+
+    testWidgets('Album Artists are found, and open like an artist', (tester) async {
+      await openSearch(tester);
+      await type(tester, 'alpha');
+      expect(find.text('Alpha Group'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Album Artists'), findsOneWidget);
+      await tester.tap(find.text('Alpha Group'));
+      await tester.pumpAndSettle();
+      expect(find.text('Play all'), findsOneWidget);
+      expect(container.read(searchHistoryProvider), ['alpha']);
+    });
+
+    testWidgets('Play and Shuffle start everything that was found', (tester) async {
+      await openSearch(tester);
+      await type(tester, 'song');
+      expect(find.text('Play'), findsOneWidget);
+      expect(find.text('Shuffle'), findsOneWidget);
+      await tester.tap(find.text('Play'));
+      await settleUi(tester);
+      expect(source.calls.any((c) => c.startsWith('play ')), isTrue, reason: source.calls.toString());
+      source.calls.clear();
+      await tester.tap(find.text('Shuffle'));
+      await settleUi(tester);
+      expect(source.calls.any((c) => c.startsWith('play ')), isTrue);
     });
 
     testWidgets('no match says so', (tester) async {

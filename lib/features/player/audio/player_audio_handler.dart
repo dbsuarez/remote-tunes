@@ -18,6 +18,11 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   PlaybackEngine? _engine;
   StreamSubscription<PlaybackState>? _sub;
 
+  /// Lets the lock screen's heart button read and change favorites (set by the
+  /// app; without it there is no heart).
+  bool Function(int songId)? isFavorite;
+  Future<void> Function(int songId, bool favorite)? setFavorite;
+
   bool _keepAlive = false;
 
   /// True while remote playback is on: the service then stays in the foreground
@@ -69,7 +74,10 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   double _lastSpeed = 1.0;
 
   void _publish(PlaybackState s) {
-    final key = '${s.songId}|${s.title}|${s.artist}|${s.album}|${s.durationSeconds}|'
+    final songId = s.songId;
+    final hasHeart = isFavorite != null && setFavorite != null && songId != null && songId > 0;
+    final favorite = hasHeart && isFavorite!(songId);
+    final key = '$hasHeart|$favorite|${s.songId}|${s.title}|${s.artist}|${s.album}|${s.durationSeconds}|'
         '${s.isPlaying}|${s.isLoading}|${s.queueIndex}|${s.queueLength}|${s.shuffleEnabled}|'
         '${s.repeatMode}|${s.speed}|${s.localArtPath}|${s.canSkip}|$_keepAlive';
     final now = DateTime.now();
@@ -102,6 +110,12 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
         svc.MediaControl.skipToPrevious,
         if (s.isPlaying) svc.MediaControl.pause else svc.MediaControl.play,
         svc.MediaControl.skipToNext,
+        if (hasHeart)
+          svc.MediaControl.custom(
+            androidIcon: favorite ? 'drawable/ic_favorite' : 'drawable/ic_favorite_border',
+            label: favorite ? 'Remove from favorites' : 'Add to favorites',
+            name: 'favorite',
+          ),
         svc.MediaControl.stop,
       ],
       systemActions: const {
@@ -138,6 +152,25 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   }
 
   // Commands arriving from the notification / headset buttons.
+
+  @override
+  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (name != 'favorite') return super.customAction(name, extras);
+    final e = _engine;
+    final id = e?.state.songId;
+    final get = isFavorite;
+    final set = setFavorite;
+    if (e == null || id == null || id <= 0 || get == null || set == null) return null;
+    try {
+      await set(id, !get(id));
+    } catch (_) {
+      return null;
+    }
+    // Draw the heart again (the song itself did not change).
+    _lastKey = null;
+    _publish(e.state);
+    return null;
+  }
 
   Future<void> _run(Future<void> Function(PlaybackEngine e) action) async {
     final e = _engine;

@@ -48,6 +48,18 @@ class GroupSupport(
                     )
                     result.success(null)
                 }
+                "keepScreenOn" -> {
+                    // Just the screen flag (for long jobs such as adding music).
+                    val on = call.argument<Boolean>("on") == true
+                    activity.runOnUiThread {
+                        if (on) {
+                            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                    }
+                    result.success(null)
+                }
                 "outputRoute" -> result.success(outputRoute())
                 "outputLatencyMs" -> result.success(outputLatencyMs())
                 else -> result.notImplemented()

@@ -11,7 +11,7 @@ import 'music_browser.dart';
 import 'music_source.dart';
 import 'song_art.dart';
 
-enum _Where { all, songs, albums, artists, folders }
+enum _Where { all, songs, albums, artists, albumArtists, folders }
 
 /// A full-screen search over songs, albums, artists and folders, with a
 /// history of what was searched lately. Tapping an album, artist or folder opens
@@ -49,6 +49,7 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
   List<RemoteSong> _songs = const [];
   List<RemoteAlbum> _albums = const [];
   List<RemoteArtist> _artists = const [];
+  List<RemoteGroup> _albumArtists = const [];
   List<RemoteFolder> _folders = const [];
 
   @override
@@ -85,6 +86,7 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         _songs = const [];
         _albums = const [];
         _artists = const [];
+        _albumArtists = const [];
         _folders = const [];
       });
       return;
@@ -104,6 +106,8 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         maybe(all || _where == _Where.songs, () => s.songs(query: q, limit: n)),
         maybe(all || _where == _Where.albums, () => s.albums(query: q, limit: n)),
         maybe(all || _where == _Where.artists, () => s.artists(query: q, limit: n)),
+        maybe(all || _where == _Where.albumArtists,
+            () => s.groups(kind: GroupKind.albumArtist, query: q, limit: n)),
         maybe(all || _where == _Where.folders, () => s.folders(query: q, limit: n)),
       ]);
       if (!mounted || gen != _generation) return;
@@ -111,7 +115,9 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         _songs = r[0] is LibraryPage<RemoteSong> ? (r[0] as LibraryPage<RemoteSong>).items : const [];
         _albums = r[1] is LibraryPage<RemoteAlbum> ? (r[1] as LibraryPage<RemoteAlbum>).items : const [];
         _artists = r[2] is LibraryPage<RemoteArtist> ? (r[2] as LibraryPage<RemoteArtist>).items : const [];
-        _folders = r[3] is LibraryPage<RemoteFolder> ? (r[3] as LibraryPage<RemoteFolder>).items : const [];
+        _albumArtists =
+            r[3] is LibraryPage<RemoteGroup> ? (r[3] as LibraryPage<RemoteGroup>).items : const [];
+        _folders = r[4] is LibraryPage<RemoteFolder> ? (r[4] as LibraryPage<RemoteFolder>).items : const [];
         _loading = false;
       });
     } catch (e) {
@@ -138,6 +144,20 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         ),
       ),
     ));
+  }
+
+  /// Plays every song found (in order, or shuffled).
+  Future<void> _playAll({required bool shuffle}) async {
+    Haptics.selection();
+    _remember();
+    final songs = _songs.where((s) => s.available).toList();
+    if (songs.isEmpty) return;
+    if (shuffle) songs.shuffle();
+    try {
+      await widget.source.playSongs([for (final s in songs) s.id]);
+    } catch (e) {
+      _snack(friendlyError(e));
+    }
   }
 
   Future<void> _play(RemoteSong song) async {
@@ -220,6 +240,7 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
                         _Where.songs => 'Songs',
                         _Where.albums => 'Albums',
                         _Where.artists => 'Artists',
+                        _Where.albumArtists => 'Album Artists',
                         _Where.folders => 'Folders',
                       }),
                       selected: _where == w,
@@ -246,7 +267,11 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
     if (_error != null) {
       return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!)));
     }
-    final nothing = _songs.isEmpty && _albums.isEmpty && _artists.isEmpty && _folders.isEmpty;
+    final nothing = _songs.isEmpty &&
+        _albums.isEmpty &&
+        _artists.isEmpty &&
+        _albumArtists.isEmpty &&
+        _folders.isEmpty;
     if (nothing) {
       return Center(
         child: _loading
@@ -261,6 +286,24 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         if (_loading) const LinearProgressIndicator(minHeight: 2),
         if (_songs.isNotEmpty) ...[
           if (all) _section(theme, 'Songs', _Where.songs),
+          // Play or shuffle everything found.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => _playAll(shuffle: false),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text('Play'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _playAll(shuffle: true),
+                  icon: const Icon(Icons.shuffle_rounded),
+                  label: const Text('Shuffle'),
+                ),
+              ],
+            ),
+          ),
           for (final s in _songs)
             ListTile(
               leading: SongArt(source: widget.source, songId: s.id, radius: 20),
@@ -291,6 +334,18 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
               subtitle: Text('${a.songCount} song${a.songCount == 1 ? '' : 's'}'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => _open(LibraryTarget(title: a.name, artist: a.name)),
+            ),
+        ],
+        if (_albumArtists.isNotEmpty) ...[
+          if (all) _section(theme, 'Album Artists', _Where.albumArtists),
+          for (final g in _albumArtists)
+            ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.mic_rounded)),
+              title: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text('${g.songCount} song${g.songCount == 1 ? '' : 's'}'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => _open(LibraryTarget(
+                  title: g.name, groupKind: GroupKind.albumArtist, groupValue: g.name)),
             ),
         ],
         if (_folders.isNotEmpty) ...[

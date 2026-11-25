@@ -97,7 +97,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         ],
                         if (s.pending != null) ...[
                           const SizedBox(height: 12),
-                          _PairingCard(info: s.pending!),
+                          PairingCard(info: s.pending!),
                         ],
                       ],
                     ),
@@ -453,8 +453,8 @@ class _ErrorCard extends StatelessWidget {
   }
 }
 
-class _PairingCard extends ConsumerWidget {
-  const _PairingCard({required this.info});
+class PairingCard extends ConsumerWidget {
+  const PairingCard({super.key, required this.info});
   final PendingPairingInfo info;
 
   @override
@@ -1097,7 +1097,7 @@ class _RemoteOn extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
           if (s.pending != null) ...[
-            _PairingCard(info: s.pending!),
+            PairingCard(info: s.pending!),
             const SizedBox(height: 16),
           ],
           if (onlineProblem != null) ...[
@@ -1129,6 +1129,40 @@ class _RemoteOn extends ConsumerWidget {
           ],
           if (showExternal) const _ExternalCard(),
         ],
+      ),
+    );
+  }
+}
+
+
+/// A pairing request, answered right where you are (over any screen), instead
+/// of having to open the Remote playback page.
+Future<void> showPairingDialog(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const _PairingDialog(),
+  );
+}
+
+class _PairingDialog extends ConsumerWidget {
+  const _PairingDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(playerServerStateProvider).valueOrNull?.pending;
+    if (pending == null) {
+      // Answered (or it expired): this dialog is done.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) Navigator.of(context).maybePop();
+      });
+      return const SizedBox.shrink();
+    }
+    return PopScope(
+      canPop: false,
+      child: Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(child: PairingCard(info: pending)),
       ),
     );
   }

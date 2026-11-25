@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import '../../core/screen_awake.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -122,7 +123,8 @@ Future<void> refreshLibraryTags(BuildContext context, WidgetRef ref) async {
   int? filled;
   Object? error;
   try {
-    filled = await service.refreshTags(onProgress: (p) => progress.value = p);
+    filled = await ScreenAwake
+        .during(() => service.refreshTags(onProgress: (p) => progress.value = p));
   } catch (e) {
     error = e;
   }
@@ -156,7 +158,8 @@ Future<bool> _runImport(
   ImportResult? result;
   Object? error;
   try {
-    result = await job((p) => progress.value = p);
+    // The screen stays on, so the phone does not lock and stall the import.
+    result = await ScreenAwake.during(() => job((p) => progress.value = p));
   } catch (e) {
     error = e;
   }

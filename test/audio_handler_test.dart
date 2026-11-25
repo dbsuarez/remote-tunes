@@ -165,4 +165,56 @@ void main() {
       await sub.cancel();
     });
   });
+
+  group('the heart button on the lock screen', () {
+    final favorites = <int>{};
+
+    setUp(() {
+      favorites.clear();
+      handler.isFavorite = favorites.contains;
+      handler.setFavorite = (id, fav) async {
+        fav ? favorites.add(id) : favorites.remove(id);
+      };
+      // Show it for the song already playing.
+      handler.keepAlive = true;
+      handler.keepAlive = false;
+    });
+
+    svc.MediaControl? heart() {
+      final c = handler.playbackState.value.controls.where((c) => c.customAction?.name == 'favorite');
+      return c.isEmpty ? null : c.first;
+    }
+
+    test('there is a heart for a library song, and it starts empty', () async {
+      await engine.next();
+      await settle();
+      expect(heart(), isNotNull);
+      expect(heart()!.androidIcon, 'drawable/ic_favorite_border');
+    });
+
+    test('pressing it adds the song to favorites and fills the heart', () async {
+      await settle();
+      final id = engine.state.songId!;
+      await handler.customAction('favorite');
+      expect(favorites, contains(id));
+      expect(heart()!.androidIcon, 'drawable/ic_favorite');
+      await handler.customAction('favorite');
+      expect(favorites, isNot(contains(id)));
+      expect(heart()!.androidIcon, 'drawable/ic_favorite_border');
+    });
+
+    test('without the favorites hooks there is no heart', () async {
+      handler.isFavorite = null;
+      handler.setFavorite = null;
+      handler.keepAlive = true;
+      await settle();
+      expect(heart(), isNull);
+      handler.keepAlive = false;
+    });
+
+    test('other custom actions are ignored', () async {
+      await handler.customAction('something else');
+      expect(favorites, isEmpty);
+    });
+  });
 }

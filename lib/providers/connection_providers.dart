@@ -80,6 +80,12 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   // The RemoteTunes notification mirrors RemoteTunes' own player only; another
   // app has its own notification.
   handler?.attach(localEngine);
+  // A heart button on the lock screen / notification for the song playing.
+  try {
+    await library.preloadFavorites();
+  } catch (_) {}
+  handler?.isFavorite = library.isFavorite;
+  handler?.setFavorite = library.setFavorite;
   final sleep = SleepTimerService(onFire: engine.pause);
 
   final settingsRepo = ref.watch(settingsRepositoryProvider);
