@@ -468,6 +468,7 @@ class LeftOutScreen extends ConsumerStatefulWidget {
 
 class _LeftOutScreenState extends ConsumerState<LeftOutScreen> {
   List<String>? _paths;
+  List<String> _rules = const [];
 
   @override
   void initState() {
@@ -477,56 +478,187 @@ class _LeftOutScreenState extends ConsumerState<LeftOutScreen> {
 
   Future<void> _load() async {
     final service = await ref.read(importServiceProvider.future);
-    final all = (await service.excludedPaths()).toList()..sort();
-    if (mounted) setState(() => _paths = all);
+    final all = (await service.excludedPaths()).where((e) => !e.startsWith(LibraryImportService.rulePrefix)).toList()
+      ..sort();
+    final rules = await service.nameRules();
+    if (mounted) {
+      setState(() {
+        _paths = all;
+        _rules = rules;
+      });
+    }
+  }
+
+  void _say(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _addRule() async {
+    final pattern = await showDialog<String>(context: context, builder: (_) => const _RuleDialog());
+    if (pattern == null || !mounted) return;
+    final service = await ref.read(importServiceProvider.future);
+    if (!await service.addNameRule(pattern)) {
+      _say(pattern.trim().isEmpty ? 'Type a name first.' : 'That rule is already there.');
+      return;
+    }
+    final rule = pattern.trim();
+    final matches = await service.songsMatchingRule(rule);
+    await _load();
+    if (!mounted || matches.isEmpty) {
+      _say('Added. Files with "$rule" in their name are left out from now on.');
+      return;
+    }
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${matches.length} song${matches.length == 1 ? '' : 's'} in your library match'),
+        content: const Text('Take them out of the library now? Their files stay on the phone.'),
+        actions: [
+          TextButton(key: const Key('rule-keep'), onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep them')),
+          FilledButton(key: const Key('rule-remove'), onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove them')),
+        ],
+      ),
+    );
+    if (remove == true) {
+      final n = await service.removeSongsMatchingRule(rule);
+      _say('Removed $n song${n == 1 ? '' : 's'} from the library.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final paths = _paths;
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Excluded from library')),
       body: SafeArea(
         child: paths == null
             ? const Center(child: CircularProgressIndicator())
-            : paths.isEmpty
-                ? const Center(
+            : ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Text('Rules', style: theme.textTheme.titleMedium),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: Text(
+                      'Leave files out by name, for example everything with "intro" in it. Rules apply every time '
+                      'you add a folder or rescan.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                  for (final rule in _rules)
+                    ListTile(
+                      key: ValueKey('rule-$rule'),
+                      leading: const Icon(Icons.filter_alt_off_outlined),
+                      title: Text(rule),
+                      trailing: IconButton(
+                        tooltip: 'Remove the rule $rule',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () async {
+                          final service = await ref.read(importServiceProvider.future);
+                          await service.removeNameRule(rule);
+                          await _load();
+                          _say('Rule removed. Files it left out come back the next time their folder is added.');
+                        },
+                      ),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
                     child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: TextButton.icon(
+                        key: const Key('add-rule'),
+                        onPressed: _addRule,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Add a rule'),
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                  if (paths.isEmpty)
+                    const Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
-                        'Nothing is left out. Untick a folder when you add one, or remove a song '
+                        'No folders or songs are left out. Untick a folder when you add one, or remove a song '
                         'from the library, and it shows up here.',
                         textAlign: TextAlign.center,
                       ),
                     ),
-                  )
-                : ListView(
-                    children: [
-                      for (final path in paths)
-                        ListTile(
-                          leading: Icon(p.extension(path).isEmpty
-                              ? Icons.folder_off_outlined
-                              : Icons.music_off_outlined),
-                          title: Text(p.basename(path), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text(p.dirname(path), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          trailing: IconButton(
-                            tooltip: 'Let back in',
-                            icon: const Icon(Icons.undo_rounded),
-                            onPressed: () async {
-                              final service = await ref.read(importServiceProvider.future);
-                              await service.includeAgain(path);
-                              await _load();
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context)
-                                ..hideCurrentSnackBar()
-                                ..showSnackBar(const SnackBar(
-                                    content: Text('It is added the next time its folder is added.')));
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
+                  for (final path in paths)
+                    ListTile(
+                      leading: Icon(p.extension(path).isEmpty ? Icons.folder_off_outlined : Icons.music_off_outlined),
+                      title: Text(p.basename(path), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(p.dirname(path), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: IconButton(
+                        tooltip: 'Let back in',
+                        icon: const Icon(Icons.undo_rounded),
+                        onPressed: () async {
+                          final service = await ref.read(importServiceProvider.future);
+                          await service.includeAgain(path);
+                          await _load();
+                          _say('It is added the next time its folder is added.');
+                        },
+                      ),
+                    ),
+                ],
+              ),
       ),
+    );
+  }
+}
+
+/// Asks for a name rule (it owns its text field, so the field is let go only when the dialog is gone).
+class _RuleDialog extends StatefulWidget {
+  const _RuleDialog();
+
+  @override
+  State<_RuleDialog> createState() => _RuleDialogState();
+}
+
+class _RuleDialogState extends State<_RuleDialog> {
+  final _field = TextEditingController();
+
+  @override
+  void dispose() {
+    _field.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Leave out by name'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            key: const Key('rule-field'),
+            controller: _field,
+            autofocus: true,
+            maxLength: 80,
+            decoration: const InputDecoration(hintText: 'intro'),
+            onSubmitted: (v) => Navigator.pop(context, v),
+          ),
+          const Text(
+            'Any file whose name contains this is left out. Use * for any text and ? for one '
+            'character, for example *intro* or *.wav. Capitals do not matter.',
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          key: const Key('rule-add'),
+          onPressed: () => Navigator.pop(context, _field.text),
+          child: const Text('Add'),
+        ),
+      ],
     );
   }
 }

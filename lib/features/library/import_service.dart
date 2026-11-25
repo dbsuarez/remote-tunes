@@ -304,8 +304,58 @@ class LibraryImportService {
     if (all.remove(path)) await _exclusions.save(all);
   }
 
-  static bool _isExcluded(String path, Set<String> excluded) =>
-      excluded.any((e) => path == e || p.isWithin(e, path));
+  /// A rule that leaves out files by name is kept in the same list, as `glob:<pattern>`.
+  static const rulePrefix = 'glob:';
+
+  /// Does [fileName] (with its extension) match the rule [pattern]? `*` is any text and `?` one
+  /// character; a pattern with neither matches any name that contains it. Capitals do not matter.
+  static bool matchesRule(String pattern, String fileName) {
+    final rule = pattern.trim().toLowerCase();
+    if (rule.isEmpty) return false;
+    final name = fileName.toLowerCase();
+    if (!rule.contains('*') && !rule.contains('?')) return name.contains(rule);
+    final body = rule.split('').map((c) => c == '*' ? '.*' : c == '?' ? '.' : RegExp.escape(c)).join();
+    return RegExp('^$body\$').hasMatch(name);
+  }
+
+  static bool _isExcluded(String path, Set<String> excluded) => excluded.any((e) => e.startsWith(rulePrefix)
+      ? matchesRule(e.substring(rulePrefix.length), p.basename(path))
+      : path == e || p.isWithin(e, path));
+
+  /// The rules that leave files out by name (see [matchesRule]).
+  Future<List<String>> nameRules() async => [
+        for (final e in await _exclusions.load())
+          if (e.startsWith(rulePrefix)) e.substring(rulePrefix.length),
+      ]..sort();
+
+  /// Adds a rule. False if it is empty or already there.
+  Future<bool> addNameRule(String pattern) async {
+    var rule = pattern.trim();
+    if (rule.length > 80) rule = rule.substring(0, 80);
+    if (rule.isEmpty) return false;
+    final all = await _exclusions.load();
+    if (!all.add('$rulePrefix$rule')) return false;
+    await _exclusions.save(all);
+    return true;
+  }
+
+  Future<void> removeNameRule(String pattern) => includeAgain('$rulePrefix$pattern');
+
+  /// The songs in the library whose file name matches the rule.
+  Future<List<({int id, String path})>> songsMatchingRule(String pattern) async => [
+        for (final s in await _library.localSongFiles())
+          if (matchesRule(pattern, p.basename(s.path))) s,
+      ];
+
+  /// Takes the songs that match the rule out of the library (their files stay; the rule keeps them
+  /// from coming back). Returns how many.
+  Future<int> removeSongsMatchingRule(String pattern) async {
+    final songs = await songsMatchingRule(pattern);
+    for (final s in songs) {
+      await removeSong(s.id, remember: false);
+    }
+    return songs.length;
+  }
 
   /// Adds the songs in [folderPath] (referenced in place).
   ///
