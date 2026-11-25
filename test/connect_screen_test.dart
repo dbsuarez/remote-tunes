@@ -3,14 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_tunes/core/router/app_router.dart';
 import 'package:remote_tunes/app.dart';
 import 'package:remote_tunes/core/models/enums.dart';
 import 'package:remote_tunes/data/database/app_database.dart';
 import 'package:remote_tunes/data/repositories/settings_repository.dart';
 import 'package:remote_tunes/features/controller/discovery.dart';
-import 'package:remote_tunes/features/player/player_host.dart';
-import 'package:remote_tunes/features/player/playback_engine.dart';
-import 'package:remote_tunes/features/player/server/player_server.dart';
 import 'package:remote_tunes/providers/connection_providers.dart';
 import 'package:remote_tunes/providers/providers.dart';
 
@@ -18,7 +16,7 @@ import 'package:remote_tunes/providers/providers.dart';
 /// async work does not run inside testWidgets' fake-async zone). Drift itself
 /// is covered by settings_repository_test.dart.
 class _FakeSettingsRepository implements SettingsRepository {
-  AppSettings _current = const AppSettings(startMode: StartMode.classic);
+  AppSettings _current = const AppSettings();
   final _controller = StreamController<AppSettings>.broadcast();
 
   @override
@@ -29,7 +27,7 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setConnectionMode(ConnectionMode v) async {
-    _current = AppSettings(startMode: StartMode.classic, deviceName: _current.deviceName, connectionMode: v);
+    _current = AppSettings(deviceName: _current.deviceName, connectionMode: v);
     _controller.add(_current);
   }
 
@@ -42,60 +40,6 @@ class _FakeSettingsRepository implements SettingsRepository {
 }
 
 void main() {
-  testWidgets(
-      'Home shows mode selector, roles and empty history; '
-      'role buttons open Phase 1 placeholders', (tester) async {
-    final repo = _FakeSettingsRepository();
-
-    // The Player screen would start a real server; replace it with inert fakes.
-    final engine = SimulatedPlaybackEngine(autoTick: false);
-    final server = PlayerServer(engine: engine, deviceName: 'Test');
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          settingsRepositoryProvider.overrideWithValue(repo),
-          playerHostProvider.overrideWith(
-              (ref) async => PlayerHost(engine: engine, server: server)),
-          playerServerStateProvider.overrideWith((ref) => Stream.value(
-              const PlayerServerState(
-                  running: true, port: 8765, addresses: ['192.168.1.20']))),
-          playerPlaybackProvider
-              .overrideWith((ref) => Stream.value(engine.state)),
-        ],
-        child: const RemoteTunesApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('RemoteTunes'), findsOneWidget);
-    expect(find.text('Auto'), findsOneWidget);
-    expect(find.text('Local only'), findsOneWidget);
-    expect(find.text('Online only'), findsOneWidget);
-    expect(find.text('Start as PLAYER'), findsOneWidget);
-    expect(find.text('Start as CONTROLLER'), findsOneWidget);
-    expect(find.textContaining('No connections yet'), findsOneWidget);
-
-    // Theme is dark Material 3.
-    final theme = Theme.of(tester.element(find.byType(Scaffold).first));
-    expect(theme.brightness, Brightness.dark);
-    expect(theme.useMaterial3, isTrue);
-
-    // Selecting a mode updates the connection pill.
-    await tester.tap(find.text('Online only'));
-    await tester.pumpAndSettle();
-    expect(find.text('Not connected · Online only'), findsOneWidget);
-
-    await tester.tap(find.text('Start as PLAYER'));
-    await tester.pumpAndSettle();
-    // Player screen: the Player tab has the controls, Connect has the address.
-    expect(find.text('Demo Track 1'), findsOneWidget);
-    await tester.tap(find.widgetWithText(Tab, 'Connect'));
-    await tester.pumpAndSettle();
-    expect(find.text('Connect from the Controller'), findsOneWidget);
-    expect(find.text('192.168.1.20 : 8765'), findsOneWidget);
-    expect(find.text('Ready · waiting for a Controller'), findsOneWidget);
-  });
-
   testWidgets('Controller screen lists discovered Players and offers manual '
       'IP/port connect', (tester) async {
     await tester.pumpWidget(
@@ -104,12 +48,9 @@ void main() {
           settingsRepositoryProvider.overrideWithValue(_FakeSettingsRepository()),
           playerDiscoveryProvider.overrideWithValue(_FakeDiscovery()),
         ],
-        child: const RemoteTunesApp(),
+        child: const RemoteTunesApp(initialLocation: AppRoutes.connect),
       ),
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Start as CONTROLLER'));
     await tester.pumpAndSettle();
 
     expect(find.text('Scan QR code'), findsOneWidget);

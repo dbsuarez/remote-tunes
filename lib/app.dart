@@ -14,14 +14,17 @@ import 'core/theme/app_theme.dart';
 import 'providers/providers.dart';
 
 class RemoteTunesApp extends ConsumerStatefulWidget {
-  const RemoteTunesApp({super.key});
+  const RemoteTunesApp({super.key, this.initialLocation = AppRoutes.home});
+
+  /// The page to open first (tests open a page directly).
+  final String initialLocation;
 
   @override
   ConsumerState<RemoteTunesApp> createState() => _RemoteTunesAppState();
 }
 
 class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> with WidgetsBindingObserver {
-  late final GoRouter _router = createRouter();
+  late final GoRouter _router = createRouter(initialLocation: widget.initialLocation);
 
   @override
   void initState() {

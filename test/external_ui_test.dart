@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_tunes/features/controller/controller_views.dart';
+import 'package:remote_tunes/core/theme/app_theme.dart';
+import 'package:remote_tunes/providers/shell_providers.dart';
+import 'package:remote_tunes/core/router/app_router.dart';
 import 'package:remote_tunes/app.dart';
 import 'package:remote_tunes/core/models/enums.dart';
 import 'package:remote_tunes/core/protocol/protocol.dart';
@@ -42,7 +46,7 @@ class FakeSettings implements SettingsRepository {
   @override
   Future<void> setExternalAppControlEnabled(bool v) async {
     changes.add('external:$v');
-    current = AppSettings(startMode: StartMode.classic, 
+    current = AppSettings(
       externalAppControlEnabled: v,
       deviceName: current.deviceName,
       connectionMode: current.connectionMode,
@@ -119,7 +123,7 @@ void main() {
       tester.view.physicalSize = const Size(800, 3000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      final settings = FakeSettings(AppSettings(startMode: StartMode.classic, externalAppControlEnabled: on));
+      final settings = FakeSettings(AppSettings(externalAppControlEnabled: on));
       await tester.pumpWidget(ProviderScope(
         overrides: [settingsRepositoryProvider.overrideWithValue(settings)],
         child: const RemoteTunesApp(),
@@ -205,7 +209,7 @@ void main() {
 
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings(startMode: StartMode.classic))),
+          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings())),
           externalMediaBridgeProvider.overrideWithValue(bridge),
           playerHostProvider
               .overrideWith((ref) async => PlayerHost(engine: engine, server: server)),
@@ -215,11 +219,10 @@ void main() {
             yield engine.state;
             yield* engine.states;
           }),
+          remotePlaybackProvider.overrideWith((ref) => true),
         ],
-        child: const RemoteTunesApp(),
+        child: const RemoteTunesApp(initialLocation: AppRoutes.remotePlayback),
       ));
-      await settleUi(tester);
-      await tester.tap(find.text('Start as PLAYER'));
       await settleUi(tester);
     }
 
@@ -289,8 +292,7 @@ void main() {
       await settleUi(tester);
       expect(engine.controlMode, ControlMode.external);
       expect(find.text('Controlling Spotify.'), findsOneWidget);
-      expect(find.text('Playing in Spotify'), findsOneWidget);
-      expect(find.text('Blue Song'), findsOneWidget);
+      // (What is playing shows on Now Playing, not on this page.)
 
       await tester.tap(segment('RemoteTunes'));
       // Leaving external mode awaits a stream cancel, which completes on the
@@ -352,7 +354,7 @@ void main() {
       ));
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings(startMode: StartMode.classic))),
+          settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings())),
           playerDiscoveryProvider.overrideWithValue(FakeDiscovery()),
           controllerClientProvider.overrideWithValue(client),
           controllerStateProvider.overrideWith((ref) async* {
@@ -360,10 +362,19 @@ void main() {
             yield* client.stateStream;
           }),
         ],
-        child: const RemoteTunesApp(),
+        // The connected Controller screen (the web page uses the same one).
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => ControllerDashboard(
+                client: client,
+                state: ref.watch(controllerStateProvider).valueOrNull ?? client.current,
+              ),
+            ),
+          ),
+        ),
       ));
-      await settleUi(tester);
-      await tester.tap(find.text('Start as CONTROLLER'));
       await settleUi(tester);
       return client;
     }

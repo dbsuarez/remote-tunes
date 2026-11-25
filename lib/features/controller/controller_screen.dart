@@ -21,11 +21,7 @@ import 'trusted_players.dart';
 
 /// Controller flow in one screen: find a Player -> enter code -> dashboard.
 class ControllerScreen extends ConsumerStatefulWidget {
-  const ControllerScreen({super.key, this.popWhenConnected = false});
-
-  /// Used from the music player: once connected, go back to it (it then
-  /// controls that Player). The connection is kept when the screen closes.
-  final bool popWhenConnected;
+  const ControllerScreen({super.key});
 
   @override
   ConsumerState<ControllerScreen> createState() => _ControllerScreenState();
@@ -152,7 +148,7 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
     ref.listen(controllerStateProvider, (_, next) {
       final s = next.valueOrNull;
       if (s != null) _onClientState(s);
-      if (s != null && widget.popWhenConnected && s.status == ControllerStatus.connected) {
+      if (s != null && s.status == ControllerStatus.connected) {
         _handedOver = true;
         Navigator.of(context).maybePop();
       }
@@ -164,7 +160,7 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.popWhenConnected ? 'Control another phone' : 'Controller'),
+        title: const Text('Control another phone'),
         actions: [
           if (connected)
             IconButton(
@@ -188,9 +184,10 @@ class _ControllerScreenState extends ConsumerState<ControllerScreen> {
           ControllerStatus.awaitingCode ||
           ControllerStatus.waitingForPlayer =>
             CodeEntryView(client: _client, state: state),
+          // Connected: this page hands the connection to the music player and closes.
           ControllerStatus.connected ||
           ControllerStatus.reconnecting =>
-            ControllerDashboard(client: _client, state: state),
+            const Center(child: CircularProgressIndicator()),
         },
       ),
     );

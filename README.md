@@ -52,7 +52,7 @@ Phase order follows `docs/17` §12: Web Controller is Phase 6, Polish is Phase 7
 A browser page that controls a Player phone over the online relay. Controller only: no audio plays in the browser, no music is stored, no login.
 
 - **Entry point:** `lib/main_web.dart` (the phone app is still `lib/main.dart`). It shares the Controller screens (`features/controller/controller_views.dart`), protocol and client with the phone app; `test/web_safety_test.dart` fails if phone-only code (database, audio, Wi-Fi discovery) becomes reachable from the web entry.
-- **Use:** on the Player phone choose Start as PLAYER with mode Online or Auto; it shows a room code. Enter it in the page, then confirm the 6-digit code with Accept on the Player.
+- **Use:** on the Player phone set the connection mode to Online or Auto (Settings), then tap the chip at the top > **Start remote playback**; its page shows a room code. Enter it in the page, then confirm the 6-digit code with Accept on the Player.
 - **Browser storage:** the session token, recent rooms (max 8), recent links and device name are kept in the browser's local storage. Reloading resumes without pairing again. **Disconnect** removes the session (recent rooms stay). A Player that no longer accepts the token also clears it.
 - **Web is online-only** (browsers cannot reach a phone's local server).
 
@@ -89,7 +89,7 @@ APKs are published as **GitHub Releases**, and the app can update itself from th
 
 **Publishing a version:** `git tag v0.2.0` then `git push origin v0.2.0` (or run the *Release APK* workflow by hand). It analyzes, tests, builds one APK per CPU type and attaches them to a release named after the tag. The tag sets the app's version.
 
-**On the phones:** Settings → App updates → *Check for updates* (also checked about once a day when the app opens, switchable). When a newer version exists the Home screen shows an *Update* card; tapping it downloads the APK (checked for size and SHA-256), then Android's own install screen asks you to confirm. The download is kept until installed, so tapping Update again after closing Android's install screen does not download again. The first time, Android sends you to a switch "Allow from this source" for RemoteTunes; flip it and come back, and the update carries on by itself (even if Android restarted the app). Only GitHub is contacted, and nothing about you is sent.
+**On the phones:** Settings → App updates → *Check for updates* (also checked about once a day when the app opens, switchable). When a newer version exists the Settings page shows it (and its *Update* button); downloads the APK (checked for size and SHA-256), then Android's own install screen asks you to confirm. The download is kept until installed, so tapping Update again after closing Android's install screen does not download again. The first time, Android sends you to a switch "Allow from this source" for RemoteTunes; flip it and come back, and the update carries on by itself (even if Android restarted the app). Only GitHub is contacted, and nothing about you is sent.
 
 ## Shorter screens (Phase 7)
 
@@ -100,7 +100,7 @@ APKs are published as **GitHub Releases**, and the app can update itself from th
 ## Favorites, playlists, speed, art (Phase 7)
 
 - **Library chips:** Songs, Artists, Albums, **Favorites**, **Recent**, **Playlists**. The heart on a song toggles a favorite; the song menu has *Add to playlist*. A playlist opens like an album (Play all, Rename, Delete, remove a song). Deleting a playlist keeps the songs.
-- **A music player first:** the app opens as a music player for this phone's songs (bottom bar: Now Playing, Library, Search, Queue, with a mini player). The chip in the top bar chooses what you play on: *This phone*, *Control another phone* (the same screens then control that Player), and **Start remote playback**, which lets other phones control this one (nothing listens on the network until you press it, unless Settings > "Start remote playback when the app opens" is on). Settings > "When the app opens" can instead reconnect to your last Player straight away, or show the classic Player / Controller start screen.
+- **A music player first:** the app opens as a music player for this phone's songs (bottom bar: Now Playing, Library, Search, Queue, with a mini player). The chip in the top bar chooses what you play on: *This phone*, *Control another phone* (the same screens then control that Player), and **Start remote playback**, which lets other phones control this one (nothing listens on the network until you press it, unless Settings > "Start remote playback when the app opens" is on). Settings > "When the app opens" can instead reconnect to your last Player straight away. (The old Home, Player and Controller start screens are gone.)
 - **Now Playing (same on both phones):** a heart for the current song, a **Speed** picker (0.5x to 2x, kept for the next songs) and the album art.
 - **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path. Now Playing and the mini bar use the big one; song rows (Library, Queue, Favorites, playlists, on both phones) ask for a 96 px one, a few at a time, and show a music note when the song has no art.
 - **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
@@ -162,8 +162,8 @@ MIT, see [LICENSE](LICENSE).
 
 ### Testing Phase 1 on two phones
 
-1. Phone A: Home → **Start as PLAYER**. Note the address shown (e.g. `192.168.1.20 : 8765`).
-2. Phone B: Home → **Start as CONTROLLER**. Pick Phone A from "Nearby Players", or connect manually with the address.
+1. Phone A: tap the chip at the top > **Start remote playback**. Note the address shown (e.g. `192.168.1.20 : 8765`).
+2. Phone B: tap the chip at the top > **Control another phone**. Pick Phone A from "Nearby Players", or connect manually with the address.
 3. Phone A shows a 6-digit code with Accept/Reject. Enter the code on Phone B and tap **Accept** on Phone A.
 4. Phone B can now play/pause, skip, seek and change volume; state updates appear on both phones.
 5. Repeat on a hotspot and in airplane mode with Wi‑Fi/hotspot on. On hotspots, mDNS often fails, so use manual IP.
@@ -176,7 +176,7 @@ Phase 3 adds direct internet audio (http/https links to an audio file):
 - `android:usesCleartextTraffic="true"` is set so plain `http://` links work (FR-57). Streaming apps' and video pages' links (YouTube, Spotify, etc.) will not work; those need a direct audio file link.
 
 Phase 4 adds optional online control through **Supabase Realtime Broadcast** (no tables, no login, no music):
-- **Modes** (Home screen / Settings): *Local only* (never touches Supabase), *Online only* (the Player opens no local server; Controllers join with a room code), *Auto* (the Player does both; a Controller tries the local network first and falls back to online).
+- **Modes** (Settings): *Local only* (never touches Supabase), *Online only* (the Player opens no local server; Controllers join with a room code), *Auto* (the Player does both; a Controller tries the local network first and falls back to online).
 - **Room code:** the Player shows an 8-character code (e.g. `ABCD-2345`), new every time Player mode starts. Channel name: `remotetunes:<room-code>`. Pairing is the same as locally (6-digit code + Accept), and a paired session can move between Wi‑Fi and online without pairing again (same token).
 - **Auto fallback:** a Player on the local network also advertises its room code, so choosing it in "Nearby Players" gives the Controller both routes. If Wi‑Fi drops, it reconnects over the relay on its own.
 - **Setup (Settings → Online relay):** this build already knows its Supabase project (`lib/core/online_defaults.dart`: the Project URL and the *publishable* key, which is meant to be public). You only need to turn the relay **on** (it stays off by default) and can tap **Test online relay**. What you type in Settings always overrides the defaults; clearing the fields goes back to them. To build for another project without editing code: `--dart-define=SUPABASE_URL=… --dart-define=SUPABASE_KEY=…`. Never put the `service_role` key or a database password in the app. In the Supabase dashboard, Realtime settings must allow public access (Broadcast without sign-in).
@@ -195,7 +195,7 @@ Phase 5 adds **External App Control**: a Controller can play, pause, skip, seek 
 ### Testing Phase 5 (needs Spotify or YouTube Music on the Player phone)
 
 1. Player phone: Settings → turn on External app control (read the explanation).
-2. Player phone: Home → Start as PLAYER. In the **External App Control** card choose **Other music app**. If asked, follow the steps: (Android 13+: App info → ⋮ → Allow restricted settings), then Allow notification access for RemoteTunes, then come back.
+2. Player phone: chip > Start remote playback. In the **External App Control** card choose **Other music app**. If asked, follow the steps: (Android 13+: App info → ⋮ → Allow restricted settings), then Allow notification access for RemoteTunes, then come back.
 3. Start a song in Spotify / YouTube Music on the Player phone. The card should say "Controlling Spotify" (or the app's name).
 4. Controller: pair as usual. On **Now Playing**, the "Other music app" switch should be there. Try play/pause, next, previous, seek, volume. Title and artist should follow the other app.
 5. Check the limits: with an ad or a podcast, skipping or seeking may be disabled (the buttons grey out). Queue/Library/URL tabs should say they are unavailable.
@@ -207,8 +207,8 @@ Phase 5 adds **External App Control**: a Controller can play, pause, skip, seek 
 
 1. Nothing to set up in Supabase: the real relay was checked against this build's project (connect, two-way messages, and a full Player/Controller session over it). No tables, triggers or policies are needed.
 2. On **both** phones: Settings → Online relay: turn it **on** (URL and key are pre-filled), tap **Test online relay** (should say "Connected").
-3. Player phone: Home → mode **Online only** (or Auto) → **Start as PLAYER**. Note the room code.
-4. Controller phone: switch **its** Wi‑Fi off (mobile data only) or use another network. Mode **Online only** → **Start as CONTROLLER** → enter the code → pair → play, seek, volume, queue, library, URL.
+3. Player phone: Settings > mode **Online only** (or Auto), then chip > **Start remote playback**. Note the room code.
+4. Controller phone: switch **its** Wi‑Fi off (mobile data only) or use another network. Mode **Online only** → chip > **Control another phone** → enter the code → pair → play, seek, volume, queue, library, URL.
 5. Auto: both phones on Wi‑Fi in Auto. Pick the Player under Nearby Players (it says "also online"), pair, then turn the Controller's Wi‑Fi off: it should reconnect online (pill turns violet) without re-pairing. Turn Wi‑Fi back on and drop the connection: it should prefer local again.
 6. Local only with Wi‑Fi but **no internet**, and Airplane mode + hotspot: local control must still work (no Supabase involved).
 7. Wrong URL/key, wrong room code, offline phone: each should show a clear message.

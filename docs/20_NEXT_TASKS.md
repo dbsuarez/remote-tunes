@@ -82,7 +82,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] Keep the screen on while adding songs, updating tags and finding album art.
 - [x] Library > Folders: pick several folders (long-press) and add them to a playlist or the queue; Back from an opened folder (or artist, album, playlist, genre...) returns to the same spot in the list with that row quietly tinted, and a search is kept.
 - [x] Shuffle and repeat are remembered between runs (they use the Settings > Playback values, which now follow the Now Playing buttons).
-- [ ] Not done: retiring the classic Home / Player / Controller screens (kept: they still back the "Classic start screen" option and many tests).
+- [x] The classic Home / Player / Controller screens are retired (no Home screen, no role buttons, no "Classic start screen"). The connect page ("Control another phone") and the Remote playback page remain; the connected Controller screen is kept only for the web page.
 
 ### Lyrics redesign (built, not yet tried on a phone)
 - [x] **Fade, then replace:** the lyrics button fades the cover out completely (the first half of a 0.46 s animation) and only then fades the lyrics card in; the lyrics card takes the cover's whole space with a small margin. The button flips back the same way.

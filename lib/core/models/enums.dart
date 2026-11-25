@@ -18,9 +18,6 @@ enum StartMode {
 
   /// The same, and it reconnects to the last Player and controls it.
   lastPlayer,
-
-  /// The old start screen, where you choose Player or Controller.
-  classic,
 }
 
 /// What the Player is controlling: RemoteTunes' own player, or another music
@@ -59,14 +56,12 @@ extension StartModeX on StartMode {
   String get label => switch (this) {
         StartMode.thisPhone => 'This phone\'s music',
         StartMode.lastPlayer => 'Control my last Player',
-        StartMode.classic => 'Classic start screen',
       };
 
   String get description => switch (this) {
         StartMode.thisPhone => 'Opens as a music player for the songs on this phone.',
         StartMode.lastPlayer =>
           'Opens and reconnects to the Player you used last, so you control it straight away.',
-        StartMode.classic => 'Opens the screen where you choose Player or Controller.',
       };
 
   static StartMode parse(String? v) =>

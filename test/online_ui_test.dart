@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_tunes/core/router/app_router.dart';
+import 'package:remote_tunes/providers/shell_providers.dart';
 import 'package:remote_tunes/app.dart';
 import 'package:remote_tunes/core/models/enums.dart';
 import 'package:remote_tunes/data/database/app_database.dart';
@@ -67,13 +69,11 @@ Future<void> openController(
   await tester.pumpWidget(ProviderScope(
     overrides: [
       settingsRepositoryProvider
-          .overrideWithValue(FakeSettings(AppSettings(startMode: StartMode.classic, connectionMode: mode))),
+          .overrideWithValue(FakeSettings(AppSettings(connectionMode: mode))),
       playerDiscoveryProvider.overrideWithValue(FakeDiscovery(players)),
     ],
-    child: const RemoteTunesApp(),
+    child: const RemoteTunesApp(initialLocation: AppRoutes.connect),
   ));
-  await settleUi(tester);
-  await tester.tap(find.text('Start as CONTROLLER'));
   await settleUi(tester);
   // The fallback ways to connect are folded away until asked for.
   await tester.tap(find.text('Other ways to connect'));
@@ -89,7 +89,7 @@ Future<void> openPlayer(
   final server = PlayerServer(engine: engine, deviceName: 'Test');
   await tester.pumpWidget(ProviderScope(
     overrides: [
-      settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings(startMode: StartMode.classic))),
+      settingsRepositoryProvider.overrideWithValue(FakeSettings(const AppSettings())),
       playerHostProvider.overrideWith((ref) async => PlayerHost(
             engine: engine,
             server: server,
@@ -97,14 +97,11 @@ Future<void> openPlayer(
           )),
       playerServerStateProvider.overrideWith((ref) => Stream.value(state)),
       playerPlaybackProvider.overrideWith((ref) => Stream.value(engine.state)),
+      // Remote playback is on: that page shows the connection details.
+      remotePlaybackProvider.overrideWith((ref) => true),
     ],
-    child: const RemoteTunesApp(),
+    child: const RemoteTunesApp(initialLocation: AppRoutes.remotePlayback),
   ));
-  await settleUi(tester);
-  await tester.tap(find.text('Start as PLAYER'));
-  await settleUi(tester);
-  // Connection details live on the Connect tab.
-  await tester.tap(find.widgetWithText(Tab, 'Connect'));
   await settleUi(tester);
 }
 
@@ -299,7 +296,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(
         overrides: [
           settingsRepositoryProvider.overrideWithValue(FakeSettings(
-            const AppSettings(startMode: StartMode.classic, 
+            const AppSettings(
               onlineRelayEnabled: true,
               supabaseUrl: 'https://abc.supabase.co',
               supabaseAnonKey: 'key',

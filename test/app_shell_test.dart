@@ -477,12 +477,6 @@ void main() {
       expect(client.resumed, isEmpty);
       expect(find.text('This phone'), findsOneWidget);
     });
-
-    testWidgets('the classic start screen is still there to choose', (tester) async {
-      await open(tester, mode: StartMode.classic);
-      expect(find.text('Start as PLAYER'), findsOneWidget);
-      expect(find.text('Start as CONTROLLER'), findsOneWidget);
-    });
   });
 }
 
