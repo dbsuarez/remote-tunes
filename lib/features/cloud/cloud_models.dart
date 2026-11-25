@@ -108,6 +108,22 @@ class CloudSong {
   final int sizeBytes;
   final DateTime? added;
 
+  /// This song with other details (the file, cover and size stay as they were).
+  CloudSong copyWith({String? title, String? artist, String? album, String? genre, int? year, int? track, bool clearYear = false, bool clearTrack = false}) => CloudSong(
+        id: id,
+        title: title ?? this.title,
+        artist: artist ?? this.artist,
+        album: album ?? this.album,
+        genre: genre ?? this.genre,
+        year: clearYear ? null : (year ?? this.year),
+        track: clearTrack ? null : (track ?? this.track),
+        durationSeconds: durationSeconds,
+        audioKey: audioKey,
+        artKey: artKey,
+        sizeBytes: sizeBytes,
+        added: added,
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -156,14 +172,66 @@ class CloudSong {
   }
 }
 
-/// The list of everything in the cloud (one file, `catalog.json`, in the bucket).
+/// A playlist of cloud songs (kept in the catalog file, so every phone and the web page see it).
+class CloudPlaylist {
+  const CloudPlaylist({required this.id, required this.name, this.songIds = const []});
+
+  final String id;
+  final String name;
+
+  /// The ids of its songs, in order.
+  final List<String> songIds;
+
+  CloudPlaylist copyWith({String? name, List<String>? songIds}) =>
+      CloudPlaylist(id: id, name: name ?? this.name, songIds: songIds ?? this.songIds);
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'songs': songIds};
+
+  static CloudPlaylist? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final id = j['id'], name = j['name'];
+    if (id is! String || id.isEmpty || name is! String || name.trim().isEmpty) return null;
+    final raw = j['songs'];
+    return CloudPlaylist(
+      id: id,
+      name: name.trim(),
+      songIds: raw is List ? [for (final e in raw) if (e is String && e.isNotEmpty) e] : const [],
+    );
+  }
+}
+
+/// An artist in the cloud, with how many songs and albums.
+class CloudArtist {
+  const CloudArtist(this.name, this.songs, this.albums);
+  final String name;
+  final int songs;
+  final int albums;
+}
+
+/// An album in the cloud (an artist and a title), with its cover.
+class CloudAlbum {
+  const CloudAlbum({required this.title, required this.artist, required this.songs, this.artKey, this.year});
+
+  final String title;
+  final String artist;
+  final int songs;
+  final String? artKey;
+  final int? year;
+
+  /// A name that is the same for the same album every time (for keys).
+  String get key => '${artist.toLowerCase()}|${title.toLowerCase()}';
+}
+
+/// The list of everything in the cloud (one file, `catalog.json`, in the bucket): the songs and the
+/// playlists made from them.
 class CloudCatalog {
-  const CloudCatalog([this.songs = const []]);
+  const CloudCatalog([this.songs = const [], this.playlists = const []]);
 
   static const fileName = 'catalog.json';
   static const version = 1;
 
   final List<CloudSong> songs;
+  final List<CloudPlaylist> playlists;
 
   bool get isEmpty => songs.isEmpty;
   int get totalBytes => songs.fold(0, (s, x) => s + x.sizeBytes);
@@ -172,28 +240,62 @@ class CloudCatalog {
         'version': version,
         'updated': DateTime.now().toUtc().toIso8601String(),
         'songs': [for (final s in songs) s.toJson()],
+        if (playlists.isNotEmpty) 'playlists': [for (final p in playlists) p.toJson()],
       };
 
   /// Reads the catalog file. Bad entries are left out; a file that is not a catalog gives an empty one.
   static CloudCatalog fromJson(Object? j) {
     if (j is! Map || j['songs'] is! List) return const CloudCatalog();
-    return CloudCatalog([
-      for (final e in j['songs'] as List)
-        if (CloudSong.fromJson(e) case final s?) s,
-    ]);
+    final lists = j['playlists'];
+    return CloudCatalog(
+      [
+        for (final e in j['songs'] as List)
+          if (CloudSong.fromJson(e) case final s?) s,
+      ],
+      [
+        if (lists is List)
+          for (final e in lists)
+            if (CloudPlaylist.fromJson(e) case final p?) p,
+      ],
+    );
   }
 
-  /// This catalog with [add] put in (a song already there by id is kept as it was) and [remove] taken out.
+  /// This catalog with [add] put in (a song already there by id is kept as it was) and [remove] taken out
+  /// (also out of every playlist). The playlists are kept.
   CloudCatalog changed({Iterable<CloudSong> add = const [], Iterable<String> remove = const []}) {
     final gone = remove.toSet();
     final have = {for (final s in songs) s.id};
-    return CloudCatalog([
-      for (final s in songs)
-        if (!gone.contains(s.id)) s,
-      for (final s in add)
-        if (!have.contains(s.id) && !gone.contains(s.id)) s,
-    ]);
+    return CloudCatalog(
+      [
+        for (final s in songs)
+          if (!gone.contains(s.id)) s,
+        for (final s in add)
+          if (!have.contains(s.id) && !gone.contains(s.id)) s,
+      ],
+      gone.isEmpty
+          ? playlists
+          : [for (final p in playlists) p.copyWith(songIds: [for (final id in p.songIds) if (!gone.contains(id)) id])],
+    );
   }
+
+  /// This catalog with the song of the same id replaced (nothing changes if there is no such song).
+  CloudCatalog withSong(CloudSong updated) =>
+      CloudCatalog([for (final s in songs) s.id == updated.id ? updated : s], playlists);
+
+  CloudCatalog withPlaylists(List<CloudPlaylist> lists) => CloudCatalog(songs, lists);
+
+  CloudSong? songById(String id) {
+    for (final s in songs) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  /// The songs of a playlist, in its order (an id that is no longer a song is skipped).
+  List<CloudSong> songsOfPlaylist(CloudPlaylist p) => [
+        for (final id in p.songIds)
+          if (songById(id) case final s?) s,
+      ];
 
   /// The genres, the most songs first.
   List<({String name, int count})> get genres {
@@ -204,6 +306,61 @@ class CloudCatalog {
     final list = n.entries.map((e) => (name: e.key, count: e.value)).toList()
       ..sort((a, b) => b.count != a.count ? b.count.compareTo(a.count) : a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return list;
+  }
+
+  /// The artists by name, with their song and album counts (songs with no artist are left out).
+  List<CloudArtist> get artists {
+    final byName = <String, ({String name, int songs, Set<String> albums})>{};
+    for (final s in songs) {
+      if (s.artist.isEmpty) continue;
+      final k = s.artist.toLowerCase();
+      final e = byName[k];
+      if (e == null) {
+        byName[k] = (name: s.artist, songs: 1, albums: {if (s.album.isNotEmpty) s.album.toLowerCase()});
+      } else {
+        e.albums.addAll([if (s.album.isNotEmpty) s.album.toLowerCase()]);
+        byName[k] = (name: e.name, songs: e.songs + 1, albums: e.albums);
+      }
+    }
+    return [for (final e in byName.values) CloudArtist(e.name, e.songs, e.albums.length)]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  /// The albums (same artist and title), with a cover if any of their songs has one.
+  List<CloudAlbum> get albums {
+    final byKey = <String, CloudAlbum>{};
+    for (final s in songs) {
+      if (s.album.isEmpty) continue;
+      final k = '${s.artist.toLowerCase()}|${s.album.toLowerCase()}';
+      final e = byKey[k];
+      byKey[k] = e == null
+          ? CloudAlbum(title: s.album, artist: s.artist, songs: 1, artKey: s.artKey, year: s.year)
+          : CloudAlbum(title: e.title, artist: e.artist, songs: e.songs + 1, artKey: e.artKey ?? s.artKey, year: e.year ?? s.year);
+    }
+    return byKey.values.toList()..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+  }
+
+  /// The songs of one artist: by album, then track, then title.
+  List<CloudSong> songsOfArtist(String artist) {
+    final list = [for (final s in songs) if (s.artist.toLowerCase() == artist.toLowerCase()) s];
+    list.sort((a, b) {
+      final byAlbum = a.album.toLowerCase().compareTo(b.album.toLowerCase());
+      if (byAlbum != 0) return byAlbum;
+      return _byTrack(a, b);
+    });
+    return list;
+  }
+
+  /// The songs of one album, in track order.
+  List<CloudSong> songsOfAlbum(CloudAlbum album) {
+    final list = [for (final s in songs) if (s.artist.toLowerCase() == album.artist.toLowerCase() && s.album.toLowerCase() == album.title.toLowerCase()) s];
+    list.sort(_byTrack);
+    return list;
+  }
+
+  static int _byTrack(CloudSong a, CloudSong b) {
+    final t = (a.track ?? 9999).compareTo(b.track ?? 9999);
+    return t != 0 ? t : a.title.toLowerCase().compareTo(b.title.toLowerCase());
   }
 
   /// Songs matching [query] (words, in the title, artist, album or genre) and, if given, one [genre].

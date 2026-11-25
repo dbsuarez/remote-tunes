@@ -225,6 +225,78 @@ class CloudLibraryService {
     return result;
   }
 
+  // ---------------------------------------------------------------- editing
+
+  /// Changes the catalog: reads the newest one with the keys, applies [change], saves, and gives the
+  /// result (so two phones changing it one after the other do not undo each other).
+  Future<CloudCatalog> _edit(CloudCatalog Function(CloudCatalog fresh) change) async {
+    if (!config.canWrite) throw const R2Exception('Add your R2 keys in Settings first.');
+    final next = change(await _fresh());
+    await _save(next);
+    return next;
+  }
+
+  /// Changes a song's title, artist, album, genre, year and track. The file and the cover stay. Gives the
+  /// new catalog.
+  Future<CloudCatalog> updateSong(CloudSong edited) async {
+    final title = edited.title.trim();
+    if (title.isEmpty) throw const R2Exception('A song needs a title.');
+    return _edit((c) => c.songById(edited.id) == null ? c : c.withSong(edited));
+  }
+
+  static String _cleanName(String name) {
+    final n = name.trim();
+    if (n.isEmpty) throw const R2Exception('Give the playlist a name.');
+    return n.length > 60 ? n.substring(0, 60) : n;
+  }
+
+  /// Makes a playlist (with [songIds] in it, if any). Gives the new catalog and the playlist's id.
+  Future<({CloudCatalog catalog, String id})> createPlaylist(String name, [Iterable<String> songIds = const []]) async {
+    final clean = _cleanName(name);
+    final id = _newId();
+    final catalog = await _edit((c) {
+      final known = {for (final s in c.songs) s.id};
+      return c.withPlaylists([
+        ...c.playlists,
+        CloudPlaylist(id: id, name: clean, songIds: [for (final s in songIds.toSet()) if (known.contains(s)) s]),
+      ]);
+    });
+    return (catalog: catalog, id: id);
+  }
+
+  /// Adds songs to the end of a playlist (a song already in it is not added again). Gives the new catalog.
+  Future<CloudCatalog> addToPlaylist(String playlistId, Iterable<String> songIds) => _edit((c) {
+        final known = {for (final s in c.songs) s.id};
+        return c.withPlaylists([
+          for (final p in c.playlists)
+            if (p.id == playlistId)
+              p.copyWith(songIds: [
+                ...p.songIds,
+                for (final s in songIds.toSet())
+                  if (known.contains(s) && !p.songIds.contains(s)) s,
+              ])
+            else
+              p,
+        ]);
+      });
+
+  Future<CloudCatalog> removeFromPlaylist(String playlistId, Iterable<String> songIds) {
+    final gone = songIds.toSet();
+    return _edit((c) => c.withPlaylists([
+          for (final p in c.playlists)
+            if (p.id == playlistId) p.copyWith(songIds: [for (final s in p.songIds) if (!gone.contains(s)) s]) else p,
+        ]));
+  }
+
+  Future<CloudCatalog> renamePlaylist(String playlistId, String name) async {
+    final clean = _cleanName(name);
+    return _edit((c) => c.withPlaylists([for (final p in c.playlists) p.id == playlistId ? p.copyWith(name: clean) : p]));
+  }
+
+  /// Deletes a playlist (the songs stay in the cloud).
+  Future<CloudCatalog> deletePlaylist(String playlistId) =>
+      _edit((c) => c.withPlaylists([for (final p in c.playlists) if (p.id != playlistId) p]));
+
   /// Takes songs out of the cloud: out of the catalog first, then their files (a cover only when no
   /// other song uses it).
   Future<int> remove(Iterable<CloudSong> songs) async {
