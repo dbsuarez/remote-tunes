@@ -4,7 +4,10 @@ import 'dart:async';
 /// the Player server (for Controllers) and this phone's own screens, so the
 /// timer is the same whoever set it.
 class SleepTimerService {
-  SleepTimerService({required this.onFire});
+  SleepTimerService({required this.onFire, DateTime Function()? now})
+      : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
 
   /// Called when the time is up (pauses playback).
   final Future<void> Function() onFire;
@@ -20,7 +23,7 @@ class SleepTimerService {
   int get secondsLeft {
     final end = _endsAt;
     if (end == null) return 0;
-    final ms = end.difference(DateTime.now()).inMilliseconds;
+    final ms = end.difference(_now()).inMilliseconds;
     return ms <= 0 ? 0 : (ms / 1000).ceil();
   }
 
@@ -30,7 +33,7 @@ class SleepTimerService {
   void set(Duration? d) {
     _timer?.cancel();
     _timer = null;
-    _endsAt = (d == null || d <= Duration.zero) ? null : DateTime.now().add(d);
+    _endsAt = (d == null || d <= Duration.zero) ? null : _now().add(d);
     if (_endsAt != null) {
       _timer = Timer(d!, () async {
         _endsAt = null;

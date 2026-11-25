@@ -14,7 +14,7 @@ void main() {
     fakeAsync((async) {
       var fired = 0;
       final seen = <int>[];
-      final t = SleepTimerService(onFire: () async => fired++);
+      final t = SleepTimerService(onFire: () async => fired++, now: async.getClock(DateTime(2026)).now);
       t.changes.listen(seen.add);
       t.set(const Duration(minutes: 1));
       async.flushMicrotasks();
@@ -34,7 +34,7 @@ void main() {
   test('setting it again restarts it; null or zero cancels it', () {
     fakeAsync((async) {
       var fired = 0;
-      final t = SleepTimerService(onFire: () async => fired++);
+      final t = SleepTimerService(onFire: () async => fired++, now: async.getClock(DateTime(2026)).now);
       t.set(const Duration(minutes: 1));
       async.elapse(const Duration(seconds: 50));
       t.set(const Duration(minutes: 1));
@@ -52,7 +52,7 @@ void main() {
 
   test('a failing pause does not break it', () {
     fakeAsync((async) {
-      final t = SleepTimerService(onFire: () async => throw StateError('x'));
+      final t = SleepTimerService(onFire: () async => throw StateError('x'), now: async.getClock(DateTime(2026)).now);
       t.set(const Duration(seconds: 1));
       async.elapse(const Duration(seconds: 2));
       async.flushMicrotasks();
