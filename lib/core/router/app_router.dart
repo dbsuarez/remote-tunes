@@ -4,6 +4,8 @@ import '../../features/controller/controller_screen.dart';
 import '../../features/player/eq/equalizer_screen.dart';
 import '../../features/player/player_screen.dart' show RemotePlaybackScreen;
 import '../../features/shell/app_shell.dart';
+import '../../features/shell/help_screen.dart';
+import '../../features/update/changelog_screen.dart';
 import '../../features/settings/diagnostics_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
@@ -15,6 +17,8 @@ class AppRoutes {
   static const diagnostics = '/settings/diagnostics';
   static const connect = '/connect';
   static const equalizer = '/equalizer';
+  static const changelog = '/changelog';
+  static const help = '/help';
   static const remotePlayback = '/remote-playback';
 }
 
@@ -37,6 +41,14 @@ GoRouter createRouter({String initialLocation = AppRoutes.home}) {
             builder: (context, state) => const DiagnosticsScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.changelog,
+        builder: (context, state) => const ChangelogScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.help,
+        builder: (context, state) => const HelpScreen(),
       ),
       GoRoute(
         path: AppRoutes.equalizer,

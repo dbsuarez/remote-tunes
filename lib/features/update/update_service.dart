@@ -31,6 +31,21 @@ class UpdateInfo {
   final String? sha256;
 }
 
+/// One release and what changed in it.
+class ReleaseNote {
+  const ReleaseNote({
+    required this.version,
+    required this.title,
+    required this.notes,
+    this.published,
+  });
+
+  final String version;
+  final String title;
+  final String notes;
+  final DateTime? published;
+}
+
 /// A plain-language problem while checking, downloading or installing.
 class UpdateException implements Exception {
   UpdateException(this.message);
@@ -152,6 +167,39 @@ class UpdateChecker {
       return info.size > 0;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// The latest releases with their notes, newest first (for "What's new").
+  Future<List<ReleaseNote>> recentReleases({int limit = 10}) async {
+    final http.Response res;
+    try {
+      res = await _client
+          .get(
+            Uri.parse('https://api.github.com/repos/$repo/releases?per_page=$limit'),
+            headers: const {'Accept': 'application/vnd.github+json'},
+          )
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      throw UpdateException("Couldn't reach GitHub. Check the internet connection.");
+    }
+    if (res.statusCode != 200) {
+      throw UpdateException('GitHub said no (${res.statusCode}). Try again later.');
+    }
+    try {
+      final list = jsonDecode(res.body) as List;
+      return [
+        for (final e in list.whereType<Map<String, dynamic>>())
+          if (e['draft'] != true)
+            ReleaseNote(
+              version: ((e['tag_name'] as String?) ?? '').replaceFirst(RegExp('^v'), ''),
+              title: (e['name'] as String?) ?? '',
+              notes: ((e['body'] as String?) ?? '').trim(),
+              published: DateTime.tryParse((e['published_at'] as String?) ?? ''),
+            ),
+      ];
+    } catch (_) {
+      throw UpdateException("GitHub's answer could not be read.");
     }
   }
 

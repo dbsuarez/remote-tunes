@@ -168,6 +168,36 @@ void main() {
     });
   });
 
+  group('the release notes', () {
+    test('recent releases come back newest first with their notes', () async {
+      final list = await checker((r) {
+        expect(r.url.path, '/repos/$kUpdateRepo/releases');
+        return http.Response(
+            jsonEncode([
+              {'tag_name': 'v0.3.0', 'name': 'RemoteTunes 0.3.0', 'body': 'Lyrics', 'published_at': '2026-11-24T10:00:00Z'},
+              {'tag_name': 'v0.2.0', 'name': '', 'body': '', 'draft': false},
+              {'tag_name': 'v0.1.9', 'body': 'x', 'draft': true},
+            ]),
+            200);
+      }).recentReleases();
+      expect([for (final r in list) r.version], ['0.3.0', '0.2.0']);
+      expect(list.first.notes, 'Lyrics');
+      expect(list.first.published, DateTime.utc(2026, 11, 24, 10));
+      expect(list.last.notes, isEmpty);
+    });
+
+    test('network trouble and junk give plain messages', () async {
+      expect(
+          UpdateChecker(client: MockClient((_) async => throw const SocketException('x')))
+              .recentReleases(),
+          throwsA(isA<UpdateException>()));
+      expect(checker((_) => http.Response('nope', 500)).recentReleases(),
+          throwsA(isA<UpdateException>()));
+      expect(checker((_) => http.Response('{"a":1}', 200)).recentReleases(),
+          throwsA(isA<UpdateException>()));
+    });
+  });
+
   group('downloading', () {
     late Directory dir;
     setUp(() => dir = Directory.systemTemp.createTempSync('rt_upd_'));

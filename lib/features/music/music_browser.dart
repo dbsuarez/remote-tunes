@@ -102,7 +102,11 @@ class MusicBrowser extends StatefulWidget {
     this.onSearch,
     this.initialTarget,
     this.extraCategories = const [],
+    this.startOnPlaylists = false,
   });
+
+  /// Open straight on the playlists (the menu's Playlists shortcut).
+  final bool startOnPlaylists;
 
   /// More rows for the category list (home-list mode only).
   final List<LibraryExtra> extraCategories;
@@ -141,7 +145,7 @@ class MusicBrowser extends StatefulWidget {
 }
 
 class _MusicBrowserState extends State<MusicBrowser> {
-  _Scope _scope = _Scope.songs;
+  late _Scope _scope = widget.startOnPlaylists ? _Scope.playlists : _Scope.songs;
   late _Drill? _drill = widget.initialTarget == null
       ? null
       : _Drill(
@@ -195,7 +199,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
       : null;
 
   /// Showing the list of categories (only with [MusicBrowser.homeList]).
-  late bool _home = widget.homeList && widget.initialTarget == null;
+  late bool _home =
+      widget.homeList && widget.initialTarget == null && !widget.startOnPlaylists;
 
   static String _scopeTitle(_Scope s) => switch (s) {
         _Scope.songs => 'All Songs',

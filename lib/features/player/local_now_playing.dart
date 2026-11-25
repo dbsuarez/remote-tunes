@@ -20,8 +20,10 @@ class LocalNowPlaying extends StatefulWidget {
     this.header,
     this.extras,
     this.onOpenLibrary,
+    this.lyricsRequests,
   });
 
+  final Listenable? lyricsRequests;
   final QueueAwareEngine engine;
   final PlayerLibrary library;
   final SleepTimerService sleepTimer;
@@ -90,6 +92,7 @@ class _LocalNowPlayingState extends State<LocalNowPlaying> {
       header: widget.header,
       extras: widget.extras,
       onOpenLibrary: widget.onOpenLibrary,
+      lyricsRequests: widget.lyricsRequests,
     );
   }
 }

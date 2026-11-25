@@ -52,7 +52,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 ### UI / UX
 - [x] **EQ screen** with sliders, presets, per-output memory, a response curve, Preamp, Tone (Bass / Treble knobs) and Limit. Preamp up uses the phone's loudness enhancer, down lowers the volume. Not done: a true 10-band EQ.
 - [ ] **Bottom bar** (Library, EQ, Search, Queue) with a persistent mini player and progress line on every screen. A big navigation change: it would replace the top tabs.
-- [ ] **Menu with shortcuts** (Settings, Lyrics, Playlists, Skin settings, Library, Changelog, Help).
+- [x] **Menu with shortcuts** (the button at the top left): Now Playing, Lyrics (opens the lyrics), Library, Playlists (opens the playlists), Search, Queue, Equalizer, Remote playback, Settings, What's new (release notes from GitHub) and Help. Skin settings are added with the skins.
 - [ ] **Skinning engine** (JSON themes, named skins) that respects the album-art accent and the design guardrails.
 - [ ] **Visualizer tab** (Player only). Needs audio analysis; the microphone permission or a simulated animation.
 - [ ] Now Playing v2 on the **Player's own screen** (it still has the small card), and the edge swipes there.

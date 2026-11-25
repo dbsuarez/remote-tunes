@@ -450,6 +450,93 @@ void main() {
     });
   });
 
+  group('the menu', () {
+    Future<void> openMenu(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('lists the shortcuts and the other pages', (tester) async {
+      await open(tester);
+      await openMenu(tester);
+      for (final t in [
+        'Now Playing', 'Lyrics', 'Library', 'Playlists', 'Search', 'Queue',
+        'Equalizer', 'Remote playback', 'Settings', "What's new", 'Help'
+      ]) {
+        expect(find.descendant(of: find.byType(Drawer), matching: find.text(t)), findsOneWidget,
+            reason: t);
+      }
+    });
+
+    testWidgets('Playlists opens the Library straight on the playlists', (tester) async {
+      await open(tester);
+      await openMenu(tester);
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Playlists')));
+      await tester.pumpAndSettle();
+      expect(find.text('New playlist'), findsOneWidget);
+      expect(find.text('All Songs'), findsNothing, reason: 'not the category list');
+    });
+
+    testWidgets('Library opens the category list', (tester) async {
+      await open(tester);
+      await tester.tap(find.text('Queue'));
+      await tester.pumpAndSettle();
+      await openMenu(tester);
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Library')));
+      await tester.pumpAndSettle();
+      expect(find.text('All Songs'), findsOneWidget);
+    });
+
+    testWidgets('Queue and Search switch tabs', (tester) async {
+      await open(tester);
+      await openMenu(tester);
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Queue')));
+      await tester.pumpAndSettle();
+      expect(find.text('Beta Song'), findsOneWidget);
+      await openMenu(tester);
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Search')));
+      await tester.pumpAndSettle();
+      expect(find.text('Search songs, albums, artists and folders.'), findsOneWidget);
+    });
+
+    testWidgets('Lyrics goes to Now Playing and shows the lyrics instead of the cover',
+        (tester) async {
+      await open(tester);
+      await tester.tap(find.text('Library'));
+      await tester.pumpAndSettle();
+      await openMenu(tester);
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Lyrics')));
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(find.byTooltip('Show cover'), findsOneWidget, reason: 'the lyrics are showing');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('Help and What\'s new open their pages', (tester) async {
+      await open(tester);
+      await openMenu(tester);
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Help')));
+      await tester.pumpAndSettle();
+      expect(find.text('Control another phone'), findsWidgets);
+      expect(find.text('Playing your music'), findsOneWidget);
+    });
+
+    testWidgets('the equalizer is for this phone only, so controlling another hides it',
+        (tester) async {
+      final c = await open(tester);
+      client.setState(const ControllerClientState(
+        status: ControllerStatus.connected,
+        playerName: 'Living room',
+        playback: PlaybackState(title: 'Remote', songId: 9),
+      ));
+      c.read(controlRemoteProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+      await openMenu(tester);
+      expect(find.descendant(of: find.byType(Drawer), matching: find.text('Equalizer')), findsNothing);
+    });
+  });
+
   group('when the app opens', () {
     final trusted = TrustedPlayer(
       sessionId: 's1',

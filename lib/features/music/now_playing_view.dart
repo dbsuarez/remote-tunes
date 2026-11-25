@@ -25,9 +25,13 @@ class NowPlayingView extends StatefulWidget {
     this.header,
     this.extras,
     this.onOpenLibrary,
+    this.lyricsRequests,
   });
 
   final PlaybackSession session;
+
+  /// Notifies to show the lyrics (from the menu).
+  final Listenable? lyricsRequests;
 
   /// Shown above the cover (for example the switch to another music app).
   final Widget? header;
@@ -186,6 +190,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
                           size: heroSize, radius: 20),
                       size: heroSize,
                       radius: 20,
+                      openRequests: widget.lyricsRequests,
                       songId: p.songId,
                       title: p.title,
                       artist: p.artist,

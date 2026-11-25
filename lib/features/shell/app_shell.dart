@@ -20,6 +20,7 @@ import '../controller/controller_client.dart';
 import '../controller/remote_session.dart';
 import '../group/group_card.dart';
 import '../library/import_actions.dart';
+import 'app_drawer.dart';
 import '../player/player_screen.dart' show showPairingDialog;
 import '../music/library_search.dart';
 import '../music/music_browser.dart';
@@ -46,6 +47,13 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _tab = 0;
+
+  /// Asks Now Playing to show the lyrics (the menu's Lyrics shortcut).
+  final ValueNotifier<int> _lyricsRequests = ValueNotifier(0);
+
+  /// Changes to reopen the Library (the menu's Playlists shortcut).
+  int _libraryNonce = 0;
+  bool _libraryOnPlaylists = false;
 
   @override
   void initState() {
@@ -87,6 +95,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _openSource() => showSourceSheet(context, ref);
 
+  @override
+  void dispose() {
+    _lyricsRequests.dispose();
+    super.dispose();
+  }
+
   bool _pairingOpen = false;
 
   @override
@@ -123,18 +137,49 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     final _Active? active;
     if (remote) {
-      active = _Active.remote(ref, client, conn, goLibrary: () => setState(() => _tab = 1));
+      active = _Active.remote(ref, client, conn,
+          goLibrary: () => setState(() => _tab = 1), lyricsRequests: _lyricsRequests);
     } else {
       final core = ref.watch(playerCoreProvider);
       active = core.valueOrNull == null
           ? null
-          : _Active.local(ref, core.value!, goLibrary: () => setState(() => _tab = 1));
+          : _Active.local(ref, core.value!,
+              goLibrary: () => setState(() => _tab = 1), lyricsRequests: _lyricsRequests);
     }
 
     final size = ref.watch(songListSizeProvider);
     final title = remote ? (conn.playerName ?? 'Player') : 'RemoteTunes';
 
     return Scaffold(
+      // The menu opens with its button only: a swipe in from the left edge opens the
+      // Library on Now Playing.
+      drawerEnableOpenDragGesture: false,
+      drawer: AppDrawer(
+        showEqualizer: !remote,
+        onNowPlaying: () => setState(() => _tab = 0),
+        onLyrics: () {
+          setState(() => _tab = 0);
+          // After the page has switched, so the lyrics button is there to answer.
+          WidgetsBinding.instance.addPostFrameCallback((_) => _lyricsRequests.value++);
+        },
+        onLibrary: () => setState(() {
+          _tab = 1;
+          _libraryOnPlaylists = false;
+          _libraryNonce++;
+        }),
+        onPlaylists: () => setState(() {
+          _tab = 1;
+          _libraryOnPlaylists = true;
+          _libraryNonce++;
+        }),
+        onSearch: () => setState(() => _tab = 2),
+        onQueue: () => setState(() => _tab = 3),
+        onEqualizer: () => context.push(AppRoutes.equalizer),
+        onRemotePlayback: () => context.push(AppRoutes.remotePlayback),
+        onSettings: () => context.push(AppRoutes.settings),
+        onChangelog: () => context.push(AppRoutes.changelog),
+        onHelp: () => context.push(AppRoutes.help),
+      ),
       appBar: AppBar(
         titleSpacing: 12,
         title: _SourceChip(
@@ -181,7 +226,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                       index: _tab,
                       children: [
                         active.nowPlaying(),
-                        _LibraryTab(active: active, size: size, onSearch: () => setState(() => _tab = 2)),
+                        _LibraryTab(
+                          key: ValueKey('library-$_libraryNonce'),
+                          active: active,
+                          size: size,
+                          startOnPlaylists: _libraryOnPlaylists,
+                          onSearch: () => setState(() => _tab = 2),
+                        ),
                         LibrarySearchScreen(source: active.source, size: size, embedded: true),
                         QueueView(
                           source: active.source,
@@ -254,6 +305,7 @@ class _Active {
     ControllerClient client,
     ControllerClientState conn, {
     required VoidCallback goLibrary,
+    Listenable? lyricsRequests,
   }) {
     final session = RemoteSession(client: client, connection: conn);
     final enabled = conn.isConnected;
@@ -289,6 +341,7 @@ class _Active {
           // This phone can play the same song, in sync.
           extras: GroupCard(enabled: enabled),
           onOpenLibrary: goLibrary,
+          lyricsRequests: lyricsRequests,
         ),
       ),
       extraCategories: [
@@ -327,7 +380,8 @@ class _Active {
     );
   }
 
-  factory _Active.local(WidgetRef ref, PlayerCore core, {required VoidCallback goLibrary}) {
+  factory _Active.local(WidgetRef ref, PlayerCore core,
+      {required VoidCallback goLibrary, Listenable? lyricsRequests}) {
     final playback = ref.watch(playerPlaybackProvider).valueOrNull ?? core.engine.state;
     final source = LocalMusicSource(core.library, core.engine);
     return _Active(
@@ -342,6 +396,7 @@ class _Active {
         library: core.library,
         sleepTimer: core.sleepTimer,
         onOpenLibrary: goLibrary,
+        lyricsRequests: lyricsRequests,
       ),
       extraCategories: [
         LibraryExtra(
@@ -384,8 +439,15 @@ class _Active {
 }
 
 class _LibraryTab extends ConsumerWidget {
-  const _LibraryTab({required this.active, required this.size, required this.onSearch});
+  const _LibraryTab({
+    super.key,
+    required this.active,
+    required this.size,
+    required this.onSearch,
+    this.startOnPlaylists = false,
+  });
 
+  final bool startOnPlaylists;
   final _Active active;
   final SongListSize size;
   final VoidCallback onSearch;
@@ -398,6 +460,7 @@ class _LibraryTab extends ConsumerWidget {
       size: size,
       enabled: active.enabled,
       homeList: true,
+      startOnPlaylists: startOnPlaylists,
       onSearch: onSearch,
       extraCategories: active.extraCategories,
       emptyMessage: local

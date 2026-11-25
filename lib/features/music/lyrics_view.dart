@@ -97,7 +97,12 @@ class CoverWithLyrics extends StatefulWidget {
     this.artist = '',
     this.onSeek,
     this.enabled = true,
+    this.openRequests,
   });
+
+  /// Asked to show the lyrics (the menu's Lyrics shortcut): each time it
+  /// notifies, the cover gives way to the lyrics if they are not showing yet.
+  final Listenable? openRequests;
 
   /// The picture itself (already [size] pixels square).
   final Widget cover;
@@ -140,8 +145,24 @@ class _CoverWithLyricsState extends State<CoverWithLyrics> with SingleTickerProv
       );
 
   @override
+  void initState() {
+    super.initState();
+    widget.openRequests?.addListener(_onOpenRequest);
+  }
+
+  void _onOpenRequest() {
+    final id = widget.songId;
+    if (!mounted || _open || id == null || id <= 0) return;
+    _toggle();
+  }
+
+  @override
   void didUpdateWidget(CoverWithLyrics old) {
     super.didUpdateWidget(old);
+    if (old.openRequests != widget.openRequests) {
+      old.openRequests?.removeListener(_onOpenRequest);
+      widget.openRequests?.addListener(_onOpenRequest);
+    }
     _lyrics.fetch = widget.fetch;
     final id = widget.songId;
     if (_open && id != null && id > 0 && id != old.songId) _lyrics.load(id);
@@ -157,6 +178,7 @@ class _CoverWithLyricsState extends State<CoverWithLyrics> with SingleTickerProv
 
   @override
   void dispose() {
+    widget.openRequests?.removeListener(_onOpenRequest);
     _fade.dispose();
     _lyrics.dispose();
     _tick.dispose();
