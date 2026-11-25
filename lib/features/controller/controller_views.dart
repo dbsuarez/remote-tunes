@@ -12,21 +12,22 @@ import '../../core/song_list_style.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/accent_scope.dart';
 import '../../core/widgets/haptic_button.dart';
-import '../../core/widgets/playback_widgets.dart';
 import '../../core/widgets/status_pill.dart';
 import '../external/external_limits.dart';
 import '../online_library/online_history_source.dart';
 import '../online_library/online_library_view.dart';
 import '../group/group_card.dart';
 import '../music/music_browser.dart';
-import '../../core/widgets/edge_swipe.dart';
 import '../music/library_search.dart';
-import '../music/lyrics_view.dart';
-import '../music/queue_peek.dart';
+import '../music/now_playing_view.dart';
 import '../music/music_source.dart';
 import '../music/queue_view.dart';
 import '../music/url_player_view.dart';
 import 'controller_client.dart';
+import 'remote_art.dart';
+import 'remote_session.dart';
+
+export 'remote_art.dart';
 
 // Controller screens shared by the phone app and the web Controller. Nothing in
 // this file may import phone-only code (database, audio, discovery, dart:ffi):
@@ -219,7 +220,22 @@ class ControllerDashboard extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _NowPlayingTab(client: client, state: state, source: source),
+                Builder(
+                  builder: (context) => NowPlayingView(
+                    session: RemoteSession(client: client, connection: state),
+                    // Only offered when the Player turned External App Control on.
+                    header: p.externalEnabled
+                        ? _ControlModeSwitch(
+                            external: p.isExternal,
+                            enabled: enabled,
+                            onChanged: (mode) => _switchMode(context, client, mode),
+                          )
+                        : null,
+                    // Only on the phone app: this phone plays the same song, in sync.
+                    extras: GroupCard(enabled: enabled),
+                    onOpenLibrary: () => DefaultTabController.of(context).animateTo(2),
+                  ),
+                ),
                 _KeepAlive(
                   child: p.isExternal
                       ? _ExternalNotice(app: p.externalApp)
@@ -305,6 +321,18 @@ class ControllerDashboard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _switchMode(BuildContext context, ControllerClient client, ControlMode mode) async {
+  try {
+    await client.setControlMode(mode);
+  } on ControllerException catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 }
 
@@ -425,557 +453,6 @@ class _KeepAliveState extends State<_KeepAlive>
   Widget build(BuildContext context) {
     super.build(context);
     return widget.child;
-  }
-}
-
-class _NowPlayingTab extends StatefulWidget {
-  const _NowPlayingTab({required this.client, required this.state, required this.source});
-
-  final ControllerClient client;
-  final ControllerClientState state;
-
-  /// The queue, for the peek sheet.
-  final MusicSource source;
-
-  @override
-  State<_NowPlayingTab> createState() => _NowPlayingTabState();
-}
-
-class _NowPlayingTabState extends State<_NowPlayingTab> {
-  final DraggableScrollableController _sheet = DraggableScrollableController();
-
-  ControllerClient get client => widget.client;
-  ControllerClientState get state => widget.state;
-  MusicSource get source => widget.source;
-
-  @override
-  void dispose() {
-    _sheet.dispose();
-    super.dispose();
-  }
-
-  /// A swipe in from the right edge raises the queue: first to the middle, then
-  /// all the way up.
-  void _raiseQueue() {
-    if (!_sheet.isAttached) return;
-    final mid = QueuePeekSheet.midSize;
-    final target = _sheet.size < mid - 0.03 ? mid : QueuePeekSheet.fullSize;
-    _sheet.animateTo(target,
-        duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-  }
-
-  /// Jumps [seconds] back or forward in the song.
-  void _jump(BuildContext context, PlaybackState p, int seconds) {
-    final to = (p.positionSeconds + seconds).clamp(0, p.durationSeconds);
-    _send(context, RemoteActions.seek, {'positionSeconds': to});
-  }
-
-  /// Favorite, shuffle and repeat, right under the title.
-  Widget _quickActions(BuildContext context, PlaybackState p, bool enabled) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final hasSong = p.songId != null && p.songId! > 0;
-    final repeatIcon = switch (p.repeatMode) {
-      RepeatMode.one => Icons.repeat_one_rounded,
-      _ => Icons.repeat_rounded,
-    };
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        HapticButton(
-          kind: HapticKind.selection,
-          tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
-          onPressed: enabled && hasSong
-              ? () => _send(context, RemoteActions.setFavorite,
-                  {'songId': p.songId, 'favorite': !p.favorite})
-              : null,
-          icon: Icon(
-            p.favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            color: p.favorite ? primary : null,
-          ),
-        ),
-        HapticButton(
-          kind: HapticKind.selection,
-          tooltip: p.shuffleEnabled ? 'Shuffle is on' : 'Shuffle is off',
-          onPressed: enabled
-              ? () => _send(context, RemoteActions.setShuffle, {'enabled': !p.shuffleEnabled})
-              : null,
-          icon: Icon(Icons.shuffle_rounded, color: p.shuffleEnabled ? primary : null),
-        ),
-        HapticButton(
-          kind: HapticKind.selection,
-          tooltip: 'Repeat: ${p.repeatMode.label}',
-          onPressed: enabled
-              ? () => _send(context, RemoteActions.setRepeatMode, {
-                    'mode': switch (p.repeatMode) {
-                      RepeatMode.off => RepeatMode.queue.name,
-                      RepeatMode.queue => RepeatMode.one.name,
-                      RepeatMode.one => RepeatMode.off.name,
-                    },
-                  })
-              : null,
-          icon: Icon(repeatIcon, color: p.repeatMode == RepeatMode.off ? null : primary),
-        ),
-        _SpeedButton(
-          speed: p.speed,
-          enabled: enabled,
-          onSet: (v) => _send(context, RemoteActions.setSpeed, {'speed': v}),
-        ),
-        _SleepTimerRow(
-          compact: true,
-          secondsLeft: p.sleepTimerSeconds,
-          enabled: enabled,
-          onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
-        ),
-      ],
-    );
-  }
-
-  /// A swipe in from the left edge opens the Library.
-  void _openLibrary() => DefaultTabController.of(context).animateTo(2);
-
-  Future<void> _send(
-    BuildContext context,
-    String action, [
-    Map<String, dynamic> params = const {},
-  ]) async {
-    try {
-      await client.sendCommand(action, params);
-    } on ControllerException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    }
-  }
-
-  Future<void> _switchMode(BuildContext context, ControlMode mode) async {
-    try {
-      await client.setControlMode(mode);
-    } on ControllerException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = state.isConnected;
-    final p = state.playback;
-
-    // The queue peek rests along the bottom; the page scrolls clear of it.
-    return LayoutBuilder(builder: (context, box) {
-      final peekSpace = p.isExternal ? 0.0 : box.maxHeight * QueuePeekSheet.peekSize + 12;
-      // The cover is as wide as the page allows, but not taller than about half
-      // the screen so the controls stay in reach on a small phone.
-      final heroSize = [box.maxWidth - 64, box.maxHeight * 0.42, 340.0]
-          .reduce((a, b) => a < b ? a : b)
-          .clamp(120.0, 340.0);
-      return EdgeSwipe(
-        enabled: enabled,
-        onFromLeft: _openLibrary,
-        onFromRight: p.isExternal ? null : _raiseQueue,
-        child: Stack(
-        children: [
-          ListView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
-      children: [
-        // Only offered when the Player turned External App Control on.
-        if (p.externalEnabled) ...[
-          _ControlModeSwitch(
-            external: p.isExternal,
-            enabled: enabled,
-            onChanged: (mode) => _switchMode(context, mode),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (p.isExternal)
-          NowPlayingCard(
-            state: p,
-            enabled: enabled,
-            onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
-            art: RemoteArt(client: client, songId: null, size: 64),
-          )
-        else
-          NowPlayingCard(
-            hero: true,
-            state: p,
-            enabled: enabled,
-            onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
-            art: RemoteArt(
-              client: client,
-              songId: (p.songId ?? 0) <= 0 ? null : p.songId,
-              size: heroSize,
-              radius: 20,
-            ),
-            actions: _quickActions(context, p, enabled),
-          ),
-        if (!p.isExternal)
-          LyricsSection(
-            songId: p.songId,
-            positionSeconds: p.positionSeconds,
-            isPlaying: p.isPlaying,
-            enabled: enabled,
-            fetch: source.lyrics,
-            onSeek: (s) => _send(context, RemoteActions.seek, {'positionSeconds': s}),
-          ),
-        const SizedBox(height: 8),
-        TransportControls(
-          canSkip: p.canSkip,
-          isPlaying: p.isPlaying,
-          enabled: enabled,
-          onPrevious: () => _send(context, RemoteActions.previous),
-          onToggle: () => _send(context, RemoteActions.toggle),
-          onNext: () => _send(context, RemoteActions.next),
-          onSeekBack: p.isExternal || p.durationSeconds <= 0
-              ? null
-              : () => _jump(context, p, -10),
-          onSeekForward: p.isExternal || p.durationSeconds <= 0
-              ? null
-              : () => _jump(context, p, 10),
-        ),
-        const SizedBox(height: 8),
-        VolumeSlider(
-          volume: p.volume,
-          enabled: enabled,
-          onChanged: (v) => _send(context, RemoteActions.setVolume, {'volume': v}),
-        ),
-        // Speed and the sleep timer are in the row of quick actions under the
-        // title; when another music app is controlled they keep their card.
-        if (p.isExternal) ...[
-          const SizedBox(height: 8),
-          _SleepTimerRow(
-            secondsLeft: p.sleepTimerSeconds,
-            enabled: enabled,
-            onSet: (m) => _send(context, RemoteActions.setSleepTimer, {'minutes': m}),
-          ),
-        ],
-        // Only on the phone app: this phone plays the same song, in sync.
-        if (!p.isExternal) GroupCard(enabled: enabled),
-      ],
-          ),
-          if (!p.isExternal)
-            Positioned.fill(
-              child: QueuePeekSheet(
-                controller: _sheet,
-                source: source,
-                revision: p.queueRevision,
-                currentIndex: p.queueIndex,
-                enabled: enabled,
-              ),
-            ),
-        ],
-        ),
-      );
-    });
-  }
-}
-
-/// Playback speed picker (0.5x to 2x).
-/// Speed as an icon in the quick-action row: the icon lights up (and says the
-/// speed) when it is not normal.
-class _SpeedButton extends StatelessWidget {
-  const _SpeedButton({required this.speed, required this.enabled, required this.onSet});
-
-  final double speed;
-  final bool enabled;
-  final ValueChanged<double> onSet;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final changed = speed != 1.0;
-    return PopupMenuButton<double>(
-      tooltip: 'Set playback speed',
-      enabled: enabled,
-      onSelected: (v) {
-        Haptics.selection();
-        onSet(v);
-      },
-      itemBuilder: (_) => [
-        for (final v in _SpeedRow.speeds)
-          CheckedPopupMenuItem(
-            value: v,
-            checked: v == speed,
-            child: Text(v == 1.0 ? 'Normal (1\u00d7)' : _SpeedRow.label(v)),
-          ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: changed
-            ? Text(_SpeedRow.label(speed),
-                style: theme.textTheme.titleSmall?.copyWith(color: RtColors.violet))
-            : Icon(Icons.speed_rounded, color: theme.colorScheme.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
-class _SpeedRow extends StatelessWidget {
-  const _SpeedRow({required this.speed, required this.enabled, required this.onSet});
-
-  final double speed;
-  final bool enabled;
-  final ValueChanged<double> onSet;
-
-  static const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-
-  static String label(double v) =>
-      '${v.toString().replaceAll(RegExp(r'\.0$'), '')}\u00d7';
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final changed = speed != 1.0;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Row(
-          children: [
-            Icon(Icons.speed_rounded,
-                color: changed ? RtColors.violet : theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(changed ? 'Speed ${label(speed)}' : 'Speed',
-                  style: theme.textTheme.titleSmall),
-            ),
-            PopupMenuButton<double>(
-              tooltip: 'Set playback speed',
-              enabled: enabled,
-              onSelected: onSet,
-              itemBuilder: (_) => [
-                for (final v in speeds)
-                  CheckedPopupMenuItem(
-                    value: v,
-                    checked: v == speed,
-                    child: Text(v == 1.0 ? 'Normal (1\u00d7)' : label(v)),
-                  ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text('Change', style: TextStyle(color: theme.colorScheme.primary)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Album art for a library song, fetched from the Player as a small picture.
-/// Shows a music note while loading, or if the song has no art.
-class RemoteArt extends StatefulWidget {
-  const RemoteArt(
-      {super.key,
-      required this.client,
-      required this.songId,
-      this.size = 64,
-      this.radius});
-
-  final ControllerClient client;
-  final int? songId;
-  final double size;
-
-  /// Corner radius (default: a fifth of the size).
-  final double? radius;
-
-  @override
-  State<RemoteArt> createState() => _RemoteArtState();
-}
-
-class _RemoteArtState extends State<RemoteArt> {
-  Future<Uint8List?>? _art;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(RemoteArt old) {
-    super.didUpdateWidget(old);
-    if (old.songId != widget.songId) _load();
-  }
-
-  void _load() {
-    final id = widget.songId;
-    _art = id == null ? null : widget.client.artFor(id);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final size = widget.size;
-    final radius = widget.radius ?? size / 5;
-    final placeholder = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(radius),
-      ),
-      child: Icon(Icons.music_note_rounded,
-          color: theme.colorScheme.primary, size: size / 2),
-    );
-    final art = _art;
-    if (art == null) return placeholder;
-    return FutureBuilder<Uint8List?>(
-      future: art,
-      builder: (context, snap) {
-        final bytes = snap.data;
-        if (bytes == null) return placeholder;
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(radius),
-          child: Image.memory(
-            bytes,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => placeholder,
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Sleep timer: pick a time, see it count down, cancel. The Player does the
-/// pausing, so it works even if this phone disconnects.
-class _SleepTimerRow extends StatefulWidget {
-  const _SleepTimerRow({
-    required this.secondsLeft,
-    required this.enabled,
-    required this.onSet,
-    this.compact = false,
-  });
-
-  final int secondsLeft;
-  final bool enabled;
-  final ValueChanged<int> onSet;
-
-  /// An icon for the quick-action row (shows the time left while it runs)
-  /// instead of the full card.
-  final bool compact;
-
-  @override
-  State<_SleepTimerRow> createState() => _SleepTimerRowState();
-}
-
-class _SleepTimerRowState extends State<_SleepTimerRow> {
-  DateTime? _endsAt;
-  Timer? _tick;
-
-  @override
-  void initState() {
-    super.initState();
-    _sync();
-  }
-
-  @override
-  void didUpdateWidget(_SleepTimerRow old) {
-    super.didUpdateWidget(old);
-    if (old.secondsLeft != widget.secondsLeft) _sync();
-  }
-
-  void _sync() {
-    _tick?.cancel();
-    if (widget.secondsLeft <= 0) {
-      _endsAt = null;
-      return;
-    }
-    _endsAt = DateTime.now().add(Duration(seconds: widget.secondsLeft));
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _tick?.cancel();
-    super.dispose();
-  }
-
-  String _left() {
-    final end = _endsAt;
-    if (end == null) return '';
-    final s = end.difference(DateTime.now()).inSeconds.clamp(0, 999999);
-    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final active = _endsAt != null;
-    if (widget.compact) {
-      return PopupMenuButton<int>(
-        tooltip: 'Set sleep timer',
-        enabled: widget.enabled,
-        onSelected: (m) {
-          Haptics.selection();
-          widget.onSet(m);
-        },
-        itemBuilder: (_) => [
-          if (active) PopupMenuItem(value: 0, child: Text('Cancel (pauses in ${_left()})')),
-          const PopupMenuItem(value: 15, child: Text('15 minutes')),
-          const PopupMenuItem(value: 30, child: Text('30 minutes')),
-          const PopupMenuItem(value: 45, child: Text('45 minutes')),
-          const PopupMenuItem(value: 60, child: Text('1 hour')),
-          const PopupMenuItem(value: 120, child: Text('2 hours')),
-        ],
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: active
-              ? Text(_left(),
-                  style: theme.textTheme.titleSmall?.copyWith(color: RtColors.violet))
-              : Icon(Icons.bedtime_rounded, color: theme.colorScheme.onSurfaceVariant),
-        ),
-      );
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Row(
-          children: [
-            Icon(Icons.bedtime_rounded,
-                color: active ? RtColors.violet : theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                active ? 'Pauses in ${_left()}' : 'Sleep timer',
-                style: theme.textTheme.titleSmall,
-              ),
-            ),
-            if (active)
-              TextButton(
-                onPressed: widget.enabled ? () => widget.onSet(0) : null,
-                child: const Text('Cancel'),
-              ),
-            PopupMenuButton<int>(
-              tooltip: 'Set sleep timer',
-              enabled: widget.enabled,
-              onSelected: widget.onSet,
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 15, child: Text('15 minutes')),
-                PopupMenuItem(value: 30, child: Text('30 minutes')),
-                PopupMenuItem(value: 45, child: Text('45 minutes')),
-                PopupMenuItem(value: 60, child: Text('1 hour')),
-                PopupMenuItem(value: 120, child: Text('2 hours')),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(active ? 'Change' : 'Set',
-                    style: TextStyle(color: theme.colorScheme.primary)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

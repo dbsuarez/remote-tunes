@@ -1,0 +1,239 @@
+import 'package:flutter/material.dart';
+
+import '../../core/haptics.dart';
+import '../../core/models/enums.dart';
+import '../../core/protocol/protocol.dart';
+import '../../core/session/playback_session.dart';
+import '../../core/widgets/edge_swipe.dart';
+import '../../core/widgets/haptic_button.dart';
+import '../../core/widgets/playback_widgets.dart';
+import 'lyrics_view.dart';
+import 'music_source.dart';
+import 'now_playing_controls.dart';
+import 'queue_peek.dart';
+
+/// The Now Playing screen, the same on both phones: a big cover, the title in
+/// the accent color, favorite / shuffle / repeat / speed / sleep timer, the
+/// transport controls, volume, lyrics and the queue peek sheet.
+///
+/// It works on a [PlaybackSession], so it does not matter whether the music is
+/// on this phone or on another one.
+class NowPlayingView extends StatefulWidget {
+  const NowPlayingView({
+    super.key,
+    required this.session,
+    this.header,
+    this.extras,
+    this.onOpenLibrary,
+  });
+
+  final PlaybackSession session;
+
+  /// Shown above the cover (for example the switch to another music app).
+  final Widget? header;
+
+  /// Shown at the bottom of the page (for example "Play on this phone too").
+  final Widget? extras;
+
+  /// A swipe in from the left edge calls this (null: no left-edge swipe).
+  final VoidCallback? onOpenLibrary;
+
+  @override
+  State<NowPlayingView> createState() => NowPlayingViewState();
+}
+
+class NowPlayingViewState extends State<NowPlayingView> {
+  final DraggableScrollableController _sheet = DraggableScrollableController();
+
+  PlaybackSession get session => widget.session;
+
+  @override
+  void dispose() {
+    _sheet.dispose();
+    super.dispose();
+  }
+
+  /// A swipe in from the right edge raises the queue: first to the middle, then
+  /// all the way up.
+  void _raiseQueue() {
+    if (!_sheet.isAttached) return;
+    final mid = QueuePeekSheet.midSize;
+    final target = _sheet.size < mid - 0.03 ? mid : QueuePeekSheet.fullSize;
+    _sheet.animateTo(target,
+        duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+  }
+
+  /// Runs a command; a refusal is shown as a plain message.
+  Future<void> _run(Future<void> Function() command) async {
+    try {
+      await command();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  /// Jumps [seconds] back or forward in the song.
+  void _jump(PlaybackState p, int seconds) {
+    final to = (p.positionSeconds + seconds).clamp(0, p.durationSeconds);
+    _run(() => session.seek(to));
+  }
+
+  /// Favorite, shuffle, repeat, speed and the sleep timer, right under the title.
+  Widget _quickActions(PlaybackState p, bool enabled) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final hasSong = p.songId != null && p.songId! > 0;
+    final repeatIcon = switch (p.repeatMode) {
+      RepeatMode.one => Icons.repeat_one_rounded,
+      _ => Icons.repeat_rounded,
+    };
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        HapticButton(
+          kind: HapticKind.selection,
+          tooltip: p.favorite ? 'Remove from favorites' : 'Add to favorites',
+          onPressed: enabled && hasSong
+              ? () => _run(() => session.setFavorite(p.songId!, !p.favorite))
+              : null,
+          icon: Icon(
+            p.favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            color: p.favorite ? primary : null,
+          ),
+        ),
+        HapticButton(
+          kind: HapticKind.selection,
+          tooltip: p.shuffleEnabled ? 'Shuffle is on' : 'Shuffle is off',
+          onPressed: enabled ? () => _run(() => session.setShuffle(!p.shuffleEnabled)) : null,
+          icon: Icon(Icons.shuffle_rounded, color: p.shuffleEnabled ? primary : null),
+        ),
+        HapticButton(
+          kind: HapticKind.selection,
+          tooltip: 'Repeat: ${p.repeatMode.label}',
+          onPressed: enabled
+              ? () => _run(() => session.setRepeat(switch (p.repeatMode) {
+                    RepeatMode.off => RepeatMode.queue,
+                    RepeatMode.queue => RepeatMode.one,
+                    RepeatMode.one => RepeatMode.off,
+                  }))
+              : null,
+          icon: Icon(repeatIcon, color: p.repeatMode == RepeatMode.off ? null : primary),
+        ),
+        SpeedButton(
+          speed: p.speed,
+          enabled: enabled,
+          onSet: (v) => _run(() => session.setSpeed(v)),
+        ),
+        SleepTimerControl(
+          compact: true,
+          secondsLeft: p.sleepTimerSeconds,
+          enabled: enabled,
+          onSet: (m) => _run(() => session.setSleepTimer(m)),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = session.enabled;
+    final p = session.state;
+
+    // The queue peek rests along the bottom; the page scrolls clear of it.
+    return LayoutBuilder(builder: (context, box) {
+      final peekSpace = p.isExternal ? 0.0 : box.maxHeight * QueuePeekSheet.peekSize + 12;
+      // The cover is as wide as the page allows, but not taller than about half
+      // the screen so the controls stay in reach on a small phone.
+      final heroSize = [box.maxWidth - 64, box.maxHeight * 0.42, 340.0]
+          .reduce((a, b) => a < b ? a : b)
+          .clamp(120.0, 340.0);
+      return EdgeSwipe(
+        enabled: enabled,
+        onFromLeft: widget.onOpenLibrary,
+        onFromRight: p.isExternal ? null : _raiseQueue,
+        child: Stack(
+          children: [
+            ListView(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
+              children: [
+                if (widget.header != null) ...[
+                  widget.header!,
+                  const SizedBox(height: 12),
+                ],
+                if (p.isExternal)
+                  NowPlayingCard(
+                    state: p,
+                    enabled: enabled,
+                    onSeek: (s) => _run(() => session.seek(s)),
+                    art: session.art(null, size: 64),
+                  )
+                else
+                  NowPlayingCard(
+                    hero: true,
+                    state: p,
+                    enabled: enabled,
+                    onSeek: (s) => _run(() => session.seek(s)),
+                    art: session.art((p.songId ?? 0) <= 0 ? null : p.songId,
+                        size: heroSize, radius: 20),
+                    actions: _quickActions(p, enabled),
+                  ),
+                if (!p.isExternal)
+                  LyricsSection(
+                    songId: p.songId,
+                    positionSeconds: p.positionSeconds,
+                    isPlaying: p.isPlaying,
+                    enabled: enabled,
+                    fetch: session.lyrics,
+                    onSeek: (s) => _run(() => session.seek(s)),
+                  ),
+                const SizedBox(height: 8),
+                TransportControls(
+                  canSkip: p.canSkip,
+                  isPlaying: p.isPlaying,
+                  enabled: enabled,
+                  onPrevious: () => _run(session.previous),
+                  onToggle: () => _run(session.toggle),
+                  onNext: () => _run(session.next),
+                  onSeekBack:
+                      p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, -10),
+                  onSeekForward:
+                      p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, 10),
+                ),
+                const SizedBox(height: 8),
+                VolumeSlider(
+                  volume: p.volume,
+                  enabled: enabled,
+                  onChanged: (v) => _run(() => session.setVolume(v)),
+                ),
+                // Speed and the sleep timer are in the row of quick actions under
+                // the title; when another music app is controlled they keep their
+                // card.
+                if (p.isExternal) ...[
+                  const SizedBox(height: 8),
+                  SleepTimerControl(
+                    secondsLeft: p.sleepTimerSeconds,
+                    enabled: enabled,
+                    onSet: (m) => _run(() => session.setSleepTimer(m)),
+                  ),
+                ],
+                if (widget.extras != null && !p.isExternal) widget.extras!,
+              ],
+            ),
+            if (!p.isExternal)
+              Positioned.fill(
+                child: QueuePeekSheet(
+                  controller: _sheet,
+                  source: session.source,
+                  revision: p.queueRevision,
+                  currentIndex: p.queueIndex,
+                  enabled: enabled,
+                ),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+}
