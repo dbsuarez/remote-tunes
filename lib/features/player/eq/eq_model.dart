@@ -96,6 +96,37 @@ class EqPreset {
 }
 
 /// What the equalizer is set to.
+/// How strongly the compressor evens out loud and quiet parts (Android's multiband compressor, used
+/// as one band over the whole sound). Off leaves the music as it is.
+enum CompressorLevel {
+  off('Off', 'The music as it is', 0, 1, 20, 250, 0),
+  light('Light', 'Gently evens out loud and quiet parts', -24, 2, 20, 250, 3),
+  medium('Medium', 'Good for quiet listening and for talk', -28, 3, 10, 200, 5),
+  strong('Strong', 'Loud and quiet become much closer', -32, 5, 5, 150, 8);
+
+  const CompressorLevel(
+      this.label, this.hint, this.thresholdDb, this.ratio, this.attackMs, this.releaseMs, this.makeupDb);
+
+  final String label;
+  final String hint;
+
+  /// Above this level (dB) the sound is turned down by [ratio] : 1.
+  final double thresholdDb;
+  final double ratio;
+
+  /// How fast it reacts to a loud part, and lets go afterwards (milliseconds).
+  final double attackMs;
+  final double releaseMs;
+
+  /// Turned back up afterwards (dB), so the music is not quieter overall.
+  final double makeupDb;
+
+  bool get on => this != off;
+
+  static CompressorLevel parse(String? name) =>
+      values.firstWhere((l) => l.name == name, orElse: () => CompressorLevel.off);
+}
+
 class EqSettings {
   const EqSettings({
     this.enabled = false,
@@ -108,7 +139,13 @@ class EqSettings {
     this.limit = false,
     this.tenBand = false,
     this.tenGains = const [],
+    this.compressor = 'off',
   });
+
+  /// The compressor's strength (a [CompressorLevel] name). It works even when the equalizer is off.
+  final String compressor;
+
+  CompressorLevel get compressorLevel => CompressorLevel.parse(compressor);
 
   final bool enabled;
 
@@ -154,6 +191,7 @@ class EqSettings {
     bool? limit,
     bool? tenBand,
     List<double>? tenGains,
+    String? compressor,
   }) =>
       EqSettings(
         enabled: enabled ?? this.enabled,
@@ -166,6 +204,7 @@ class EqSettings {
         limit: limit ?? this.limit,
         tenBand: tenBand ?? this.tenBand,
         tenGains: tenGains ?? this.tenGains,
+        compressor: compressor ?? this.compressor,
       );
 
   /// What each band is really set to: the sliders plus, when Tone is on, the
@@ -238,6 +277,7 @@ class EqSettings {
         'limit': limit,
         'tenBand': tenBand,
         'tenGains': tenGains,
+        'compressor': compressor,
       });
 
   static double _num(Object? v, double range) =>
@@ -262,6 +302,7 @@ class EqSettings {
         tenGains: m['tenGains'] is List
             ? [for (final e in m['tenGains'] as List) if (e is num) e.toDouble()]
             : const [],
+        compressor: CompressorLevel.parse(m['compressor'] as String?).name,
       );
     } catch (_) {
       return null;

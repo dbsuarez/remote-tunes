@@ -102,6 +102,7 @@ class EqualizerController extends ChangeNotifier {
             centersHz: EqPreset.tenCenters,
             gains: _settings.effectiveTenGains(b),
             limiter: _settings.limit,
+            compressor: _settings.compressorLevel,
           );
         } else {
           await _backend.setTrueEqualizer(
@@ -109,6 +110,8 @@ class EqualizerController extends ChangeNotifier {
             centersHz: EqPreset.tenCenters,
             gains: List.filled(EqPreset.tenCenters.length, 0.0),
             limiter: false,
+            // The compressor works with the equalizer off too.
+            compressor: _settings.compressorLevel,
           );
         }
         // What each band is really set to (sliders plus Bass / Treble), and the
@@ -233,6 +236,14 @@ class EqualizerController extends ChangeNotifier {
         trebleDb: db.clamp(-EqSettings.toneRange, EqSettings.toneRange).toDouble(), toneOn: true);
     notifyListeners();
     await _apply();
+  }
+
+  /// Sets how strongly the compressor evens out loud and quiet parts (Off: not at all).
+  Future<void> setCompressor(CompressorLevel level) async {
+    _settings = _settings.copyWith(compressor: level.name);
+    notifyListeners();
+    await _apply();
+    await _save();
   }
 
   Future<void> setLimit(bool on) async {

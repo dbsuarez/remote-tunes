@@ -214,11 +214,12 @@ class CrossfadeBackend implements AudioBackend {
     required List<double> centersHz,
     required List<double> gains,
     required bool limiter,
+    CompressorLevel compressor = CompressorLevel.off,
   }) async {
     final a = await _a.setTrueEqualizer(
-        enabled: enabled, centersHz: centersHz, gains: gains, limiter: limiter);
+        enabled: enabled, centersHz: centersHz, gains: gains, limiter: limiter, compressor: compressor);
     final b = await _b.setTrueEqualizer(
-        enabled: enabled, centersHz: centersHz, gains: gains, limiter: limiter);
+        enabled: enabled, centersHz: centersHz, gains: gains, limiter: limiter, compressor: compressor);
     return a && b;
   }
 

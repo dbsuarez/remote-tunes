@@ -98,6 +98,7 @@ abstract class AudioBackend {
     required List<double> centersHz,
     required List<double> gains,
     required bool limiter,
+    CompressorLevel compressor = CompressorLevel.off,
   });
 
   /// Whether the equalizer above is really working: null before it was tried (or
@@ -150,7 +151,7 @@ class JustAudioBackend implements AudioBackend {
   // ----------------------------------------------------- our own equalizer
 
   static const _dynamics = MethodChannel('remotetunes/dynamics');
-  ({bool enabled, List<double> hz, List<double> gains, bool limiter})? _trueWanted;
+  ({bool enabled, List<double> hz, List<double> gains, bool limiter, CompressorLevel compressor})? _trueWanted;
   bool? _trueActive;
   int? _trueSession;
 
@@ -163,9 +164,10 @@ class JustAudioBackend implements AudioBackend {
     required List<double> centersHz,
     required List<double> gains,
     required bool limiter,
+    CompressorLevel compressor = CompressorLevel.off,
   }) async {
     if (!Platform.isAndroid) return false;
-    _trueWanted = (enabled: enabled, hz: [...centersHz], gains: [...gains], limiter: limiter);
+    _trueWanted = (enabled: enabled, hz: [...centersHz], gains: [...gains], limiter: limiter, compressor: compressor);
     final id = audioSessionId;
     // No sound loaded yet: it is applied as soon as there is one.
     if (id == null || id <= 0) {
@@ -192,11 +194,17 @@ class JustAudioBackend implements AudioBackend {
             'hz': want.hz,
             'gains': want.gains,
             'limiter': want.limiter,
+            'compressor': want.compressor.on,
+            'threshold': want.compressor.thresholdDb,
+            'ratio': want.compressor.ratio,
+            'attack': want.compressor.attackMs,
+            'release': want.compressor.releaseMs,
+            'makeup': want.compressor.makeupDb,
           }) ??
           false;
       _trueSession = ok ? id : _trueSession;
       // Turning it off is not a failure.
-      _trueActive = want.enabled ? ok : _trueActive;
+      _trueActive = want.enabled || want.compressor.on ? ok : _trueActive;
       return ok;
     } catch (_) {
       _trueActive = false;

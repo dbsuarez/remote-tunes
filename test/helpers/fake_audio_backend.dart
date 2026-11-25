@@ -41,7 +41,7 @@ class FakeAudioBackend implements AudioBackend {
   bool trueEqSupported = true;
 
   /// Every call to [setTrueEqualizer].
-  final List<({bool enabled, List<double> hz, List<double> gains, bool limiter})> trueCalls = [];
+  final List<({bool enabled, List<double> hz, List<double> gains, bool limiter, CompressorLevel compressor})> trueCalls = [];
 
   @override
   bool? trueEqualizerActive;
@@ -52,9 +52,10 @@ class FakeAudioBackend implements AudioBackend {
     required List<double> centersHz,
     required List<double> gains,
     required bool limiter,
+    CompressorLevel compressor = CompressorLevel.off,
   }) async {
-    trueCalls.add((enabled: enabled, hz: [...centersHz], gains: [...gains], limiter: limiter));
-    if (enabled) trueEqualizerActive = trueEqSupported;
+    trueCalls.add((enabled: enabled, hz: [...centersHz], gains: [...gains], limiter: limiter, compressor: compressor));
+    if (enabled || compressor.on) trueEqualizerActive = trueEqSupported;
     return trueEqSupported;
   }
 

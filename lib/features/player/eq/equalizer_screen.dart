@@ -317,6 +317,36 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
               },
             ),
             const Divider(),
+            Text('Compressor', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'Evens out loud and quiet parts, so you hear more without turning it up (and quiet speech or '
+              'a soft song does not get lost). It works even when the equalizer is off. It uses the same '
+              'effect as the 10 bands, so it needs a phone that allows that.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final level in CompressorLevel.values)
+                  ChoiceChip(
+                    key: ValueKey('compressor-${level.name}'),
+                    label: Text(level.label),
+                    tooltip: level.hint,
+                    selected: s.compressorLevel == level,
+                    onSelected: (_) {
+                      Haptics.selection();
+                      c.setCompressor(level);
+                    },
+                  ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(s.compressorLevel.hint, style: theme.textTheme.bodySmall),
+            ),
+            const Divider(),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text('Remember for ${_outputName(c.output)}'),
