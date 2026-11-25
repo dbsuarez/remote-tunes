@@ -233,6 +233,23 @@ class SettingsScreen extends ConsumerWidget {
                   await repo.setVisualizerEnabled(on);
                 },
               ),
+              if (s.visualizerEnabled)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final v in VisualizerStyle.values)
+                        ChoiceChip(
+                          key: ValueKey('viz-${v.name}'),
+                          label: Text(v.label),
+                          tooltip: v.hint,
+                          selected: s.visualizerStyle == v.name,
+                          onSelected: (_) => repo.setVisualizerStyle(v.name),
+                        ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 8),
               const _SectionHeader('Look and feel'),
               ListTile(

@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+export 'visualizer_look.dart' show VisualizerStyle;
+import 'visualizer_look.dart';
 
 /// Reads the spectrum of the sound this phone is playing, as a few bars.
 ///
@@ -111,9 +115,15 @@ class VisualizerService {
 
 /// The moving bars under the cover. Follows the sound while [isPlaying].
 class VisualizerStrip extends StatefulWidget {
-  const VisualizerStrip({super.key, required this.isPlaying, this.service});
+  const VisualizerStrip({
+    super.key,
+    required this.isPlaying,
+    this.style = VisualizerStyle.bars,
+    this.service,
+  });
 
   final bool isPlaying;
+  final VisualizerStyle style;
 
   /// For tests.
   final VisualizerService? service;
@@ -122,26 +132,64 @@ class VisualizerStrip extends StatefulWidget {
   State<VisualizerStrip> createState() => _VisualizerStripState();
 }
 
-class _VisualizerStripState extends State<VisualizerStrip> {
+class _VisualizerStripState extends State<VisualizerStrip> with SingleTickerProviderStateMixin {
   late final VisualizerService _service = widget.service ?? VisualizerService();
+  final _shaper = VisualizerShaper();
+  final _animator = VisualizerAnimator();
+  late final Ticker _ticker = createTicker(_onTick);
+  Duration _last = Duration.zero;
 
   @override
   void initState() {
     super.initState();
-    if (widget.isPlaying) _service.start();
+    _service.bars.addListener(_onReading);
+    if (widget.isPlaying) {
+      _service.start();
+      _ticker.start();
+    }
+  }
+
+  /// A new reading from Android (about 20 a second).
+  void _onReading() {
+    final raw = _service.bars.value;
+    _animator.setTarget(_shaper.shape(raw));
+    if (!_ticker.isActive) _ticker.start();
+  }
+
+  /// Every frame: the bars close in on the last reading.
+  void _onTick(Duration now) {
+    final dt = _last == Duration.zero ? 1 / 60 : (now - _last).inMicroseconds / 1e6;
+    _last = now;
+    _animator.step(dt.clamp(0.0, 0.1));
+    // Nothing playing and everything has fallen: stop drawing frames.
+    if (!widget.isPlaying && _animator.idle) {
+      _ticker.stop();
+      _last = Duration.zero;
+    }
   }
 
   @override
   void didUpdateWidget(VisualizerStrip old) {
     super.didUpdateWidget(old);
     if (old.isPlaying != widget.isPlaying) {
-      widget.isPlaying ? _service.start() : _service.stop();
+      if (widget.isPlaying) {
+        _service.start();
+        if (!_ticker.isActive) _ticker.start();
+      } else {
+        _service.stop();
+        _shaper.reset();
+        // The bars fall away by themselves (stopping the service clears the reading).
+        _animator.setTarget(const []);
+      }
     }
   }
 
   @override
   void dispose() {
+    _ticker.dispose();
+    _service.bars.removeListener(_onReading);
     _service.dispose();
+    _animator.dispose();
     super.dispose();
   }
 
@@ -165,51 +213,19 @@ class _VisualizerStripState extends State<VisualizerStrip> {
           );
         }
         return SizedBox(
-          height: 56,
-          child: ValueListenableBuilder<List<double>>(
-            valueListenable: _service.bars,
-            builder: (context, bars, _) => CustomPaint(
-              key: const Key('visualizer-bars'),
-              painter: BarsPainter(
-                bars: bars,
-                count: _service.barCount,
-                low: theme.colorScheme.primary,
-                high: theme.colorScheme.secondary,
-              ),
-              size: Size.infinite,
+          height: widget.style == VisualizerStyle.circle ? 150 : 72,
+          child: CustomPaint(
+            key: const Key('visualizer-bars'),
+            painter: VisualizerPainter(
+              animator: _animator,
+              style: widget.style,
+              low: theme.colorScheme.primary,
+              high: theme.colorScheme.secondary,
             ),
+            size: Size.infinite,
           ),
         );
       },
     );
   }
-}
-
-class BarsPainter extends CustomPainter {
-  BarsPainter({required this.bars, required this.count, required this.low, required this.high});
-
-  final List<double> bars;
-  final int count;
-  final Color low;
-  final Color high;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gap = 3.0;
-    final w = (size.width - gap * (count - 1)) / count;
-    for (var i = 0; i < count; i++) {
-      final v = i < bars.length ? bars[i] : 0.0;
-      final h = 3 + (size.height - 3) * v;
-      final paint = Paint()..color = Color.lerp(low, high, i / (count - 1))!;
-      final x = i * (w + gap);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(x, size.height - h, w, h), Radius.circular(w / 2)),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(BarsPainter old) =>
-      old.bars != bars || old.low != low || old.high != high || old.count != count;
 }

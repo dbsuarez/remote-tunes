@@ -437,7 +437,13 @@ class _Active {
         sleepTimer: core.sleepTimer,
         onOpenLibrary: goLibrary,
         lyricsRequests: lyricsRequests,
-        visualizer: visualizer ? (playing) => VisualizerStrip(isPlaying: playing) : null,
+        visualizer: visualizer
+            ? (playing) => VisualizerStrip(
+                  isPlaying: playing,
+                  style: VisualizerStyle.byName(
+                      ref.read(settingsProvider).valueOrNull?.visualizerStyle),
+                )
+            : null,
       ),
       extraCategories: [
         LibraryExtra(

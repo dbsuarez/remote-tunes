@@ -60,13 +60,9 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - Charts (FL Chart, item 4 above) then become an optional second step: a genre doughnut and a songs-added line are the only two worth having at first.
 - [ ] play events recorded (with a switch and *Clear*) · [ ] the lists · [ ] header totals · [ ] charts later
 
-**6. A better audio Visualizer** (the owner: "the audio visualizer sucks")
-- No third-party package is needed: a package would only be another way of *drawing* the same bars, and the weak points are ours. (1) **Few, jumpy frames:** Android's Visualizer delivers about 20 readings a second; the bars jump between them. Fix: animate the bars toward each new reading at 60 frames a second (quick rise, slow fall, falling "peak caps"). (2) **Flat sound reading:** the 24 bars are plain log-spaced bins, so the bass bars are always high and the treble bars barely move. Fix: weight the bins (a tilt that evens the music's natural slope), a noise floor, and an automatic gain that follows the loudness of the song. (3) **Plain looks:** flat gradient bars only. Fix: a few styles, each a few dozen lines of drawing code.
-- Styles to offer (Settings > Visualizer style): **Bars** (rounded, with peak caps and a soft glow), **Mirror** (bars growing up and down from the middle), **Circle** (bars around the cover), **Wave** (a smooth line), and **Off**. Colors from the skin and the cover's accent.
-- Limits to say honestly: Android gives only the app's own sound, 20 readings a second, and needs the microphone permission; some phones and outputs return nothing. Real "beat detection" and 3D effects are not worth it.
-- [ ] smoothing at 60 fps and peak caps · [ ] frequency weighting and auto gain · [ ] four styles and a picker · [ ] tests
+**6. A better audio Visualizer: built (not tried on a phone yet), see Done.**
 
-Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: small and visible), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
+Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
 
@@ -125,6 +121,13 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Lyrics
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
+
+### Visualizer, second version (built after `v1.0.2`)
+- [x] The bars are smoothed at **60 frames a second** (Android's about 20 readings a second are eased between: quick rise, slow fall), with **caps** that hold a moment and then fall; the spectrum is **evened out** (bass eased, treble lifted), the song's loudness is followed (a quiet song fills the display like a loud one), and a noise gate keeps silence flat.
+- [x] Four **styles** (Settings > Visualizer, then pick one): **Bars** (rounded, glow, caps), **Mirror**, **Circle** (a ring, taller area) and **Wave** (a glowing line). Colors from the skin and the cover's accent. The bars fall away smoothly when you pause.
+
+### Version and updates (built after `v1.0.2`)
+- [x] The installed version is shown in the **menu** (under the name), **Settings > App updates** (version and build) and **Diagnostics** (it used to say 0.1.0, the number in the source file). The automatic update check and the *newer version* card had stopped when the Home screen was retired: they are back (a card at the top of the app and a line in the menu).
 
 ### Online Library home (built after `v1.0.1`)
 - [x] Before any search the Online Library shows shelves of covers: **Popular this week**, **Popular this month**, **Newest releases** (Jamendo sorts them: `popularity_week`, `popularity_month`, `releasedate_desc`), and genre chips (*Top tracks by genre*). Tap a cover to play on the Player, press and hold to queue it, *Play all* / *Add all* on each shelf. Shelves load one after another (Jamendo wants spaced requests), are kept for 15 minutes, pull down to refresh; no internet shows the usual message and *Try again*. Settings > *Suggestions in the Online Library* (on by default) switches it off; then the tab stays blank until a search.

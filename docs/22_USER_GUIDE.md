@@ -92,7 +92,7 @@ One song fades out while the next fades in. Works between songs that are files o
 Off / By song / By album. Turns loud songs **down** to the level in their Replay Gain tags (it never turns a song up). Run *Update tags from files* first; songs with no tags are unchanged.
 
 ### Visualizer (Settings, off by default)
-Moving bars under the cover. Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
+Moving bars under the cover, in four styles you pick in Settings: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Circle** (a ring) and **Wave** (a glowing line). Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
 
 ---
 
