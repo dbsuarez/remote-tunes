@@ -22,6 +22,7 @@ import '../group/group_card.dart';
 import '../library/import_actions.dart';
 import 'app_drawer.dart';
 import '../player/player_screen.dart' show showPairingDialog;
+import '../music/folder_tree.dart';
 import '../music/library_search.dart';
 import '../music/music_browser.dart';
 import '../music/music_source.dart';
@@ -366,6 +367,12 @@ class _Active {
           ),
         ),
         LibraryExtra(
+          title: 'Folder tree',
+          icon: Icons.account_tree_rounded,
+          color: const Color(0xFF90A4AE),
+          builder: (_) => FolderTreeView(source: session.source),
+        ),
+        LibraryExtra(
           title: 'Play a link',
           icon: Icons.link_rounded,
           color: const Color(0xFF4FC3F7),
@@ -422,6 +429,12 @@ class _Active {
               }
             },
           ),
+        ),
+        LibraryExtra(
+          title: 'Folder tree',
+          icon: Icons.account_tree_rounded,
+          color: const Color(0xFF90A4AE),
+          builder: (_) => FolderTreeView(source: source),
         ),
         LibraryExtra(
           title: 'Play a link',

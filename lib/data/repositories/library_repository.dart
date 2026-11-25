@@ -37,6 +37,7 @@ class LibraryRepository {
     int? year,
     double? replayGainDb,
     double? albumGainDb,
+    String? composer,
   }) {
     return _db.into(_db.songs).insert(
           SongsCompanion.insert(
@@ -54,6 +55,7 @@ class LibraryRepository {
             year: Value(year),
             replayGainDb: Value(replayGainDb),
             albumGainDb: Value(albumGainDb),
+            composer: Value(composer),
             source: SongSource.localFile.name,
           ),
         );
@@ -76,6 +78,7 @@ class LibraryRepository {
     int? year,
     double? replayGainDb,
     double? albumGainDb,
+    String? composer,
   }) =>
       (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(SongsCompanion(
         albumArtist: albumArtist == null ? const Value.absent() : Value(albumArtist),
@@ -83,12 +86,14 @@ class LibraryRepository {
         year: year == null ? const Value.absent() : Value(year),
         replayGainDb: replayGainDb == null ? const Value.absent() : Value(replayGainDb),
         albumGainDb: albumGainDb == null ? const Value.absent() : Value(albumGainDb),
+        composer: composer == null ? const Value.absent() : Value(composer),
       ));
 
   static String? _groupColumn(String? kind) => switch (kind) {
         GroupKind.genre => 'genre',
         GroupKind.year => 'year',
         GroupKind.albumArtist => 'album_artist',
+        GroupKind.composer => 'composer',
         _ => null,
       };
 
@@ -516,6 +521,92 @@ class LibraryRepository {
       byDir.putIfAbsent(_dirOf(r.read<String>('file_path')), () => []).add(r.read<int>('id'));
     }
     return {for (final e in byDir.entries) folderIdOf(e.key): e.value};
+  }
+
+  /// Every folder that holds music or is above one, as a tree: the songs under
+  /// each, and which folder is the top (where the paths first branch).
+  Future<({String root, Map<String, int> total, Map<int, String> byId})> _tree() async {
+    final rows = await _db
+        .customSelect('SELECT file_path FROM songs WHERE file_path IS NOT NULL')
+        .get();
+    final direct = <String, int>{};
+    for (final r in rows) {
+      final d = _dirOf(r.read<String>('file_path'));
+      direct[d] = (direct[d] ?? 0) + 1;
+    }
+    final total = <String, int>{};
+    final byId = <int, String>{};
+    List<String>? common;
+    for (final e in direct.entries) {
+      final parts = e.key.split('/').where((p) => p.isNotEmpty).toList();
+      common = common == null
+          ? [...parts]
+          : [
+              for (var i = 0; i < common.length && i < parts.length && common[i] == parts[i]; i++)
+                common[i]
+            ];
+      var path = '';
+      total['/'] = (total['/'] ?? 0) + e.value;
+      byId[folderIdOf('/')] = '/';
+      for (final p in parts) {
+        path = '$path/$p';
+        total[path] = (total[path] ?? 0) + e.value;
+        byId[folderIdOf(path)] = path;
+      }
+    }
+    final root = (common == null || common.isEmpty) ? '/' : '/${common.join('/')}';
+    return (root: root, total: total, byId: byId);
+  }
+
+  static String _parentOf(String path) {
+    final i = path.lastIndexOf('/');
+    return i <= 0 ? '/' : path.substring(0, i);
+  }
+
+  /// The top folder of the tree (null when there is no music from files).
+  Future<RemoteFolder?> folderRoot() async {
+    final t = await _tree();
+    final n = t.total[t.root];
+    if (n == null) return null;
+    return RemoteFolder(
+      id: folderIdOf(t.root),
+      name: _lastPart(t.root),
+      parent: t.root == '/' ? '' : _lastPart(_parentOf(t.root)),
+      songCount: n,
+      hasChildren: t.total.keys.any((p) => p != t.root && _parentOf(p) == t.root),
+    );
+  }
+
+  /// The folders inside one folder ([parentId]; null: the top folder), each with
+  /// the songs under it.
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    final t = await _tree();
+    final parentPath = parentId == null ? t.root : t.byId[parentId];
+    if (parentPath == null) return LibraryPage(items: const [], total: 0, offset: offset);
+    final q = query.trim().toLowerCase();
+    final children = [
+      for (final p in t.total.keys)
+        if (p != parentPath && p != '/' && _parentOf(p) == parentPath)
+          if (q.isEmpty || _lastPart(p).toLowerCase().contains(q))
+            RemoteFolder(
+              id: folderIdOf(p),
+              name: _lastPart(p),
+              parent: _lastPart(parentPath),
+              songCount: t.total[p]!,
+              hasChildren: t.total.keys.any((c) => c != p && _parentOf(c) == p),
+            ),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final end = (offset + limit) > children.length ? children.length : offset + limit;
+    return LibraryPage(
+      items: offset >= children.length ? const [] : children.sublist(offset, end),
+      total: children.length,
+      offset: offset,
+    );
   }
 
   /// The folders the music is in, with how many songs each holds.

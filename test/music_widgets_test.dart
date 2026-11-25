@@ -99,6 +99,18 @@ class FakeMusicSource implements MusicSource {
     return lyricsResult;
   }
 
+  /// The folder tree of the fake Player: the top folder and each folder's children.
+  RemoteFolder? treeRoot;
+  final treeChildren = <int?, List<RemoteFolder>>{};
+
+  @override
+  Future<RemoteFolder?> folderRoot() async => treeRoot;
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folderChildren(
+          {int? parentId, String query = '', int offset = 0, int limit = 50}) async =>
+      _page(treeChildren[parentId ?? treeRoot?.id] ?? const <RemoteFolder>[], offset, limit);
+
   /// The folders the fake Player has, and which songs are in each.
   final folderList = <RemoteFolder>[];
   final folderSongs = <int, List<int>>{};

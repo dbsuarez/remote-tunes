@@ -41,7 +41,11 @@ class ExtractedMetadata {
     this.year,
     this.replayGainDb,
     this.albumGainDb,
+    this.composer,
   });
+
+  /// The composer tag (MP3, FLAC, Ogg and APE files that have one).
+  final String? composer;
 
   /// Replay Gain tags in dB (see [parseReplayGain]).
   final double? replayGainDb;
@@ -88,7 +92,7 @@ double? parseReplayGain(String? text) {
   return v;
 }
 
-({double? track, double? album}) _readGains(String path) {
+({double? track, double? album, String? composer}) _readGains(String path) {
   try {
     final tag = readAllMetadata(File(path), getImage: false);
     if (tag is Mp3Metadata) {
@@ -99,21 +103,26 @@ double? parseReplayGain(String? text) {
         return null;
       }
 
+      final c = tag.composer?.trim();
       return (
         track: parseReplayGain(find('REPLAYGAIN_TRACK_GAIN')),
         album: parseReplayGain(find('REPLAYGAIN_ALBUM_GAIN')),
+        composer: (c == null || c.isEmpty) ? null : c,
       );
     }
     if (tag is VorbisMetadata) {
       return (
         track: parseReplayGain(tag.replayGainTrackGain.isEmpty ? null : tag.replayGainTrackGain.first),
         album: parseReplayGain(tag.replayGainAlbumGain.isEmpty ? null : tag.replayGainAlbumGain.first),
+        composer: tag.composer.isEmpty || tag.composer.first.trim().isEmpty
+            ? null
+            : tag.composer.first.trim(),
       );
     }
   } catch (_) {
     // No gains for this file.
   }
-  return (track: null, album: null);
+  return (track: null, album: null, composer: null);
 }
 
 ExtractedMetadata _read(String path) {
@@ -154,6 +163,7 @@ ExtractedMetadata _read(String path) {
   return ExtractedMetadata(
     replayGainDb: gains.track,
     albumGainDb: gains.album,
+    composer: gains.composer,
     albumArtist: clean(m.albumArtist),
     genre: genre,
     year: (year != null && year >= 1000 && year <= 2999) ? year : null,

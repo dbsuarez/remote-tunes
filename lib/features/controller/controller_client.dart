@@ -776,6 +776,7 @@ class ControllerClient {
     int? playlistId,
     int? folderId,
     String? kind,
+    int? parentId,
     String? groupKind,
     String? groupValue,
     int offset = 0,
@@ -790,6 +791,7 @@ class ControllerClient {
       if (playlistId != null) 'playlistId': playlistId,
       if (folderId != null) 'folderId': folderId,
       if (kind != null) 'kind': kind,
+      if (parentId != null) 'parentId': parentId,
       if (groupKind != null) 'groupKind': groupKind,
       if (groupValue != null) 'groupValue': groupValue,
       'offset': offset,
@@ -916,6 +918,24 @@ class ControllerClient {
 
   Future<void> setFavorite(int songId, bool favorite) => sendCommand(
       RemoteActions.setFavorite, {'songId': songId, 'favorite': favorite});
+
+  Future<RemoteFolder?> folderRoot() async {
+    final p = await _library(LibraryScope.folderRoot, limit: 1);
+    final page = _page(p, RemoteFolder.fromJson);
+    return page.items.isEmpty ? null : page.items.first;
+  }
+
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async =>
+      _page(
+        await _library(LibraryScope.folderChildren,
+            parentId: parentId, query: query, offset: offset, limit: limit),
+        RemoteFolder.fromJson,
+      );
 
   /// Genres, years or album artists ([GroupKind]) with their song counts.
   Future<LibraryPage<RemoteGroup>> groups({

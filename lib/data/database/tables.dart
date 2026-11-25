@@ -35,6 +35,9 @@ class Songs extends Table {
   TextColumn get genre => text().nullable()();
   IntColumn get year => integer().nullable()();
 
+  /// The composer tag (schema v9), when the file has one.
+  TextColumn get composer => text().nullable()();
+
   /// Replay Gain tags (schema v8): how many dB the file asks to be turned up (+)
   /// or down (-), for the song and for its album. Null when the file has none.
   RealColumn get replayGainDb => real().nullable()();

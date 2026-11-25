@@ -1673,6 +1673,19 @@ class PlayerServer {
             limit: limit,
           );
           body = _pageJson(page, (RemoteSong e) => e.toJson());
+        case LibraryScope.folderRoot:
+          final root = await lib.folderRoot();
+          body = _pageJson(
+              LibraryPage(items: [if (root != null) root], total: root == null ? 0 : 1, offset: 0),
+              (RemoteFolder e) => e.toJson());
+        case LibraryScope.folderChildren:
+          final page = await lib.folderChildren(
+            parentId: p['parentId'] is num ? (p['parentId'] as num).toInt() : null,
+            query: query,
+            offset: offset,
+            limit: limit,
+          );
+          body = _pageJson(page, (RemoteFolder e) => e.toJson());
         case LibraryScope.groups:
           final page = await lib.groups(
               kind: text('kind') ?? '', query: query, offset: offset, limit: limit);

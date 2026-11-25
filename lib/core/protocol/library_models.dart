@@ -17,6 +17,12 @@ class LibraryScope {
   static const albums = 'albums';
   static const folders = 'folders';
 
+  /// The folder tree: the folders inside one folder (`parentId`; none: the top).
+  static const folderChildren = 'folderChildren';
+
+  /// The top folder of the tree (one item).
+  static const folderRoot = 'folderRoot';
+
   /// Genres, years or album artists (`kind`).
   static const groups = 'groups';
   static const playlists = 'playlists';
@@ -115,6 +121,7 @@ class GroupKind {
   static const genre = 'genre';
   static const year = 'year';
   static const albumArtist = 'albumArtist';
+  static const composer = 'composer';
 }
 
 /// A genre, a year or an album artist, with how many songs it holds.
@@ -193,7 +200,11 @@ class RemoteFolder {
     required this.name,
     this.parent = '',
     required this.songCount,
+    this.hasChildren = false,
   });
+
+  /// In the folder tree: there are folders inside it.
+  final bool hasChildren;
 
   final int id;
 
@@ -205,13 +216,14 @@ class RemoteFolder {
   final int songCount;
 
   Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'parent': parent, 'songCount': songCount};
+      {'id': id, 'name': name, 'parent': parent, 'songCount': songCount, if (hasChildren) 'hasChildren': true};
 
   factory RemoteFolder.fromJson(Map<String, dynamic> j) => RemoteFolder(
         id: _int(j['id']),
         name: _str(j['name']),
         parent: _str(j['parent']),
         songCount: _int(j['songCount']),
+        hasChildren: j['hasChildren'] == true,
       );
 }
 

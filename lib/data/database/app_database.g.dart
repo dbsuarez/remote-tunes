@@ -199,6 +199,17 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _composerMeta = const VerificationMeta(
+    'composer',
+  );
+  @override
+  late final GeneratedColumn<String> composer = GeneratedColumn<String>(
+    'composer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _replayGainDbMeta = const VerificationMeta(
     'replayGainDb',
   );
@@ -253,6 +264,7 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     albumArtist,
     genre,
     year,
+    composer,
     replayGainDb,
     albumGainDb,
     playCount,
@@ -396,6 +408,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         year.isAcceptableOrUnknown(data['year']!, _yearMeta),
       );
     }
+    if (data.containsKey('composer')) {
+      context.handle(
+        _composerMeta,
+        composer.isAcceptableOrUnknown(data['composer']!, _composerMeta),
+      );
+    }
     if (data.containsKey('replay_gain_db')) {
       context.handle(
         _replayGainDbMeta,
@@ -501,6 +519,10 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         DriftSqlType.int,
         data['${effectivePrefix}year'],
       ),
+      composer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}composer'],
+      ),
       replayGainDb: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_db'],
@@ -552,6 +574,9 @@ class Song extends DataClass implements Insertable<Song> {
   final String? genre;
   final int? year;
 
+  /// The composer tag (schema v9), when the file has one.
+  final String? composer;
+
   /// Replay Gain tags (schema v8): how many dB the file asks to be turned up (+)
   /// or down (-), for the song and for its album. Null when the file has none.
   final double? replayGainDb;
@@ -578,6 +603,7 @@ class Song extends DataClass implements Insertable<Song> {
     this.albumArtist,
     this.genre,
     this.year,
+    this.composer,
     this.replayGainDb,
     this.albumGainDb,
     required this.playCount,
@@ -628,6 +654,9 @@ class Song extends DataClass implements Insertable<Song> {
     }
     if (!nullToAbsent || year != null) {
       map['year'] = Variable<int>(year);
+    }
+    if (!nullToAbsent || composer != null) {
+      map['composer'] = Variable<String>(composer);
     }
     if (!nullToAbsent || replayGainDb != null) {
       map['replay_gain_db'] = Variable<double>(replayGainDb);
@@ -681,6 +710,9 @@ class Song extends DataClass implements Insertable<Song> {
           ? const Value.absent()
           : Value(genre),
       year: year == null && nullToAbsent ? const Value.absent() : Value(year),
+      composer: composer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(composer),
       replayGainDb: replayGainDb == null && nullToAbsent
           ? const Value.absent()
           : Value(replayGainDb),
@@ -715,6 +747,7 @@ class Song extends DataClass implements Insertable<Song> {
       albumArtist: serializer.fromJson<String?>(json['albumArtist']),
       genre: serializer.fromJson<String?>(json['genre']),
       year: serializer.fromJson<int?>(json['year']),
+      composer: serializer.fromJson<String?>(json['composer']),
       replayGainDb: serializer.fromJson<double?>(json['replayGainDb']),
       albumGainDb: serializer.fromJson<double?>(json['albumGainDb']),
       playCount: serializer.fromJson<int>(json['playCount']),
@@ -742,6 +775,7 @@ class Song extends DataClass implements Insertable<Song> {
       'albumArtist': serializer.toJson<String?>(albumArtist),
       'genre': serializer.toJson<String?>(genre),
       'year': serializer.toJson<int?>(year),
+      'composer': serializer.toJson<String?>(composer),
       'replayGainDb': serializer.toJson<double?>(replayGainDb),
       'albumGainDb': serializer.toJson<double?>(albumGainDb),
       'playCount': serializer.toJson<int>(playCount),
@@ -767,6 +801,7 @@ class Song extends DataClass implements Insertable<Song> {
     Value<String?> albumArtist = const Value.absent(),
     Value<String?> genre = const Value.absent(),
     Value<int?> year = const Value.absent(),
+    Value<String?> composer = const Value.absent(),
     Value<double?> replayGainDb = const Value.absent(),
     Value<double?> albumGainDb = const Value.absent(),
     int? playCount,
@@ -793,6 +828,7 @@ class Song extends DataClass implements Insertable<Song> {
     albumArtist: albumArtist.present ? albumArtist.value : this.albumArtist,
     genre: genre.present ? genre.value : this.genre,
     year: year.present ? year.value : this.year,
+    composer: composer.present ? composer.value : this.composer,
     replayGainDb: replayGainDb.present ? replayGainDb.value : this.replayGainDb,
     albumGainDb: albumGainDb.present ? albumGainDb.value : this.albumGainDb,
     playCount: playCount ?? this.playCount,
@@ -829,6 +865,7 @@ class Song extends DataClass implements Insertable<Song> {
           : this.albumArtist,
       genre: data.genre.present ? data.genre.value : this.genre,
       year: data.year.present ? data.year.value : this.year,
+      composer: data.composer.present ? data.composer.value : this.composer,
       replayGainDb: data.replayGainDb.present
           ? data.replayGainDb.value
           : this.replayGainDb,
@@ -860,6 +897,7 @@ class Song extends DataClass implements Insertable<Song> {
           ..write('albumArtist: $albumArtist, ')
           ..write('genre: $genre, ')
           ..write('year: $year, ')
+          ..write('composer: $composer, ')
           ..write('replayGainDb: $replayGainDb, ')
           ..write('albumGainDb: $albumGainDb, ')
           ..write('playCount: $playCount')
@@ -887,6 +925,7 @@ class Song extends DataClass implements Insertable<Song> {
     albumArtist,
     genre,
     year,
+    composer,
     replayGainDb,
     albumGainDb,
     playCount,
@@ -913,6 +952,7 @@ class Song extends DataClass implements Insertable<Song> {
           other.albumArtist == this.albumArtist &&
           other.genre == this.genre &&
           other.year == this.year &&
+          other.composer == this.composer &&
           other.replayGainDb == this.replayGainDb &&
           other.albumGainDb == this.albumGainDb &&
           other.playCount == this.playCount);
@@ -937,6 +977,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
   final Value<String?> albumArtist;
   final Value<String?> genre;
   final Value<int?> year;
+  final Value<String?> composer;
   final Value<double?> replayGainDb;
   final Value<double?> albumGainDb;
   final Value<int> playCount;
@@ -959,6 +1000,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.albumArtist = const Value.absent(),
     this.genre = const Value.absent(),
     this.year = const Value.absent(),
+    this.composer = const Value.absent(),
     this.replayGainDb = const Value.absent(),
     this.albumGainDb = const Value.absent(),
     this.playCount = const Value.absent(),
@@ -982,6 +1024,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.albumArtist = const Value.absent(),
     this.genre = const Value.absent(),
     this.year = const Value.absent(),
+    this.composer = const Value.absent(),
     this.replayGainDb = const Value.absent(),
     this.albumGainDb = const Value.absent(),
     this.playCount = const Value.absent(),
@@ -1006,6 +1049,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Expression<String>? albumArtist,
     Expression<String>? genre,
     Expression<int>? year,
+    Expression<String>? composer,
     Expression<double>? replayGainDb,
     Expression<double>? albumGainDb,
     Expression<int>? playCount,
@@ -1029,6 +1073,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       if (albumArtist != null) 'album_artist': albumArtist,
       if (genre != null) 'genre': genre,
       if (year != null) 'year': year,
+      if (composer != null) 'composer': composer,
       if (replayGainDb != null) 'replay_gain_db': replayGainDb,
       if (albumGainDb != null) 'album_gain_db': albumGainDb,
       if (playCount != null) 'play_count': playCount,
@@ -1054,6 +1099,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Value<String?>? albumArtist,
     Value<String?>? genre,
     Value<int?>? year,
+    Value<String?>? composer,
     Value<double?>? replayGainDb,
     Value<double?>? albumGainDb,
     Value<int>? playCount,
@@ -1077,6 +1123,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       albumArtist: albumArtist ?? this.albumArtist,
       genre: genre ?? this.genre,
       year: year ?? this.year,
+      composer: composer ?? this.composer,
       replayGainDb: replayGainDb ?? this.replayGainDb,
       albumGainDb: albumGainDb ?? this.albumGainDb,
       playCount: playCount ?? this.playCount,
@@ -1140,6 +1187,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     if (year.present) {
       map['year'] = Variable<int>(year.value);
     }
+    if (composer.present) {
+      map['composer'] = Variable<String>(composer.value);
+    }
     if (replayGainDb.present) {
       map['replay_gain_db'] = Variable<double>(replayGainDb.value);
     }
@@ -1173,6 +1223,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
           ..write('albumArtist: $albumArtist, ')
           ..write('genre: $genre, ')
           ..write('year: $year, ')
+          ..write('composer: $composer, ')
           ..write('replayGainDb: $replayGainDb, ')
           ..write('albumGainDb: $albumGainDb, ')
           ..write('playCount: $playCount')
@@ -4843,6 +4894,7 @@ typedef $$SongsTableCreateCompanionBuilder =
       Value<String?> albumArtist,
       Value<String?> genre,
       Value<int?> year,
+      Value<String?> composer,
       Value<double?> replayGainDb,
       Value<double?> albumGainDb,
       Value<int> playCount,
@@ -4867,6 +4919,7 @@ typedef $$SongsTableUpdateCompanionBuilder =
       Value<String?> albumArtist,
       Value<String?> genre,
       Value<int?> year,
+      Value<String?> composer,
       Value<double?> replayGainDb,
       Value<double?> albumGainDb,
       Value<int> playCount,
@@ -5008,6 +5061,11 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<int> get year => $composableBuilder(
     column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get composer => $composableBuilder(
+    column: $table.composer,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5176,6 +5234,11 @@ class $$SongsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get composer => $composableBuilder(
+    column: $table.composer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get replayGainDb => $composableBuilder(
     column: $table.replayGainDb,
     builder: (column) => ColumnOrderings(column),
@@ -5266,6 +5329,9 @@ class $$SongsTableAnnotationComposer
 
   GeneratedColumn<int> get year =>
       $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<String> get composer =>
+      $composableBuilder(column: $table.composer, builder: (column) => column);
 
   GeneratedColumn<double> get replayGainDb => $composableBuilder(
     column: $table.replayGainDb,
@@ -5377,6 +5443,7 @@ class $$SongsTableTableManager
                 Value<String?> albumArtist = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<int?> year = const Value.absent(),
+                Value<String?> composer = const Value.absent(),
                 Value<double?> replayGainDb = const Value.absent(),
                 Value<double?> albumGainDb = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
@@ -5399,6 +5466,7 @@ class $$SongsTableTableManager
                 albumArtist: albumArtist,
                 genre: genre,
                 year: year,
+                composer: composer,
                 replayGainDb: replayGainDb,
                 albumGainDb: albumGainDb,
                 playCount: playCount,
@@ -5423,6 +5491,7 @@ class $$SongsTableTableManager
                 Value<String?> albumArtist = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<int?> year = const Value.absent(),
+                Value<String?> composer = const Value.absent(),
                 Value<double?> replayGainDb = const Value.absent(),
                 Value<double?> albumGainDb = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
@@ -5445,6 +5514,7 @@ class $$SongsTableTableManager
                 albumArtist: albumArtist,
                 genre: genre,
                 year: year,
+                composer: composer,
                 replayGainDb: replayGainDb,
                 albumGainDb: albumGainDb,
                 playCount: playCount,

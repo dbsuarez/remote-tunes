@@ -101,6 +101,17 @@ void main() {
       expect([for (final s in page.items) s.title], ['Two']);
     });
 
+    test('composers are listed and open like the other groups', () async {
+      final id1 = (await repo.songs(query: 'One')).items.single.id;
+      final id2 = (await repo.songs(query: 'Two')).items.single.id;
+      await repo.updateSongTags(id1, composer: 'Bach');
+      await repo.updateSongTags(id2, composer: 'Bach');
+      final g = await repo.groups(kind: GroupKind.composer);
+      expect([for (final e in g.items) '${e.name}:${e.songCount}'], ['Bach:2']);
+      final page = await repo.songs(groupKind: GroupKind.composer, groupValue: 'Bach');
+      expect([for (final s in page.items) s.title], ['One', 'Two']);
+    });
+
     test('tags are filled in later without touching anything else', () async {
       final id = (await repo.songs(query: 'Four')).items.single.id;
       await repo.updateSongTags(id, genre: 'Pop', year: 1985);
@@ -152,6 +163,16 @@ void main() {
       await service.importFiles([f]);
       final s = (await repo.songs()).items.single;
       expect([s.albumArtist, s.genre, s.year], ['The Band', 'Rock', 1999]);
+    });
+
+    test('the composer is kept on import and on refresh', () async {
+      final f = await makeFile('c.mp3');
+      extractor.byName['c.mp3'] = const ExtractedMetadata(title: 'C', artist: 'X', album: 'Y', composer: 'Mozart');
+      await service.importFiles([f]);
+      final s = (await repo.songs()).items.single;
+      expect((await repo.songById(s.id))!.composer, 'Mozart');
+      final g = await repo.groups(kind: GroupKind.composer);
+      expect(g.items.single.name, 'Mozart');
     });
 
     test('old songs get theirs on refresh; titles and the rest are not changed', () async {
@@ -211,7 +232,7 @@ void main() {
 
     testWidgets('the list has Genres, Years and Album Artists', (tester) async {
       await openHome(tester);
-      for (final c in ['Genres', 'Years', 'Album Artists']) {
+      for (final c in ['Genres', 'Years', 'Album Artists', 'Composers']) {
         expect(find.text(c), findsOneWidget, reason: c);
       }
     });

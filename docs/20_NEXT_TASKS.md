@@ -45,7 +45,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] **Replay Gain from tags** (schema v8): Settings > Even out loudness (Off / By song / By album) turns loud songs down to the level in their Replay Gain tags (read by "Update tags from files" and on import). It never turns a song up. Not done: *measuring* loudness for files that have no tags (that needs decoding every file).
 
 ### Library and search
-- [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Still to do: Composers (the tag reader only gives it for MP3) and a folder tree next to the flat Folders list.
+- [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Composers are in too (schema v9; MP3, FLAC, Ogg and APE files that have the tag), and a **Folder tree** (Library > Folder tree: folders inside folders, an arrow to go up, the folder you came from marked).
 - [x] Search: Album Artists scope and Play / Shuffle for the results. (A Select row is not done.)
 - [ ] Tag editor: write the tags into the music files (needs a writer and Android 11+ file-edit permission); today it only changes RemoteTunes' listing.
 

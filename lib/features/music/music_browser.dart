@@ -23,6 +23,7 @@ enum _Scope {
   albumArtists,
   genres,
   years,
+  composers,
 }
 
 class _Drill {
@@ -215,6 +216,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
         _Scope.albumArtists => 'Album Artists',
         _Scope.genres => 'Genres',
         _Scope.years => 'Years',
+        _Scope.composers => 'Composers',
       };
   String _query = '';
   int _generation = 0;
@@ -587,6 +589,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
           : switch (kind) {
               GroupKind.genre => 'No genres yet. In Settings, "Update tags from files" reads them.',
               GroupKind.year => 'No years yet. In Settings, "Update tags from files" reads them.',
+              GroupKind.composer =>
+                'No composers yet. In Settings, "Update tags from files" reads them (MP3, FLAC, Ogg and APE files that have the tag).',
               _ => 'No album artists yet. In Settings, "Update tags from files" reads them.',
             },
       load: (offset, limit) =>
@@ -708,6 +712,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 _Scope.albumArtists => _groupList(GroupKind.albumArtist, Icons.mic_rounded),
                 _Scope.genres => _groupList(GroupKind.genre, Icons.piano_rounded),
                 _Scope.years => _groupList(GroupKind.year, Icons.calendar_month_rounded),
+                _Scope.composers => _groupList(GroupKind.composer, Icons.edit_note_rounded),
                 _Scope.folders => _PagedList<RemoteFolder>(
                     key: scopeKey,
                     emptyMessage: _listQuery.isEmpty ? widget.emptyMessage : 'No matches.',
@@ -942,6 +947,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.albumArtists => 'Album Artists',
                           _Scope.genres => 'Genres',
                           _Scope.years => 'Years',
+                          _Scope.composers => 'Composers',
                         }),
                         selected: _scope == s,
                         onSelected: (_) {
@@ -1019,6 +1025,7 @@ class _CategoryList extends StatelessWidget {
     (_Scope.albumArtists, Icons.mic_rounded, Color(0xFFCE93D8)),
     (_Scope.genres, Icons.piano_rounded, Color(0xFFFFD54F)),
     (_Scope.years, Icons.calendar_month_rounded, Color(0xFFFF8A65)),
+    (_Scope.composers, Icons.edit_note_rounded, Color(0xFF81C784)),
     (_Scope.favorites, Icons.favorite_rounded, Color(0xFFFF6B8B)),
     (_Scope.recent, Icons.history_rounded, Color(0xFFFFB74D)),
     (_Scope.top, Icons.trending_up_rounded, Color(0xFFFF8A65)),

@@ -83,6 +83,18 @@ class LocalMusicSource implements MusicSource {
       PlaybackException(ErrorCodes.invalidAction, 'That playlist no longer exists.');
 
   @override
+  Future<RemoteFolder?> folderRoot() => _library.folderRoot();
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _library.folderChildren(parentId: parentId, query: query, offset: offset, limit: limit);
+
+  @override
   Future<LibraryPage<RemoteGroup>> groups({
     required String kind,
     String query = '',

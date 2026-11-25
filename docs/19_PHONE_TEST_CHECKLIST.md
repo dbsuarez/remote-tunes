@@ -173,6 +173,7 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Lyrics redesign:** the cover button fades the cover out completely, then the lyrics card fades in at the cover's size; the line being sung is big and bright, the rest dimmer and fading at the top and bottom; the button brings the cover back. *Show fullscreen* opens the big view with the song name; it follows the music; the X closes it. The card's colors follow the cover's accent.
 - [ ] **Menu:** the button at the top left opens a menu. Lyrics shows the lyrics on Now Playing, Playlists opens the playlist list, What's new lists the release notes, Help explains the basics. A swipe in from the left edge still opens the Library (not the menu).
 - [ ] **Search Select:** in a search, Select (or a long-press on a song) lets you pick several and add them to the queue or a playlist.
+- [ ] **Composers and Folder tree:** Update tags from files, then Library > Composers lists them. Library > Folder tree starts at the top of your music folders; tap folders to go in, the up arrow to come back (the folder you left is tinted); songs in a folder play from the one you tap.
 
 ---
 

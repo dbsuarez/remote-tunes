@@ -33,6 +33,15 @@ abstract class PlayerLibrary {
     int limit,
   });
 
+  /// The folder tree: the top folder, and the folders inside one.
+  Future<RemoteFolder?> folderRoot();
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query,
+    int offset,
+    int limit,
+  });
+
   Future<LibraryPage<RemoteFolder>> folders({
     String query,
     int offset,
@@ -278,6 +287,18 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       offset: page.offset,
     );
   }
+
+  @override
+  Future<RemoteFolder?> folderRoot() => _repo.folderRoot();
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _repo.folderChildren(parentId: parentId, query: query, offset: offset, limit: limit);
 
   @override
   Future<LibraryPage<RemoteGroup>> groups({

@@ -32,6 +32,16 @@ abstract class MusicSource {
     int limit,
   });
 
+  /// The folder tree: the top folder (null: nothing from files), and the
+  /// folders inside one folder ([parentId]; null: the top).
+  Future<RemoteFolder?> folderRoot();
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query,
+    int offset,
+    int limit,
+  });
+
   /// Lyrics for a library song.
   Future<RemoteLyrics> lyrics(int songId);
 
@@ -135,6 +145,18 @@ class RemoteMusicSource implements MusicSource {
     int limit = 50,
   }) =>
       _client.groups(kind: kind, query: query, offset: offset, limit: limit);
+
+  @override
+  Future<RemoteFolder?> folderRoot() => _client.folderRoot();
+
+  @override
+  Future<LibraryPage<RemoteFolder>> folderChildren({
+    int? parentId,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _client.folderChildren(parentId: parentId, query: query, offset: offset, limit: limit);
 
   @override
   Future<RemoteLyrics> lyrics(int songId) => _client.lyrics(songId);

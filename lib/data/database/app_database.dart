@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -73,6 +73,9 @@ class AppDatabase extends _$AppDatabase {
             // Replay Gain values, filled by re-reading the tags.
             await m.addColumn(songs, songs.replayGainDb);
             await m.addColumn(songs, songs.albumGainDb);
+          }
+          if (from < 9) {
+            await m.addColumn(songs, songs.composer);
           }
         },
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).
