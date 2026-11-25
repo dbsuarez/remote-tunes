@@ -554,6 +554,10 @@ class _LibraryTab extends ConsumerWidget {
       canWriteTags: local,
       onEditSongs: local ? (context, ids) => editSelectedSongs(context, ref, ids) : null,
       songLookup: local ? ref.read(songLookupProvider) : null,
+      looks: ref.watch(settingsProvider).valueOrNull?.listLooks ?? const {},
+      onLook: local
+          ? (kind, look) => ref.read(settingsRepositoryProvider).setListLook(kind, look)
+          : null,
       onEditSong: local
           ? (song, e) async {
               final library = ref.read(libraryRepositoryProvider);

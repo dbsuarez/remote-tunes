@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../core/constants.dart';
 import '../../core/song_list_style.dart';
+import '../../core/song_list_look.dart';
 import '../../core/models/enums.dart';
 import '../../core/online_defaults.dart';
 import '../database/app_database.dart';
@@ -37,6 +38,7 @@ class SettingKeys {
   static const visualizer = 'visualizer';
   static const visualizerStyle = 'visualizer_style';
   static const visualizerOnCover = 'visualizer_on_cover';
+  static const listLooks = 'list_looks';
   static const onlineSuggestions = 'online_suggestions';
   static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
@@ -101,6 +103,7 @@ class AppSettings {
     this.visualizerEnabled = false,
     this.visualizerStyle = 'bars',
     this.visualizerOnCover = false,
+    this.listLooks = const {},
     this.onlineSuggestions = true,
     this.customSkins = const [],
     this.remoteAutoStart = false,
@@ -166,6 +169,9 @@ class AppSettings {
   /// visualizer then never show together.
   final bool visualizerOnCover;
 
+  /// How each kind of song list is drawn (kinds not here use the standard list).
+  final Map<String, ListLook> listLooks;
+
   /// Popular and newest tracks on the Online Library home screen.
   final bool onlineSuggestions;
 
@@ -221,6 +227,7 @@ class AppSettings {
       visualizerEnabled: m[SettingKeys.visualizer] == 'true',
       visualizerStyle: m[SettingKeys.visualizerStyle] ?? 'bars',
       visualizerOnCover: m[SettingKeys.visualizerOnCover] == 'true',
+      listLooks: decodeListLooks(m[SettingKeys.listLooks]),
       onlineSuggestions: m[SettingKeys.onlineSuggestions] != 'false',
       customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
@@ -326,6 +333,17 @@ class SettingsRepository {
   Future<void> setOnlineSuggestions(bool v) => _put(SettingKeys.onlineSuggestions, v.toString());
 
   Future<void> setVisualizerStyle(String v) => _put(SettingKeys.visualizerStyle, v);
+
+  /// Remembers the look of one kind of list (the standard look is not stored).
+  Future<void> setListLook(String kind, ListLook look) async {
+    final now = Map<String, ListLook>.of((await load()).listLooks);
+    if (look.isStandard) {
+      now.remove(kind);
+    } else {
+      now[kind] = look;
+    }
+    await _put(SettingKeys.listLooks, encodeListLooks(now));
+  }
 
   Future<void> setVisualizerOnCover(bool v) => _put(SettingKeys.visualizerOnCover, v.toString());
 

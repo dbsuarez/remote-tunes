@@ -81,6 +81,7 @@ class BackupService {
     SettingKeys.visualizer,
     SettingKeys.visualizerStyle,
     SettingKeys.visualizerOnCover,
+    SettingKeys.listLooks,
     SettingKeys.onlineSuggestions,
   };
 

@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/haptics.dart';
 import '../../core/protocol/library_models.dart';
+import '../../core/song_list_look.dart';
 import '../../core/song_list_style.dart';
+import 'list_options_sheet.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
 import 'song_art.dart';
@@ -105,6 +107,8 @@ class MusicBrowser extends StatefulWidget {
     this.canWriteTags = false,
     this.onEditSongs,
     this.songLookup,
+    this.looks = const {},
+    this.onLook,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
     this.homeList = false,
@@ -157,6 +161,11 @@ class MusicBrowser extends StatefulWidget {
 
   /// Looks a song up on the internet from Edit info (this phone's library only).
   final SongLookupService? songLookup;
+
+  /// How each kind of song list is drawn, and how to remember a change (null: no List options,
+  /// e.g. on the web Controller).
+  final Map<String, ListLook> looks;
+  final void Function(String kind, ListLook look)? onLook;
   final String emptyMessage;
 
   @override
@@ -738,11 +747,61 @@ class _MusicBrowserState extends State<MusicBrowser> {
     );
   }
 
+  /// Which kind of list this is, for remembering its look.
+  String _kindOf(_Drill? drill, String? view) {
+    if (drill != null) {
+      if (drill.playlistId != null) return 'playlist';
+      if (drill.folderId != null) return 'folder';
+      if (drill.groupValue != null) return 'group';
+      if (drill.album != null) return 'album';
+      if (drill.artist != null) return 'artist';
+    }
+    return switch (view) {
+      LibraryView.favorites => 'favorites',
+      LibraryView.recent => 'recent',
+      LibraryView.top => 'top',
+      LibraryView.skipped => 'skipped',
+      LibraryView.never => 'never',
+      LibraryView.newest => 'newest',
+      _ => 'songs',
+    };
+  }
+
   Widget _songList(_Drill? drill, {String? view}) {
+    final kind = _kindOf(drill, view);
+    final look = widget.looks[kind] ?? ListLook.standard;
+    final list = _songListBody(drill, view, look);
+    if (widget.onLook == null) return list;
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            key: const Key('list-options'),
+            tooltip: 'List options',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.tune_rounded,
+                color: look.isStandard ? null : Theme.of(context).colorScheme.primary),
+            onPressed: () => showListOptions(
+              context,
+              kind: kind,
+              look: widget.looks[kind] ?? ListLook.standard,
+              onChanged: (l) => widget.onLook!(kind, l),
+            ),
+          ),
+        ),
+        Expanded(child: list),
+      ],
+    );
+  }
+
+  Widget _songListBody(_Drill? drill, String? view, ListLook look) {
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
         '${drill?.playlistId}|${drill?.folderId}|${drill?.groupValue}|${widget.refreshToken}|$_generation');
     return _PagedList<RemoteSong>(
       key: key,
+      grid: look.view == SongListView.grid,
+      titlesOnly: look.titlesOnly,
       emptyMessage: _query.isNotEmpty
           ? 'No matches.'
           : switch (view) {
@@ -803,6 +862,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
         ),
         onAddToPlaylist: () => _addIdsToPlaylist([song.id]),
         size: widget.size,
+        look: look,
         selecting: _selected.isNotEmpty,
         selected: _selected.contains(song.id),
         onSelect: () => _toggleSelected(song.id),
@@ -1383,6 +1443,7 @@ class _SongTile extends StatelessWidget {
     required this.onFavorite,
     required this.onAddToPlaylist,
     required this.size,
+    required this.look,
     required this.selecting,
     required this.selected,
     required this.onSelect,
@@ -1396,6 +1457,7 @@ class _SongTile extends StatelessWidget {
   final String? countView;
 
   final SongListSize size;
+  final ListLook look;
 
   /// Some songs are picked: show check marks, hide per-song buttons.
   final bool selecting;
@@ -1432,17 +1494,30 @@ class _SongTile extends StatelessWidget {
       _ => null,
     };
 
-    final k = size.scale;
+    final view = look.view;
+    if (view == SongListView.grid) return _gridCell(context, theme, dim);
+    final k = size.scale *
+        switch (view) {
+          SongListView.listSmall => 0.85,
+          SongListView.listCompact => 0.8,
+          SongListView.oneLine => 0.85,
+          _ => 1.0,
+        };
+    final showArt = view != SongListView.noImages;
+    final tight = view == SongListView.listCompact || view == SongListView.oneLine;
+    final oneLine = view == SongListView.oneLine;
     return ListTile(
-      minTileHeight: 64 * k,
+      minTileHeight: (tight ? 48 : 64) * k,
       dense: k < 1,
       enabled: true,
       selected: selected,
       selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-      leading: SongArt(
+      leading: !showArt
+          ? (selected ? const Icon(Icons.check_rounded) : null)
+          : SongArt(
         source: source,
         songId: song.id,
-        radius: 20 * k,
+        radius: (tight ? 14 : 20) * k,
         overlayIcon: selected
             ? Icons.check_rounded
             : dim
@@ -1450,17 +1525,20 @@ class _SongTile extends StatelessWidget {
                 : null,
         overlayColor: dim && !selected ? theme.colorScheme.error : null,
       ),
-      title: Text(song.title,
+      title: Text(
+          oneLine && !look.titlesOnly && !dim ? '${song.title} · ${song.artist}' : song.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 16 * k,
             color: dim ? theme.colorScheme.onSurface.withValues(alpha: 0.5) : null,
           )),
-      subtitle: Text(subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 14 * k)),
+      subtitle: look.titlesOnly || oneLine
+          ? null
+          : Text(subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14 * k)),
       onLongPress: () {
         Haptics.medium(); // starting a selection feels like picking something up
         onSelect();
@@ -1510,6 +1588,63 @@ class _SongTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+    );
+  }
+
+  /// One cell of the grid view: the cover, the title and (unless titles only) the artist. A tap
+  /// plays it, a long-press picks it (the song menu is in the list views).
+  Widget _gridCell(BuildContext context, ThemeData theme, bool dim) {
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      onLongPress: () {
+        Haptics.medium();
+        onSelect();
+      },
+      child: Container(
+        margin: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: selected ? theme.colorScheme.primary.withValues(alpha: 0.18) : null,
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) => Center(
+                  child: SongArt(
+                    source: source,
+                    songId: song.id,
+                    radius: (box.biggest.shortestSide / 2).clamp(16.0, 80.0),
+                    overlayIcon: selected
+                        ? Icons.check_rounded
+                        : dim
+                            ? Icons.error_outline_rounded
+                            : null,
+                    overlayColor: dim && !selected ? theme.colorScheme.error : null,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: dim ? theme.colorScheme.onSurface.withValues(alpha: 0.5) : null)),
+            if (!look.titlesOnly)
+              Text(song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: muted)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1563,8 +1698,13 @@ class _PagedList<T> extends StatefulWidget {
     required this.load,
     required this.itemBuilder,
     required this.emptyMessage,
+    this.grid = false,
+    this.titlesOnly = false,
   });
 
+  /// Cells side by side instead of rows (the item builder then returns a grid cell).
+  final bool grid;
+  final bool titlesOnly;
   final Future<LibraryPage<T>> Function(int offset, int limit) load;
   final Widget Function(BuildContext context, T item) itemBuilder;
   final String emptyMessage;
@@ -1659,6 +1799,18 @@ class _PagedListState<T> extends State<_PagedList<T>> {
       );
     }
     final footer = _loading || _error != null || _items.length < _total;
+    if (widget.grid) {
+      return GridView.builder(
+        controller: _scroll,
+        padding: const EdgeInsets.all(8),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 150,
+          childAspectRatio: widget.titlesOnly ? 0.85 : 0.72,
+        ),
+        itemCount: _items.length,
+        itemBuilder: (context, i) => widget.itemBuilder(context, _items[i]),
+      );
+    }
     return ListView.builder(
       controller: _scroll,
       itemCount: _items.length + (footer ? 1 : 0),
