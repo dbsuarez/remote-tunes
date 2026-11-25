@@ -118,7 +118,11 @@ class EqualizerController extends ChangeNotifier {
   Future<void> applyPreset(EqPreset preset) async {
     final b = _bands;
     if (b == null) return;
-    _settings = _settings.copyWith(preset: preset.name, gains: preset.gainsFor(b), enabled: true);
+    _settings = _settings.copyWith(
+        preset: preset.name,
+        gains: preset.gainsFor(b),
+        tenGains: preset.tenGains(b.minDb, b.maxDb),
+        enabled: true);
     notifyListeners();
     await _apply();
     await _save();
@@ -132,6 +136,38 @@ class EqualizerController extends ChangeNotifier {
     if (gains.length != b.count) return;
     gains[index] = gainDb.clamp(b.minDb, b.maxDb).toDouble();
     _settings = _settings.copyWith(gains: gains, clearPreset: true, enabled: true);
+    notifyListeners();
+    await _apply();
+  }
+
+  /// Switches between the phone's own bands and the ten sliders. Going to ten,
+  /// they start where the bands are now.
+  Future<void> setTenBand(bool on) async {
+    final b = _bands;
+    if (b == null) return;
+    var ten = _settings.tenGains;
+    if (on && ten.length != EqPreset.tenCenters.length) {
+      final g = _settings.gains.length == b.count ? _settings.gains : List.filled(b.count, 0.0);
+      ten = [
+        for (final hz in EqPreset.tenCenters)
+          interpolateDb(b.centersHz, g, hz).clamp(b.minDb, b.maxDb).toDouble(),
+      ];
+    }
+    _settings = _settings.copyWith(tenBand: on, tenGains: ten);
+    notifyListeners();
+    await _apply();
+    await _save();
+  }
+
+  /// Moves one of the ten sliders (the preset then reads "Custom").
+  Future<void> setTenBandGain(int index, double gainDb) async {
+    final b = _bands;
+    if (b == null || index < 0 || index >= EqPreset.tenCenters.length) return;
+    final ten = _settings.tenGains.length == EqPreset.tenCenters.length
+        ? [..._settings.tenGains]
+        : List.filled(EqPreset.tenCenters.length, 0.0);
+    ten[index] = gainDb.clamp(b.minDb, b.maxDb).toDouble();
+    _settings = _settings.copyWith(tenGains: ten, tenBand: true, clearPreset: true, enabled: true);
     notifyListeners();
     await _apply();
   }

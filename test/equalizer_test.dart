@@ -152,6 +152,47 @@ void main() {
       expect(backend.eqCalls.last.gains, [0, 0, 0, 0, 0]);
     });
 
+
+    test('ten bands: the ten sliders are blended onto the phone bands', () async {
+      final c = make();
+      await c.init();
+      await c.setTenBand(true);
+      expect(c.settings.tenBand, isTrue);
+      expect(c.settings.tenGains, hasLength(10));
+      // Raise the two lowest sliders: the lowest phone band (60 Hz) follows them.
+      await c.setTenBandGain(0, 6);
+      await c.setTenBandGain(1, 6);
+      expect(backend.eqCalls.last.gains.first, closeTo(6, 0.5));
+      expect(backend.eqCalls.last.gains.last, closeTo(0, 0.001));
+      expect(c.settings.preset, isNull);
+      expect(c.settings.enabled, isTrue);
+    });
+
+    test('ten bands start where the phone bands are, and a preset fills them', () async {
+      final c = make();
+      await c.init();
+      await c.applyPreset(EqPreset.byName('Bass boost')!);
+      await c.setTenBand(true);
+      expect(c.settings.tenGains.first, 6);
+      expect(c.settings.tenGains.last, 0);
+      await c.applyPreset(EqPreset.byName('Treble boost')!);
+      expect(c.settings.tenGains.last, 6);
+      await c.setTenBand(false);
+      expect(c.settings.tenBand, isFalse);
+      expect(backend.eqCalls.last.gains, [0, 0, 0, 3, 6]);
+    });
+
+    test('ten bands are remembered', () async {
+      var c = make();
+      await c.init();
+      await c.setTenBandGain(3, 4);
+      await c.commit();
+      c = make();
+      await c.init();
+      expect(c.settings.tenBand, isTrue);
+      expect(c.settings.tenGains[3], 4);
+    });
+
     test('a phone with no equalizer has no bands and nothing breaks', () async {
       backend.eqBands = null;
       final c = make();
@@ -342,6 +383,22 @@ void main() {
       for (final l in ['60 Hz', '910 Hz', '3.6 kHz', '14 kHz']) {
         expect(find.text(l), findsOneWidget, reason: l);
       }
+    });
+
+    testWidgets('the 10 bands view shows ten sliders and says what it really does', (tester) async {
+      await open(tester);
+      await tester.tap(find.text('10 bands'));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+      // Ten band sliders, plus the preamp and the Bass and Treble knobs.
+      expect(find.byType(Slider), findsNWidgets(13));
+      expect(find.text('31'), findsOneWidget);
+      expect(find.text('16k'), findsOneWidget);
+      expect(find.textContaining('really has 5 bands'), findsOneWidget);
+      await tester.tap(find.textContaining('5 bands (phone)'));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+      expect(find.byType(Slider), findsNWidgets(8));
     });
 
     testWidgets('a preset chip sets the sliders and switches it on', (tester) async {

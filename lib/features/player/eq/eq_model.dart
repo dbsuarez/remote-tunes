@@ -23,6 +23,20 @@ class EqBands {
   }
 }
 
+/// Gain at [hz] read off points ([hzs] low to high, [vals]) on a log frequency
+/// scale; flat outside the first and last point.
+double interpolateDb(List<double> hzs, List<double> vals, double hz) {
+  if (hz <= hzs.first) return vals.first;
+  if (hz >= hzs.last) return vals.last;
+  for (var i = 0; i < hzs.length - 1; i++) {
+    if (hz <= hzs[i + 1]) {
+      final t = (math.log(hz) - math.log(hzs[i])) / (math.log(hzs[i + 1]) - math.log(hzs[i]));
+      return vals[i] + (vals[i + 1] - vals[i]) * t;
+    }
+  }
+  return vals.last;
+}
+
 /// A named curve. It is written as gains (dB) at a few anchor frequencies and
 /// turned into gains for however many bands the phone has.
 class EqPreset {
@@ -34,6 +48,21 @@ class EqPreset {
   final List<double> points;
 
   static const anchors = <double>[60, 230, 910, 3600, 14000];
+
+  /// The ten sliders of the 10-band view (hertz).
+  static const tenCenters = <double>[31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+  /// This curve at the ten sliders, kept inside [minDb] to [maxDb].
+  List<double> tenGains(double minDb, double maxDb) => [
+        for (final hz in tenCenters)
+          interpolateDb(anchors, points, hz).clamp(minDb, maxDb).toDouble(),
+      ];
+
+  static String tenLabel(int i) {
+    final hz = tenCenters[i];
+    if (hz < 1000) return '${hz.round()}';
+    return '${(hz / 1000).round()}k';
+  }
 
   static const flat = EqPreset('Flat', [0, 0, 0, 0, 0]);
 
@@ -59,21 +88,9 @@ class EqPreset {
   /// The gain for each of [bands], read off this curve on a log frequency
   /// scale and kept inside what the phone allows.
   List<double> gainsFor(EqBands bands) {
-    double at(double hz) {
-      if (hz <= anchors.first) return points.first;
-      if (hz >= anchors.last) return points.last;
-      for (var i = 0; i < anchors.length - 1; i++) {
-        if (hz <= anchors[i + 1]) {
-          final t = (math.log(hz) - math.log(anchors[i])) /
-              (math.log(anchors[i + 1]) - math.log(anchors[i]));
-          return points[i] + (points[i + 1] - points[i]) * t;
-        }
-      }
-      return points.last;
-    }
-
     return [
-      for (final hz in bands.centersHz) at(hz).clamp(bands.minDb, bands.maxDb).toDouble(),
+      for (final hz in bands.centersHz)
+        interpolateDb(anchors, points, hz).clamp(bands.minDb, bands.maxDb).toDouble(),
     ];
   }
 }
@@ -89,9 +106,18 @@ class EqSettings {
     this.bassDb = 0,
     this.trebleDb = 0,
     this.limit = false,
+    this.tenBand = false,
+    this.tenGains = const [],
   });
 
   final bool enabled;
+
+  /// The 10-band view is in use: ten sliders that are blended down onto the
+  /// phone's own (usually five) bands.
+  final bool tenBand;
+
+  /// dB at [EqPreset.tenCenters] (empty: flat).
+  final List<double> tenGains;
 
   /// Overall level before the bands (dB, -12 to +12).
   final double preampDb;
@@ -126,6 +152,8 @@ class EqSettings {
     double? bassDb,
     double? trebleDb,
     bool? limit,
+    bool? tenBand,
+    List<double>? tenGains,
   }) =>
       EqSettings(
         enabled: enabled ?? this.enabled,
@@ -136,12 +164,19 @@ class EqSettings {
         bassDb: bassDb ?? this.bassDb,
         trebleDb: trebleDb ?? this.trebleDb,
         limit: limit ?? this.limit,
+        tenBand: tenBand ?? this.tenBand,
+        tenGains: tenGains ?? this.tenGains,
       );
 
   /// What each band is really set to: the sliders plus, when Tone is on, the
   /// Bass and Treble knobs (bass lifts the low bands, treble the high ones).
   List<double> effectiveGains(EqBands bands) {
-    final base = gains.length == bands.count ? gains : List.filled(bands.count, 0.0);
+    final base = tenBand && tenGains.length == EqPreset.tenCenters.length
+        // Ten sliders, read off at each of the phone's bands.
+        ? [for (final hz in bands.centersHz) interpolateDb(EqPreset.tenCenters, tenGains, hz)]
+        : gains.length == bands.count
+            ? gains
+            : List.filled(bands.count, 0.0);
     return [
       for (var i = 0; i < bands.count; i++)
         (base[i] +
@@ -182,6 +217,8 @@ class EqSettings {
         'bassDb': bassDb,
         'trebleDb': trebleDb,
         'limit': limit,
+        'tenBand': tenBand,
+        'tenGains': tenGains,
       });
 
   static double _num(Object? v, double range) =>
@@ -202,6 +239,10 @@ class EqSettings {
         bassDb: _num(m['bassDb'], EqSettings.toneRange),
         trebleDb: _num(m['trebleDb'], EqSettings.toneRange),
         limit: m['limit'] == true,
+        tenBand: m['tenBand'] == true,
+        tenGains: m['tenGains'] is List
+            ? [for (final e in m['tenGains'] as List) if (e is num) e.toDouble()]
+            : const [],
       );
     } catch (_) {
       return null;

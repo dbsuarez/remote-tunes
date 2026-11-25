@@ -179,6 +179,7 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Up next sheet:** slide it up, then tap the player above it: it slides back down.
 - [ ] **Write tags into files:** Edit info on a song has *Also write into the music file*. Tick it and save: the message says whether the file was changed. If Android refuses it says *Saved in RemoteTunes only*; then Settings > *All files access* opens Android's page for the app: switch it on, come back (the row shows Allowed) and save again. Report which phone and folder if it still refuses.
 - [ ] **Crossfade (again):** with crossfade on, the first change of a session fades once and the next song does not start over.
+- [ ] **10-band EQ:** on the EQ screen switch to *10 bands*. Ten sliders appear (31 to 16k) with a note about the phone's real bands. Moving the bass sliders changes the sound as you would expect; a preset fills all ten; switching back to the phone's bands works; it is still there after closing the app.
 
 ---
 

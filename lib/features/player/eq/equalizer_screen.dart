@@ -91,7 +91,12 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
             ),
           );
         }
-        final gains = s.gains.length == bands.count ? s.gains : List.filled(bands.count, 0.0);
+        final ten = s.tenBand;
+        final gains = ten
+            ? (s.tenGains.length == EqPreset.tenCenters.length
+                ? s.tenGains
+                : List.filled(EqPreset.tenCenters.length, 0.0))
+            : (s.gains.length == bands.count ? s.gains : List.filled(bands.count, 0.0));
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
@@ -123,6 +128,30 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
                   const ChoiceChip(label: Text('Custom'), selected: true),
               ],
             ),
+            const SizedBox(height: 12),
+            SegmentedButton<bool>(
+              key: const Key('eq-mode'),
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(value: false, label: Text('${bands.count} bands (phone)')),
+                const ButtonSegment(value: true, label: Text('10 bands')),
+              ],
+              selected: {ten},
+              onSelectionChanged: (v) {
+                Haptics.selection();
+                c.setTenBand(v.first);
+              },
+            ),
+            if (ten)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  "This phone's equalizer really has ${bands.count} bands, so the ten sliders are "
+                  'blended onto them: neighbouring sliders work together.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
             const SizedBox(height: 16),
             // What the sound will look like: the bands and the Tone knobs together.
             Opacity(
@@ -149,7 +178,7 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (var i = 0; i < bands.count; i++)
+                    for (var i = 0; i < gains.length; i++)
                       Expanded(
                         child: Column(
                           children: [
@@ -164,7 +193,7 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
                                   min: bands.minDb,
                                   max: bands.maxDb,
                                   value: gains[i].clamp(bands.minDb, bands.maxDb),
-                                  onChanged: (v) => c.setBand(i, v),
+                                  onChanged: (v) => ten ? c.setTenBandGain(i, v) : c.setBand(i, v),
                                   onChangeEnd: (_) {
                                     Haptics.selection();
                                     c.commit();
@@ -172,7 +201,8 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
                                 ),
                               ),
                             ),
-                            Text(bands.labelFor(i), style: theme.textTheme.labelSmall),
+                            Text(ten ? EqPreset.tenLabel(i) : bands.labelFor(i),
+                                style: theme.textTheme.labelSmall),
                           ],
                         ),
                       ),
