@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
 
+import '../../core/lyrics/lrc.dart';
 import '../../core/protocol/library_models.dart';
 import '../../data/database/app_database.dart';
 import '../../data/repositories/library_repository.dart';
@@ -12,7 +13,7 @@ import '../../data/repositories/library_repository.dart';
 /// them on the Player.
 ///
 /// Sources, in order: LRCLIB (lrclib.net: free, no key, time-synced), then
-/// lyrics.ovh (plain text). Only the song's title, artist, album and length are
+/// Megalobiz (synced, when LRCLIB has none; credited) and lyrics.ovh (plain text). Only the song's title, artist, album and length are
 /// sent, never a file name or path. Personal / open-source use; nothing is
 /// downloaded in bulk.
 class LyricsService {
@@ -96,7 +97,24 @@ class LyricsService {
     } on _NetworkTrouble {
       networkTrouble = true;
     }
-    // 2) lyrics.ovh (plain text only; needs an artist).
+    // 2) Megalobiz, for time-synced lyrics when LRCLIB had none (or only plain
+    //    text). A page of a lyrics site, read with care; credited on screen.
+    if ((hit == null || (hit.synced.isEmpty && !hit.instrumental)) && artist.isNotEmpty) {
+      try {
+        final synced = await _megalobiz(title, artist);
+        if (synced != null) {
+          hit = RemoteLyrics(
+            found: true,
+            plain: hit?.plain ?? '',
+            synced: synced,
+            source: 'Megalobiz',
+          );
+        }
+      } on _NetworkTrouble {
+        // Not a reason to give up: LRCLIB's plain text (if any) is still used.
+      }
+    }
+    // 3) lyrics.ovh (plain text only; needs an artist).
     if (hit == null && artist.isNotEmpty) {
       try {
         hit = await _lyricsOvh(title, artist);
@@ -196,6 +214,62 @@ class LyricsService {
       plainOnly ??= r;
     }
     return plainOnly;
+  }
+
+  Future<String?> _getText(Uri uri) async {
+    final http.Response res;
+    try {
+      res = await _client
+          .get(uri, headers: const {'User-Agent': _userAgent}).timeout(timeout);
+    } catch (_) {
+      throw _NetworkTrouble();
+    }
+    if (res.statusCode == 404) return null;
+    if (res.statusCode != 200) throw _NetworkTrouble();
+    return utf8.decode(res.bodyBytes, allowMalformed: true);
+  }
+
+  /// Time-synced lyrics (LRC text) from Megalobiz, or null. Two requests: the
+  /// search, then the first result. Anything that does not look like timed
+  /// lyrics for this song is ignored.
+  Future<String?> _megalobiz(String title, String artist) async {
+    final search = await _getText(Uri.https('www.megalobiz.com', '/search/all', {
+      'qry': '$artist $title',
+      'searchButton.x': '0',
+      'searchButton.y': '0',
+    }));
+    if (search == null) return null;
+    final link = RegExp(r'href="(/lrc/maker/[^"#?\s]+)"').firstMatch(search)?.group(1);
+    if (link == null) return null;
+    final page = await _getText(Uri.https('www.megalobiz.com', link));
+    if (page == null) return null;
+    final body = RegExp(r'<span[^>]*id="lrc_\d+_lyrics"[^>]*>(.*?)</span>', dotAll: true)
+        .firstMatch(page)
+        ?.group(1);
+    if (body == null) return null;
+    final text = _htmlToText(body);
+    // It has to be real timed lyrics...
+    if (parseLrc(text).length < 5) return null;
+    // ...for this song: the page names it somewhere.
+    final words = title.toLowerCase().split(RegExp(r'\s+')).where((w) => w.length > 2);
+    final lower = page.toLowerCase();
+    if (words.isNotEmpty && !words.any(lower.contains)) return null;
+    return text;
+  }
+
+  /// Plain text from the little bit of HTML a lyrics block holds.
+  static String _htmlToText(String html) {
+    return html
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<[^>]+>'), '')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&#039;', "'")
+        .replaceAll('&nbsp;', ' ')
+        .trim();
   }
 
   Future<RemoteLyrics?> _lyricsOvh(String title, String artist) async {

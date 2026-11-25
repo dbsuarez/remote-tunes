@@ -125,7 +125,7 @@ void main() {
     });
 
     test('a second look is answered from the Player, without the internet', () async {
-      final svc = make((u) => json({'plainLyrics': 'hello'}));
+      final svc = make((u) => json({'syncedLyrics': _lrc, 'plainLyrics': 'hello'}));
       await svc.forSong(songId);
       final again = await svc.forSong(songId);
       expect(again.plain, 'hello');
@@ -133,7 +133,7 @@ void main() {
     });
 
     test('lyrics are looked up again after 30 days', () async {
-      final svc = make((u) => json({'plainLyrics': 'hello'}));
+      final svc = make((u) => json({'syncedLyrics': _lrc, 'plainLyrics': 'hello'}));
       await svc.forSong(songId);
       now = now.add(const Duration(days: 31));
       await svc.forSong(songId);
@@ -161,6 +161,88 @@ void main() {
       expect(l.plain, 'words from ovh');
       expect(l.synced, isEmpty);
       expect(l.source, 'lyrics.ovh');
+    });
+
+    // --- Megalobiz: timed lyrics when LRCLIB only has plain text or nothing.
+    const megaSearch = '<html><a class="entity_name" href="/lrc/maker/a-song-lyrics-123">A Song</a></html>';
+    String megaPage(String lrc, {String title = 'The Band - A Song'}) =>
+        '<html><title>$title</title><div class="lyrics_details">'
+        '<span id="lrc_555_lyrics">$lrc</span></div></html>';
+    const timed = '[00:01.00]one<br />[00:02.00]two<br />[00:03.00]three<br />[00:04.00]four<br />[00:05.00]five &amp; more<br />';
+
+    http.Response Function(Uri) withMega(String? page, {Map<String, Object>? lrclib}) => (u) {
+          if (u.host == 'lrclib.net') {
+            return lrclib == null ? json({}, 404) : json(lrclib);
+          }
+          if (u.host == 'www.megalobiz.com') {
+            if (u.path == '/search/all') return http.Response(megaSearch, 200);
+            return page == null ? http.Response('', 404) : http.Response(page, 200);
+          }
+          return json({}, 404);
+        };
+
+    test('timed lyrics from Megalobiz when LRCLIB has nothing, credited as such', () async {
+      final svc = make(withMega(megaPage(timed)));
+      final l = await svc.forSong(songId);
+      expect(l.found, isTrue);
+      expect(l.source, 'Megalobiz');
+      expect(l.synced, contains('[00:05.00]five & more'), reason: 'entities and tags cleaned');
+      final mega = asked.where((u) => u.host == 'www.megalobiz.com').toList();
+      expect(mega, hasLength(2), reason: 'the search, then one page');
+      expect(mega.first.queryParameters['qry'], 'The Band A Song');
+      expect(asked.toString(), isNot(contains('private')));
+    });
+
+    test('when LRCLIB only has plain text, a timed version is looked for and the plain kept',
+        () async {
+      final svc = make(withMega(megaPage(timed), lrclib: {'plainLyrics': 'plain words'}));
+      final l = await svc.forSong(songId);
+      expect(l.synced, isNotEmpty);
+      expect(l.plain, 'plain words');
+      expect(l.source, 'Megalobiz');
+    });
+
+    test('plain text from LRCLIB is still used if Megalobiz has nothing', () async {
+      final svc = make(withMega(null, lrclib: {'plainLyrics': 'plain words'}));
+      final l = await svc.forSong(songId);
+      expect(l.plain, 'plain words');
+      expect(l.synced, isEmpty);
+      expect(l.source, 'LRCLIB');
+    });
+
+    test('synced lyrics from LRCLIB mean Megalobiz is not asked at all', () async {
+      final svc = make(withMega(megaPage(timed), lrclib: {'syncedLyrics': _lrc}));
+      await svc.forSong(songId);
+      expect(asked.any((u) => u.host == 'www.megalobiz.com'), isFalse);
+    });
+
+    test('a page that is not timed lyrics, or not for this song, is ignored', () async {
+      var l = await make(withMega(megaPage('just words<br />no times'))).forSong(songId);
+      expect(l.found, isFalse);
+      // Timed, but the page never names the song.
+      final other = LyricsService(
+        library: repo,
+        db: db,
+        client: MockClient((r) async => withMega(megaPage(timed, title: 'Another'))(r.url)),
+        now: () => now,
+      );
+      await db.delete(db.lyricsCache).go();
+      l = await other.forSong(songId);
+      expect(l.found, isFalse);
+    });
+
+    test('a search with no result, or a broken page, gives nothing and no crash', () async {
+      final svc = make((u) => u.host == 'www.megalobiz.com'
+          ? http.Response('<html>no results</html>', 200)
+          : json({}, 404));
+      expect((await svc.forSong(songId)).found, isFalse);
+    });
+
+    test('Megalobiz is not asked for a song with no artist name', () async {
+      final id = await repo.addSong(
+          title: 'Mystery', artist: 'Unknown artist', album: 'Unknown album', filePath: '/m/y.mp3');
+      await make(withMega(megaPage(timed))).forSong(id);
+      expect(asked.any((u) => u.host == 'www.megalobiz.com'), isFalse);
     });
 
     test('nothing anywhere: not found, and remembered for a day', () async {
@@ -232,7 +314,7 @@ void main() {
     });
 
     test('two asks at the same time share one lookup', () async {
-      final svc = make((u) => json({'plainLyrics': 'x'}));
+      final svc = make((u) => json({'syncedLyrics': _lrc, 'plainLyrics': 'x'}));
       await Future.wait([svc.forSong(songId), svc.forSong(songId)]);
       expect(asked, hasLength(1));
     });
