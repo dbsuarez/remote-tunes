@@ -26,7 +26,11 @@ class NowPlayingView extends StatefulWidget {
     this.extras,
     this.onOpenLibrary,
     this.lyricsRequests,
+    this.visualizer,
   });
+
+  /// Moving bars under the cover (built with whether music is playing).
+  final Widget Function(bool isPlaying)? visualizer;
 
   final PlaybackSession session;
 
@@ -238,6 +242,11 @@ class NowPlayingViewState extends State<NowPlayingView> {
                           onSeek: (s) => _run(() => session.seek(s)),
                         ),
                         actions: _quickActions(p, enabled),
+                      ),
+                    if (widget.visualizer != null && !p.isExternal)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: widget.visualizer!(p.isPlaying),
                       ),
                     const SizedBox(height: 8),
                     TransportControls(

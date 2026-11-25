@@ -35,6 +35,9 @@ class FakeAudioBackend implements AudioBackend {
   String? nextPath;
 
   @override
+  int? audioSessionId;
+
+  @override
   Stream<String?> get advancedStream => _advanced.stream;
 
   @override

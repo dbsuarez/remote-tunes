@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../player/visualizer.dart';
 import '../library/tag_writer.dart';
 import '../../core/constants.dart';
 import '../../core/haptics.dart';
@@ -150,7 +151,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       active = core.valueOrNull == null
           ? null
           : _Active.local(ref, core.value!,
-              goLibrary: () => setState(() => _tab = 1), lyricsRequests: _lyricsRequests);
+              goLibrary: () => setState(() => _tab = 1),
+              lyricsRequests: _lyricsRequests,
+              visualizer: ref.watch(settingsProvider).valueOrNull?.visualizerEnabled ?? false);
     }
 
     final size = ref.watch(songListSizeProvider);
@@ -403,7 +406,7 @@ class _Active {
   }
 
   factory _Active.local(WidgetRef ref, PlayerCore core,
-      {required VoidCallback goLibrary, Listenable? lyricsRequests}) {
+      {required VoidCallback goLibrary, Listenable? lyricsRequests, bool visualizer = false}) {
     final playback = ref.watch(playerPlaybackProvider).valueOrNull ?? core.engine.state;
     final source = LocalMusicSource(core.library, core.engine);
     return _Active(
@@ -419,6 +422,7 @@ class _Active {
         sleepTimer: core.sleepTimer,
         onOpenLibrary: goLibrary,
         lyricsRequests: lyricsRequests,
+        visualizer: visualizer ? (playing) => VisualizerStrip(isPlaying: playing) : null,
       ),
       extraCategories: [
         LibraryExtra(

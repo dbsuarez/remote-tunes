@@ -37,6 +37,7 @@ import '../features/player/sleep_timer.dart';
 import '../features/player/queue_playback_engine.dart';
 import '../features/player/server/player_advertiser.dart';
 import '../features/player/server/player_library.dart';
+import '../features/player/visualizer.dart';
 import '../features/player/server/player_server.dart';
 import 'library_providers.dart';
 import 'providers.dart';
@@ -56,6 +57,8 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   );
   // Two players, so a song can fade into the next (Settings > Crossfade).
   final backend = CrossfadeBackend(JustAudioBackend(), JustAudioBackend());
+  // The visualizer follows whichever of the two players is audible.
+  VisualizerService.currentSessionId = () => backend.audioSessionId;
   final localEngine = QueuePlaybackEngine(
     backend: backend,
     initialVolume: settings.defaultVolume,

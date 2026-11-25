@@ -1,3 +1,4 @@
+import '../player/visualizer.dart';
 import 'file_access_tile.dart';
 import 'package:flutter/material.dart';
 import '../update/update_widgets.dart';
@@ -201,6 +202,26 @@ class SettingsScreen extends ConsumerWidget {
                     'Going to the Queue scrolls to the song that is playing now. Switch off to keep the list where you left it.'),
                 value: s.queueScrollToCurrent,
                 onChanged: repo.setQueueScrollToCurrent,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Visualizer'),
+                subtitle: const Text(
+                    'Moving bars under the cover while music plays. Android asks for the microphone '
+                    'permission to read the sound; nothing is recorded. Uses a little more battery.'),
+                value: s.visualizerEnabled,
+                onChanged: (on) async {
+                  if (on && !await VisualizerService.requestPermission()) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(const SnackBar(
+                            content: Text('The visualizer needs the microphone permission.')));
+                    }
+                    return;
+                  }
+                  await repo.setVisualizerEnabled(on);
+                },
               ),
               const SizedBox(height: 8),
               const _SectionHeader('Look and feel'),

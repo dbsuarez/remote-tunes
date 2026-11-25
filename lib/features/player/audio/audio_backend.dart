@@ -83,6 +83,9 @@ abstract class AudioBackend {
   /// Raises (+) or lowers (-) the whole sound by [db], before the volume.
   Future<void> setPreamp(double db);
 
+  /// Android's id for this backend's sound (for the visualizer); null if not known.
+  int? get audioSessionId;
+
   Future<void> dispose();
 }
 
@@ -122,6 +125,9 @@ class JustAudioBackend implements AudioBackend {
       // Not available on this phone: the preamp then only lowers.
     }
   }
+
+  @override
+  int? get audioSessionId => Platform.isAndroid ? _player.androidAudioSessionId : null;
 
   @override
   bool get supportsCrossfade => false;

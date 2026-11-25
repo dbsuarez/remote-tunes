@@ -11,6 +11,7 @@ class MainActivity : AudioServiceActivity() {
     private var externalMedia: ExternalMediaBridge? = null
     private var groupSupport: GroupSupport? = null
     private var updateSupport: UpdateSupport? = null
+    private var visualizerSupport: VisualizerSupport? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +56,7 @@ class MainActivity : AudioServiceActivity() {
         groupSupport = GroupSupport(this, flutterEngine.dartExecutor.binaryMessenger)
         // Self-update from GitHub Releases.
         updateSupport = UpdateSupport(this, flutterEngine.dartExecutor.binaryMessenger)
+        visualizerSupport = VisualizerSupport(flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -64,6 +66,8 @@ class MainActivity : AudioServiceActivity() {
         groupSupport = null
         updateSupport?.dispose()
         updateSupport = null
+        visualizerSupport?.dispose()
+        visualizerSupport = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

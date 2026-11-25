@@ -21,8 +21,10 @@ class LocalNowPlaying extends StatefulWidget {
     this.extras,
     this.onOpenLibrary,
     this.lyricsRequests,
+    this.visualizer,
   });
 
+  final Widget Function(bool isPlaying)? visualizer;
   final Listenable? lyricsRequests;
   final QueueAwareEngine engine;
   final PlayerLibrary library;
@@ -93,6 +95,7 @@ class _LocalNowPlayingState extends State<LocalNowPlaying> {
       extras: widget.extras,
       onOpenLibrary: widget.onOpenLibrary,
       lyricsRequests: widget.lyricsRequests,
+      visualizer: widget.visualizer,
     );
   }
 }

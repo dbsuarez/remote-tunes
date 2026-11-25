@@ -86,6 +86,10 @@ class CrossfadeBackend implements AudioBackend {
     ]);
   }
 
+  /// The sound people hear now is the audible player's.
+  @override
+  int? get audioSessionId => _active.audioSessionId;
+
   @override
   bool get supportsCrossfade => true;
 

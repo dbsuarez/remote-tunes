@@ -34,6 +34,7 @@ class SettingKeys {
   static const crossfadeSeconds = 'crossfade_seconds';
   static const skinId = 'skin_id';
   static const queueScrollToCurrent = 'queue_scroll_to_current';
+  static const visualizer = 'visualizer';
   static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
   static const searchHistory = 'search_history';
@@ -94,6 +95,7 @@ class AppSettings {
     this.crossfadeSeconds = 0,
     this.skinId = Skin.defaultId,
     this.queueScrollToCurrent = true,
+    this.visualizerEnabled = false,
     this.customSkins = const [],
     this.remoteAutoStart = false,
     this.searchHistory = const [],
@@ -148,6 +150,9 @@ class AppSettings {
   /// off).
   final bool queueScrollToCurrent;
 
+  /// Moving bars under the cover while music plays.
+  final bool visualizerEnabled;
+
   /// Skins added by pasting their JSON.
   final List<Skin> customSkins;
 
@@ -197,6 +202,7 @@ class AppSettings {
       crossfadeSeconds: (int.tryParse(m[SettingKeys.crossfadeSeconds] ?? '') ?? 0).clamp(0, 12),
       skinId: m[SettingKeys.skinId] ?? Skin.defaultId,
       queueScrollToCurrent: m[SettingKeys.queueScrollToCurrent] != 'false',
+      visualizerEnabled: m[SettingKeys.visualizer] == 'true',
       customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
@@ -297,6 +303,8 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setVisualizerEnabled(bool v) => _put(SettingKeys.visualizer, v.toString());
 
   Future<void> setQueueScrollToCurrent(bool v) =>
       _put(SettingKeys.queueScrollToCurrent, v.toString());
