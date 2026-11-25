@@ -237,6 +237,66 @@ void main() {
       expect(source.calls.any((c) => c.startsWith('play ')), isTrue);
     });
 
+    testWidgets('Select picks songs from the results for the queue or a playlist', (tester) async {
+      await openSearch(tester);
+      await type(tester, 'song');
+      await tester.tap(find.text('Select'));
+      await tester.pump();
+      expect(find.text('0 selected'), findsOneWidget);
+      await tester.tap(find.text('Alpha Song'));
+      await tester.pump();
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(source.calls.any((c) => c.startsWith('play ')), isFalse, reason: 'a tap picks, it does not play');
+      await tester.tap(find.byTooltip('Select all results'));
+      await tester.pump();
+      expect(find.text('2 selected'), findsOneWidget);
+      await tester.tap(find.byTooltip('Add selected to queue'));
+      await settleUi(tester);
+      expect(source.calls.any((c) => c.startsWith('queue') && c.contains('1') && c.contains('2')),
+          isTrue, reason: source.calls.toString());
+      expect(find.textContaining('selected'), findsNothing, reason: 'the selection is cleared');
+    });
+
+    testWidgets('a long-press starts picking; picking the last one off ends it', (tester) async {
+      await openSearch(tester);
+      await type(tester, 'song');
+      await tester.longPress(find.text('Beta Song'));
+      await tester.pump();
+      expect(find.text('1 selected'), findsOneWidget);
+      await tester.tap(find.text('Beta Song'));
+      await tester.pump();
+      expect(find.textContaining('selected'), findsNothing);
+      expect(find.text('Play'), findsOneWidget);
+    });
+
+    testWidgets('picked songs can go to a playlist', (tester) async {
+      await openSearch(tester);
+      await type(tester, 'song');
+      await tester.longPress(find.text('Alpha Song'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Add selected to playlist'));
+      await settleUi(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New playlist'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'Mix');
+      await tester.pump();
+      await tester.tap(find.text('Save'));
+      await settleUi(tester);
+      final add = source.calls.firstWhere((c) => c.startsWith('addToPlaylist'));
+      expect(add, contains('1'));
+    });
+
+    testWidgets('clearing the search ends picking', (tester) async {
+      await openSearch(tester);
+      await type(tester, 'song');
+      await tester.tap(find.text('Select'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Clear search'));
+      await settleUi(tester);
+      expect(find.textContaining('selected'), findsNothing);
+    });
+
     testWidgets('no match says so', (tester) async {
       await openSearch(tester);
       await type(tester, 'zzzz');

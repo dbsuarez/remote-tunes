@@ -9,6 +9,7 @@ import '../../core/search_history.dart';
 import '../../core/song_list_style.dart';
 import 'music_browser.dart';
 import 'music_source.dart';
+import 'playlist_picker.dart';
 import 'song_art.dart';
 
 enum _Where { all, songs, albums, artists, albumArtists, folders }
@@ -47,6 +48,10 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
   String? _error;
 
   List<RemoteSong> _songs = const [];
+
+  /// Songs picked for a bulk action (the Select button, or a long-press).
+  final Set<int> _picked = {};
+  bool _selecting = false;
   List<RemoteAlbum> _albums = const [];
   List<RemoteArtist> _artists = const [];
   List<RemoteGroup> _albumArtists = const [];
@@ -80,6 +85,8 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
     final gen = ++_generation;
     if (q.isEmpty) {
       setState(() {
+        _picked.clear();
+        _selecting = false;
         _query = '';
         _loading = false;
         _error = null;
@@ -144,6 +151,77 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         ),
       ),
     ));
+  }
+
+  void _toggle(int id) {
+    Haptics.selection();
+    setState(() {
+      if (!_picked.remove(id)) _picked.add(id);
+      if (_picked.isEmpty) _selecting = false;
+    });
+  }
+
+  Widget _selectionRow(ThemeData theme) {
+    final n = _picked.length;
+    return Material(
+      color: theme.colorScheme.secondaryContainer,
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Cancel selection',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => setState(() {
+                _picked.clear();
+                _selecting = false;
+              }),
+            ),
+            Expanded(child: Text('$n selected')),
+            IconButton(
+              tooltip: 'Select all results',
+              icon: const Icon(Icons.select_all_rounded),
+              onPressed: () => setState(() => _picked.addAll([for (final s in _songs) s.id])),
+            ),
+            IconButton(
+              tooltip: 'Add selected to queue',
+              icon: const Icon(Icons.queue_music_rounded),
+              onPressed: n == 0
+                  ? null
+                  : () async {
+                      try {
+                        await widget.source.queueSongs(_picked.toList());
+                        _snack('Added to queue');
+                        if (mounted) {
+                          setState(() {
+                            _picked.clear();
+                            _selecting = false;
+                          });
+                        }
+                      } catch (e) {
+                        _snack(friendlyError(e));
+                      }
+                    },
+            ),
+            IconButton(
+              tooltip: 'Add selected to playlist',
+              icon: const Icon(Icons.playlist_add_rounded),
+              onPressed: n == 0
+                  ? null
+                  : () async {
+                      if (await addSongsToPlaylistFlow(context, widget.source, _picked.toList()) &&
+                          mounted) {
+                        setState(() {
+                          _picked.clear();
+                          _selecting = false;
+                        });
+                      }
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Plays every song found (in order, or shuffled).
@@ -286,10 +364,13 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
         if (_loading) const LinearProgressIndicator(minHeight: 2),
         if (_songs.isNotEmpty) ...[
           if (all) _section(theme, 'Songs', _Where.songs),
-          // Play or shuffle everything found.
+          // Play, shuffle or pick songs; or, while picking, what to do with them.
+          if (_selecting)
+            _selectionRow(theme)
+          else
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-            child: Row(
+            child: Wrap(
               children: [
                 TextButton.icon(
                   onPressed: () => _playAll(shuffle: false),
@@ -301,16 +382,33 @@ class _LibrarySearchScreenState extends ConsumerState<LibrarySearchScreen> {
                   icon: const Icon(Icons.shuffle_rounded),
                   label: const Text('Shuffle'),
                 ),
+                TextButton.icon(
+                  onPressed: () => setState(() => _selecting = true),
+                  icon: const Icon(Icons.checklist_rounded),
+                  label: const Text('Select'),
+                ),
               ],
             ),
           ),
           for (final s in _songs)
             ListTile(
-              leading: SongArt(source: widget.source, songId: s.id, radius: 20),
+              selected: _picked.contains(s.id),
+              selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+              leading: SongArt(
+                source: widget.source,
+                songId: s.id,
+                radius: 20,
+                overlayIcon: _picked.contains(s.id) ? Icons.check_rounded : null,
+              ),
               title: Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text('${s.artist} · ${s.album}',
                   maxLines: 1, overflow: TextOverflow.ellipsis),
-              onTap: () => _play(s),
+              onLongPress: () {
+                Haptics.medium();
+                setState(() => _selecting = true);
+                _toggle(s.id);
+              },
+              onTap: () => _selecting ? _toggle(s.id) : _play(s),
             ),
         ],
         if (_albums.isNotEmpty) ...[
