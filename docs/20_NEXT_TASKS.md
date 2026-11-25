@@ -105,6 +105,13 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - Keep: every setting keeps its place in the saved data, so nothing is lost; the menu shortcuts (Skins, Equalizer) still go straight to their pages; the Help guide and the checklist are updated to the new places.
 - [ ] groups and pages · [ ] search box · [ ] the guide, checklist and tests moved to the new paths
 
+**10. One-tap rescan of the music folders** (the owner puts new songs in the right folder and rescans)
+- Today: Library > + > Add folder, pick the folder again, go through *Choose what to add*, wait for the report. Every time.
+- Plan: the app **remembers the folders that were added** (a list in Settings > Library, each with how many songs and when it was last scanned). A **Rescan music folders** button (in the + menu and in Settings) checks all of them in one go: new files are added, the left-out list is respected (no question asked unless there is a new subfolder, which is shown as *new folder: add it?*), files already in the library are skipped, and the report says *added / already there / left out / missing*.
+- **Missing files:** songs whose file is gone (moved, renamed, deleted) are listed in the report with *Remove them from the library*, *Keep them* (they show as unavailable) or *Look for them* (a moved song is found again by its tags, so its playlists, hearts and counts stay).
+- Optional: a switch *Rescan when the app opens* (quiet, a few seconds, only when the folder changed).
+- [ ] remember folders · [ ] Rescan button and report · [ ] new-subfolder question · [ ] missing-file handling · [ ] optional automatic rescan
+
 Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
