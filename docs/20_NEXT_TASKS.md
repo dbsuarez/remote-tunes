@@ -88,6 +88,16 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - Phases: [ ] **A.** playlists, favorites, counts, left-out list, with the root picker and the report · [ ] **B.** lyrics, edited song info, settings · [ ] **C.** album art (optional) · [ ] **D.** share to another phone (Android share sheet / save to a folder) and pick the file on the new phone.
 - Privacy: everything stays in the file you choose to share; nothing is uploaded.
 
+**8. List options, per list** (the owner's idea, from the screenshots `docs/arts/drawer_part_1.jpg` and `drawer_part_2.jpg`; the layout idea is free to follow, we draw our own)
+- What the screenshots show: a gear / *List options* sheet that opens from a song list, titled for the kind of list (*List Options: Playlist Songs*), with settings **remembered per kind of list**:
+  - **List memory:** *List position* (come back to where you were in this list when you start it with Play or move with previous / next) and *Per track progress* (each song remembers how far you listened, handy for long recordings).
+  - **Layout:** *Compact header* and *Show titles only*.
+  - **View as** (radio buttons, also changed by **pinch-to-zoom** on the list): *Grid* in four sizes (normal, small, extra small, 1 line small), *List* (normal, small, compact, **no images**) and *1 line* / *1 line extra small*.
+  - A header with the list's cover and name, **how many songs and how long** (`128 | 9:07:26`), and a row of actions (shuffle, play, search, Select, a menu); rows show `3:59 | mp3` under the title.
+- What we already have to build on: *Song list > Text size* (Small, Medium, Large), the Back-returns-to-the-same-spot memory, Select, and the format reader (kHz, kbps, type). What is new: choosing the **view** (list / grid / one line / no images), settings kept **per kind of list** (All Songs, Album, Artist, Playlist, Queue, Most played...), pinch to zoom, the list header with count and total time, and per-track progress.
+- Proposed first step: one *List options* sheet reachable from every song list, with *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list; then the header with count and total time; then pinch-to-zoom; per-track progress last (it changes playback).
+- [ ] the sheet and the views · [ ] per-list memory · [ ] header with count and total time · [ ] pinch-to-zoom · [ ] per-track progress
+
 Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
