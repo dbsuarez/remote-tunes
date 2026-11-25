@@ -215,6 +215,14 @@ class SettingsScreen extends ConsumerWidget {
                 value: s.lyricsEnabled,
                 onChanged: repo.setLyricsEnabled,
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.equalizer_rounded),
+                title: const Text('Equalizer'),
+                subtitle: const Text('Presets and bands for the music on this phone.'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.push(AppRoutes.equalizer),
+              ),
               const AlbumArtTile(),
               ListTile(
                 contentPadding: EdgeInsets.zero,

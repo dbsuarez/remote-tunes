@@ -247,6 +247,16 @@ class SettingsRepository {
   Future<void> setRemoteAutoStart(bool v) =>
       _put(SettingKeys.remoteAutoStart, v.toString());
 
+  /// A saved text value by key (for things like the equalizer settings).
+  Future<String?> readValue(String key) async {
+    final row = await (_db.select(_db.settings)..where((t) => t.key.equals(key))).getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> writeValue(String key, String value) => _put(key, value);
+
+  Future<void> removeValue(String key) => _remove(key);
+
   Future<void> setPendingUpdate(bool v) =>
       _put(SettingKeys.pendingUpdate, v.toString());
 

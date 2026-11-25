@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:remote_tunes/features/player/audio/audio_backend.dart';
+import 'package:remote_tunes/features/player/eq/eq_model.dart';
 import 'package:remote_tunes/features/player/url_checker.dart';
 
 /// [UrlChecker] stand-in: records checks, can delay or fail.
@@ -140,6 +141,21 @@ class FakeAudioBackend implements AudioBackend {
 
   @override
   Future<void> setSpeed(double s) async => speed = s;
+
+  /// The equalizer the fake phone has (null: none).
+  EqBands? eqBands = const EqBands(
+      minDb: -12, maxDb: 12, centersHz: [60, 230, 910, 3600, 14000]);
+
+  /// Every (enabled, gains) pair given to [setEqualizer].
+  final List<({bool enabled, List<double> gains})> eqCalls = [];
+
+  @override
+  Future<EqBands?> equalizerBands() async => eqBands;
+
+  @override
+  Future<void> setEqualizer({required bool enabled, required List<double> gains}) async {
+    eqCalls.add((enabled: enabled, gains: [...gains]));
+  }
 
   /// Simulates playback progress.
   void emitPosition(Duration d) {

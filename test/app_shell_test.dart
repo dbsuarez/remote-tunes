@@ -24,6 +24,8 @@ import 'package:remote_tunes/providers/providers.dart';
 import 'package:remote_tunes/providers/shell_providers.dart';
 
 import 'helpers/fake_audio_backend.dart';
+import 'helpers/memory_eq_store.dart';
+import 'package:remote_tunes/features/player/eq/equalizer_controller.dart';
 
 class _FakeTrusted implements TrustedPlayersStore {
   _FakeTrusted(this.items);
@@ -110,6 +112,8 @@ void main() {
     final local = QueuePlaybackEngine(backend: backend, fileExists: (_) => true);
     final engine = ControlModeEngine(local: local);
     core = PlayerCore(
+      equalizer: EqualizerController(
+          backend: backend, store: MemoryEqStore(), outputRoute: () async => 'speaker'),
       engine: engine,
       localEngine: local,
       library: library,

@@ -1,5 +1,6 @@
 import '../external/control_mode_engine.dart';
 import 'audio/player_audio_handler.dart';
+import 'eq/equalizer_controller.dart';
 import 'queue_playback_engine.dart';
 import 'server/player_library.dart';
 import 'sleep_timer.dart';
@@ -14,6 +15,7 @@ class PlayerCore {
     required this.localEngine,
     required this.library,
     required this.sleepTimer,
+    required this.equalizer,
     this.audioHandler,
   });
 
@@ -25,11 +27,15 @@ class PlayerCore {
   final QueuePlaybackEngine localEngine;
   final RepositoryPlayerLibrary library;
   final SleepTimerService sleepTimer;
+
+  /// The equalizer of this phone's own player.
+  final EqualizerController equalizer;
   final RemoteTunesAudioHandler? audioHandler;
 
   Future<void> dispose() async {
     audioHandler?.detach();
     sleepTimer.dispose();
+    equalizer.dispose();
     await engine.dispose();
   }
 }

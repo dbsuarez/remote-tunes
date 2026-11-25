@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'dart:io' show Platform;
+
 import 'package:just_audio/just_audio.dart';
+
+import '../eq/eq_model.dart';
 
 /// Thrown when a file cannot be loaded or played.
 class AudioBackendException implements Exception {
@@ -59,13 +63,56 @@ abstract class AudioBackend {
 
   /// 0.5–2.0 (1.0 = normal).
   Future<void> setSpeed(double speed);
+
+  /// The bands of the phone's equalizer, or null when it has none (or has not
+  /// been set up yet: Android does that when the first song is loaded).
+  Future<EqBands?> equalizerBands();
+
+  /// Switches the equalizer on or off and sets the gain (dB) of each band.
+  Future<void> setEqualizer({required bool enabled, required List<double> gains});
+
   Future<void> dispose();
 }
 
 class JustAudioBackend implements AudioBackend {
-  JustAudioBackend() : _player = AudioPlayer();
+  JustAudioBackend() : this._(Platform.isAndroid ? AndroidEqualizer() : null);
 
+  JustAudioBackend._(this._eq)
+      : _player = AudioPlayer(
+          audioPipeline: _eq == null ? null : AudioPipeline(androidAudioEffects: [_eq]),
+        );
+
+  final AndroidEqualizer? _eq;
   final AudioPlayer _player;
+
+  @override
+  Future<EqBands?> equalizerBands() async {
+    final eq = _eq;
+    if (eq == null) return null;
+    try {
+      // Available once the first song has been loaded.
+      final p = await eq.parameters;
+      if (p.bands.isEmpty) return null;
+      return EqBands(
+        minDb: p.minDecibels,
+        maxDb: p.maxDecibels,
+        centersHz: [for (final b in p.bands) b.centerFrequency],
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> setEqualizer({required bool enabled, required List<double> gains}) async {
+    final eq = _eq;
+    if (eq == null) return;
+    final p = await eq.parameters;
+    await eq.setEnabled(enabled);
+    for (var i = 0; i < p.bands.length && i < gains.length; i++) {
+      await p.bands[i].setGain(gains[i].clamp(p.minDecibels, p.maxDecibels).toDouble());
+    }
+  }
 
   // The player holds a short list: the loaded track and, after it, the one
   // given to setNext, so the change between them is gapless.

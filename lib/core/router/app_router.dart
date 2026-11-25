@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/controller/controller_screen.dart';
+import '../../features/player/eq/equalizer_screen.dart';
 import '../../features/player/player_library_screens.dart';
 import '../../features/player/player_screen.dart';
 import '../../features/shell/start_gate.dart';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const playerUrl = '/player/url';
   static const controller = '/controller';
   static const connect = '/connect';
+  static const equalizer = '/equalizer';
   static const remotePlayback = '/remote-playback';
 }
 
@@ -62,6 +64,10 @@ GoRouter createRouter() {
       GoRoute(
         path: AppRoutes.controller,
         builder: (context, state) => const ControllerScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.equalizer,
+        builder: (context, state) => const EqualizerScreen(),
       ),
       // From the music player: find a Player and use this phone as its remote.
       GoRoute(

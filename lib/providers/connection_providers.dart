@@ -27,6 +27,8 @@ import '../features/online/supabase_relay.dart';
 import '../features/player/audio/audio_backend.dart';
 import '../features/player/audio/audio_format.dart';
 import '../features/player/audio/player_audio_handler.dart';
+import '../features/player/eq/equalizer_controller.dart';
+import '../features/player/eq/settings_eq_store.dart';
 import '../features/player/player_core.dart';
 import '../features/player/player_host.dart';
 import '../features/player/sleep_timer.dart';
@@ -50,8 +52,9 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     history: OnlineHistoryRepository(ref.watch(databaseProvider)),
     lyrics: ref.watch(lyricsServiceProvider),
   );
+  final backend = JustAudioBackend();
   final localEngine = QueuePlaybackEngine(
-    backend: JustAudioBackend(),
+    backend: backend,
     initialVolume: settings.defaultVolume,
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
     onStreamStarted: (s) => unawaited(library.recordStream(s).catchError((Object _) {})),
@@ -78,7 +81,18 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   handler?.attach(localEngine);
   final sleep = SleepTimerService(onFire: engine.pause);
 
+  final settingsRepo = ref.watch(settingsRepositoryProvider);
+  final equalizer = EqualizerController(
+    backend: backend,
+    store: SettingsEqStore(settingsRepo),
+    outputRoute: MethodChannelGroupNative().outputRoute,
+  );
+  // The phone sets its equalizer up when the first song loads; this waits for
+  // that, then applies the saved settings.
+  unawaited(equalizer.init());
+
   final core = PlayerCore(
+    equalizer: equalizer,
     engine: engine,
     localEngine: localEngine,
     library: library,

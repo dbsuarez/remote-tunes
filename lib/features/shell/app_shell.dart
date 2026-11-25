@@ -146,6 +146,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 PopupMenuItem(value: 'folder', child: Text('Add folder')),
               ],
             ),
+          if (!remote)
+            IconButton(
+              tooltip: 'Equalizer',
+              icon: const Icon(Icons.equalizer_rounded),
+              onPressed: () => context.push(AppRoutes.equalizer),
+            ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_rounded),
