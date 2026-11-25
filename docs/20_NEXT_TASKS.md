@@ -90,7 +90,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
   - A header with the list's cover and name, **how many songs and how long** (`128 | 9:07:26`), and a row of actions (shuffle, play, search, Select, a menu); rows show `3:59 | mp3` under the title.
 - What we already have to build on: *Song list > Text size* (Small, Medium, Large), the Back-returns-to-the-same-spot memory, Select, and the format reader (kHz, kbps, type). What is new: choosing the **view** (list / grid / one line / no images), settings kept **per kind of list** (All Songs, Album, Artist, Playlist, Queue, Most played...), pinch to zoom, the list header with count and total time, and per-track progress.
 - Proposed first step: one *List options* sheet reachable from every song list, with *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list; then the header with count and total time; then pinch-to-zoom; per-track progress last (it changes playback).
-- [x] the sheet and the views · [x] per-list memory · [x] header with count and total time · [x] pinch-to-zoom · [ ] per-track progress
+- [x] the sheet and the views · [x] per-list memory · [x] header with count and total time · [x] pinch-to-zoom · [-] list position and per-track progress (the owner does not need them; not planned)
 
 **9. Settings, grouped: built (not tried on a phone yet), see Done.**
 
