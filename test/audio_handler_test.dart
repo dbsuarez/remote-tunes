@@ -92,4 +92,29 @@ void main() {
     await settle();
     expect(engine.state.positionSeconds, 30);
   });
+
+  group('a normal music player until remote playback is on', () {
+    test('with nothing playing, no notification and the service is idle', () async {
+      await engine.clearQueue();
+      await settle();
+      expect(handler.mediaItem.value, isNull);
+      expect(handler.playbackState.value.processingState, svc.AudioProcessingState.idle);
+    });
+
+    test('while remote playback is on, it waits in the foreground for a Controller', () async {
+      await engine.clearQueue();
+      handler.keepAlive = true;
+      await settle();
+      expect(handler.mediaItem.value?.title, 'RemoteTunes Player');
+      expect(handler.playbackState.value.processingState, svc.AudioProcessingState.ready);
+      handler.keepAlive = false;
+      expect(handler.mediaItem.value, isNull);
+      expect(handler.playbackState.value.processingState, svc.AudioProcessingState.idle);
+    });
+
+    test('a song playing always shows, with or without remote playback', () async {
+      expect(handler.mediaItem.value?.title, 'Song 1');
+      expect(handler.playbackState.value.processingState, svc.AudioProcessingState.ready);
+    });
+  });
 }

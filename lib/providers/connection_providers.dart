@@ -155,6 +155,11 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
 
   // The engine and the media session belong to the core: stopping remote
   // playback only stops the server and the online room.
+  // While other phones may control this one, the media service stays in the
+  // foreground even when nothing plays.
+  core.audioHandler?.keepAlive = true;
+  ref.onDispose(() => core.audioHandler?.keepAlive = false);
+
   final host = PlayerHost(
     engine: engine,
     server: server,

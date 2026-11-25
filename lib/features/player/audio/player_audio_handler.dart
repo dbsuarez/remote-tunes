@@ -18,6 +18,19 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   PlaybackEngine? _engine;
   StreamSubscription<PlaybackState>? _sub;
 
+  bool _keepAlive = false;
+
+  /// True while remote playback is on: the service then stays in the foreground
+  /// even with nothing playing, so the Player keeps accepting Controller
+  /// commands with the screen off. When false, nothing is shown while nothing
+  /// plays (a normal music player).
+  set keepAlive(bool value) {
+    if (_keepAlive == value) return;
+    _keepAlive = value;
+    final e = _engine;
+    if (e != null) _publish(e.state);
+  }
+
   static const _idleItem = svc.MediaItem(
     id: 'remotetunes.idle',
     title: 'RemoteTunes Player',
@@ -59,7 +72,7 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
                   : null,
               artUri: s.localArtPath != null ? Uri.file(s.localArtPath!) : null,
             )
-          : _idleItem,
+          : (_keepAlive ? _idleItem : null),
     );
     playbackState.add(svc.PlaybackState(
       controls: [
@@ -81,8 +94,9 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
       androidCompactActionIndices: const [0, 1, 2],
       // Kept "ready" even with an empty queue so the service stays in the
       // foreground while Player mode is open.
-      processingState:
-          s.isLoading ? svc.AudioProcessingState.loading : svc.AudioProcessingState.ready,
+      processingState: !(s.hasTrack || _keepAlive)
+          ? svc.AudioProcessingState.idle
+          : (s.isLoading ? svc.AudioProcessingState.loading : svc.AudioProcessingState.ready),
       playing: s.isPlaying,
       updatePosition: Duration(seconds: s.positionSeconds),
       speed: s.isPlaying ? s.speed : 1.0,

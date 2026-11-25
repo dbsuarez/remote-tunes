@@ -100,7 +100,8 @@ APKs are published as **GitHub Releases**, and the app can update itself from th
 ## Favorites, playlists, speed, art (Phase 7)
 
 - **Library chips:** Songs, Artists, Albums, **Favorites**, **Recent**, **Playlists**. The heart on a song toggles a favorite; the song menu has *Add to playlist*. A playlist opens like an album (Play all, Rename, Delete, remove a song). Deleting a playlist keeps the songs.
-- **Now Playing (Controller):** a heart for the current song, a **Speed** picker (0.5x to 2x, kept for the next songs) and the album art.
+- **A music player first:** the app opens as a music player for this phone's songs (bottom bar: Now Playing, Library, Search, Queue, with a mini player). The chip in the top bar chooses what you play on: *This phone*, *Control another phone* (the same screens then control that Player), and **Start remote playback**, which lets other phones control this one (nothing listens on the network until you press it, unless Settings > "Start remote playback when the app opens" is on). Settings > "When the app opens" can instead reconnect to your last Player straight away, or show the classic Player / Controller start screen.
+- **Now Playing (same on both phones):** a heart for the current song, a **Speed** picker (0.5x to 2x, kept for the next songs) and the album art.
 - **Album art** is sent as a small JPEG thumbnail (at most 256 px and 60 KB), never the file or its path. Now Playing and the mini bar use the big one; song rows (Library, Queue, Favorites, playlists, on both phones) ask for a 96 px one, a few at a time, and show a music note when the song has no art.
 - **Settings > Diagnostics:** version, network addresses, library counts, with a Copy button. It holds no keys, tokens, room codes or file names.
 - The database moved to version 3; upgrading keeps the library.

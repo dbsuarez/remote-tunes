@@ -150,6 +150,11 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Search screen:** the search button on the Library list opens it. Typing shows songs, albums, artists and folders in sections; "See all" narrows to one kind; tapping a song plays it, tapping an album / artist / folder opens it. Your recent searches show when the box is empty, can be removed one by one or cleared, and are still there after closing the app.
 - [ ] **Quick row:** speed (the icon turns into e.g. 1.25× when changed) and the sleep timer (shows the time left while running; the menu has Cancel) are in the row under the title.
 - [ ] **Format line:** under the seek bar, between the times, it reads something like "44.1 kHz · 320 kbps · MP3" a moment after a local song starts; nothing for internet tracks.
+- [ ] **Music player first:** the app opens on Now Playing for this phone's songs (bottom bar Now Playing / Library / Search / Queue, chip "This phone" at the top). Play a song, switch tabs: the mini player shows under every tab but Now Playing. With nothing playing there is **no** RemoteTunes notification.
+- [ ] **Add music** (+ in the Library tab's top bar), play from the Library, search, queue; everything works on the phone's own music with no other phone around.
+- [ ] **Start remote playback:** tap the chip > Start remote playback. The pairing / QR page opens; the notification now stays while nothing plays. From the other phone: chip > Control another phone > pick it. That phone's music shows in the same tabs and the buttons control it. Stop remote playback on the first phone: nothing is listening (the other phone shows it disconnected and falls back to its own music).
+- [ ] **Now Playing looks and behaves the same** on the Player and on the Controller: cover, accent title, favorite / shuffle / repeat / speed / sleep, 10-second jumps, lyrics, queue peek, edge swipes.
+- [ ] **When the app opens** (Settings): "Control my last Player" reconnects by itself (chip says Controlling ...); "Classic start screen" brings back the Player / Controller buttons. "Start remote playback when the app opens" starts it at once.
 
 ---
 
