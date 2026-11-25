@@ -59,7 +59,30 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
     }
   }
 
+  // What was last given to Android, so the notification is only rebuilt when
+  // something changed. (Android works out the position while playing by itself;
+  // sending it every second rebuilt the notification thousands of times a day.)
+  String? _lastKey;
+  int _lastPosition = 0;
+  DateTime _lastAt = DateTime.now();
+  bool _lastPlaying = false;
+  double _lastSpeed = 1.0;
+
   void _publish(PlaybackState s) {
+    final key = '${s.songId}|${s.title}|${s.artist}|${s.album}|${s.durationSeconds}|'
+        '${s.isPlaying}|${s.isLoading}|${s.queueIndex}|${s.queueLength}|${s.shuffleEnabled}|'
+        '${s.repeatMode}|${s.speed}|${s.localArtPath}|${s.canSkip}|$_keepAlive';
+    final now = DateTime.now();
+    final expected = _lastPosition +
+        (_lastPlaying ? (now.difference(_lastAt).inMilliseconds * _lastSpeed / 1000) : 0);
+    final jumped = (s.positionSeconds - expected).abs() > 2.5;
+    if (key == _lastKey && !jumped) return;
+    _lastKey = key;
+    _lastPosition = s.positionSeconds;
+    _lastAt = now;
+    _lastPlaying = s.isPlaying;
+    _lastSpeed = s.isPlaying ? s.speed : 1.0;
+
     mediaItem.add(
       s.hasTrack
           ? svc.MediaItem(
@@ -187,7 +210,9 @@ class PlayerAudioService {
       final handler = await svc.AudioService.init(
         builder: () => RemoteTunesAudioHandler(),
         config: const svc.AudioServiceConfig(
-          androidNotificationChannelId: 'com.remotetunes.remote_tunes.playback',
+          // Created by the app itself (MainActivity) with normal importance and no
+          // sound, so it also shows on the lock screen.
+          androidNotificationChannelId: 'com.remotetunes.remote_tunes.media',
           androidNotificationChannelName: 'RemoteTunes playback',
           // Keep the notification (and foreground service) while paused so the
           // Player keeps accepting Controller commands with the screen off.

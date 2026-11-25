@@ -117,4 +117,52 @@ void main() {
       expect(handler.playbackState.value.processingState, svc.AudioProcessingState.ready);
     });
   });
+
+  group('the notification is not rebuilt for nothing', () {
+    test('position ticks while playing do not republish', () async {
+      var updates = 0;
+      final sub = handler.playbackState.listen((_) => updates++);
+      await settle();
+      final base = updates;
+      // A tick a second, as in real playback: each is close to where Android
+      // already expects the song to be.
+      for (var i = 1; i <= 2; i++) {
+        backend.emitPosition(Duration(seconds: i));
+      }
+      await settle();
+      expect(updates, base, reason: 'Android works the position out itself');
+      await sub.cancel();
+    });
+
+    test('a jump (a seek) is published', () async {
+      var updates = 0;
+      final sub = handler.playbackState.listen((_) => updates++);
+      await settle();
+      final base = updates;
+      await engine.seek(90);
+      await settle();
+      expect(updates, greaterThan(base));
+      expect(handler.playbackState.value.updatePosition, const Duration(seconds: 90));
+      await sub.cancel();
+    });
+
+    test('pause, a new song and shuffle are published', () async {
+      var updates = 0;
+      final sub = handler.playbackState.listen((_) => updates++);
+      await settle();
+      var last = updates;
+      await engine.pause();
+      await settle();
+      expect(updates, greaterThan(last));
+      last = updates;
+      await engine.next();
+      await settle();
+      expect(updates, greaterThan(last));
+      last = updates;
+      await engine.setShuffle(true);
+      await settle();
+      expect(updates, greaterThan(last));
+      await sub.cancel();
+    });
+  });
 }
