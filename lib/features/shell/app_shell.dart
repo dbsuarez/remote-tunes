@@ -1,3 +1,4 @@
+import '../cloud/cloud_upload_flow.dart';
 import '../cloud/cloud_library_view.dart';
 import '../cloud/cloud_settings_screen.dart';
 import '../../core/visualizer_position.dart';
@@ -616,6 +617,7 @@ class _LibraryTab extends ConsumerWidget {
       canWriteTags: local,
       onEditSongs: local ? (context, ids) => editSelectedSongs(context, ref, ids) : null,
       songLookup: local ? ref.read(songLookupProvider) : null,
+      onUploadToCloud: local ? (ctx, ids) => uploadSongsToCloud(ctx, ref, ids) : null,
       listMemory: local ? ref.watch(playerCoreProvider).valueOrNull?.audiobooks : null,
       onSetAudiobook: local
           ? (ids, book) async {

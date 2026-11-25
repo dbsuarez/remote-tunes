@@ -114,6 +114,7 @@ class MusicBrowser extends StatefulWidget {
     this.onLook,
     this.listMemory,
     this.onSetAudiobook,
+    this.onUploadToCloud,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
     this.homeList = false,
@@ -174,6 +175,9 @@ class MusicBrowser extends StatefulWidget {
 
   /// Carries on where an audiobook list was left (this phone's player; null: not offered).
   final ListMemory? listMemory;
+
+  /// Uploads the picked songs to the Cloud Library (this phone's library; null: not offered).
+  final Future<void> Function(BuildContext context, List<int> ids)? onUploadToCloud;
 
   /// Marks songs as audiobooks or as music (this phone's library; null: not offered).
   final Future<void> Function(List<int> ids, bool audiobook)? onSetAudiobook;
@@ -563,6 +567,18 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 }
               },
             ),
+            // Put the picked songs in the Cloud Library.
+            if (widget.onUploadToCloud != null)
+              IconButton(
+                key: const Key('upload-to-cloud'),
+                tooltip: 'Upload selected to the cloud',
+                icon: const Icon(Icons.cloud_upload_outlined),
+                onPressed: () async {
+                  final ids = _selected.toList();
+                  await widget.onUploadToCloud!(context, ids);
+                  if (mounted) setState(_selected.clear);
+                },
+              ),
             // Mark the picked songs as audiobooks (or as music again).
             if (widget.onSetAudiobook != null)
               PopupMenuButton<bool>(
