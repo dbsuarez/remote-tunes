@@ -182,6 +182,7 @@ These were built after `v0.7.0` and have **never been tried on a phone**. Do the
 ## 19. Updates
 - [x] **Updates:** Settings > App updates > Check for updates says "newest version" or offers the new one. Android asks to allow installs from RemoteTunes once, downloads, shows its install screen; afterwards your songs, playlists and trusted devices are still there.
 - [ ] **What's new** (Menu) lists the release notes from GitHub.
+- [ ] **Help > The full guide:** the quick start is on top, then the guide's sections (tap to open). Type "crossfade" in the search box: only the matching sections show, already open. Clear it and the quick start returns. It works with no internet.
 
 ---
 

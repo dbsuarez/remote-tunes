@@ -1,6 +1,6 @@
 # RemoteTunes: your own guide
 
-For the owner, when you forget how something works. Plain words, no code. Where a part has **never been tried on a phone yet**, it says so (the full list is in [19_PHONE_TEST_CHECKLIST.md](19_PHONE_TEST_CHECKLIST.md)). What each feature does, and what it cannot do, is in [20_NEXT_TASKS.md](20_NEXT_TASKS.md). What leaves the phone is in [21_PRIVACY.md](21_PRIVACY.md).
+For you, when you forget how something works. Plain words, no code. Parts that were built recently may not have been tried on a phone yet: if one misbehaves, note what you saw (and Settings > Diagnostics > Copy) so it can be fixed.
 
 ---
 
@@ -28,10 +28,8 @@ Every phone is its own music player first. "Controlling another phone" is a mode
 
 **Library tab > the + button** (top bar).
 
-| Choice | What it does | Good for |
-|---|---|---|
-| **Add songs** | Picks files and **copies** them into the app. | A few songs. They stay even if you delete the originals. |
-| **Add a folder** | Reads a whole folder **where it is** (nothing is copied). Needs the music permission. | Your music folder. If you delete or move the files, the songs show as missing. |
+- **Add songs**: picks files and **copies** them into the app. Good for a few songs: they stay even if you delete the originals.
+- **Add a folder**: reads a whole folder **where it is** (nothing is copied) and needs the music permission. Good for your music folder; if you delete or move the files, the songs show as missing.
 
 ### Leaving things out (adding a folder)
 After you pick a folder, **Choose what to add** lists its folders, all ticked, with how many songs each holds.
@@ -145,39 +143,35 @@ https://dbsuarez.github.io/remote-tunes/ : on the playing phone use remote playb
 
 ## 11. Settings, in one list
 
-| Setting | What it does |
-|---|---|
-| Queue opens at the song playing | The Queue tab scrolls to what is playing. |
-| Visualizer | Moving bars under the cover (microphone permission). |
-| Skins (menu) | Colors and card roundness. |
-| Crossfade | 0 to 12 seconds between songs. |
-| Even out loudness | Replay Gain: Off / By song / By album. |
-| Equalizer (menu) | Presets, sliders, 10-band view, Preamp, Tone, Limit. |
-| Update tags from files | Fills Genres, Years, Album Artists, Composers, Replay Gain. |
-| Find missing album art | Looks up covers online. |
-| Left out of the library | Folders and songs not added; let them back in. |
-| All files access | Lets the app write tags into files in any folder. |
-| App updates | Check, download, install. |
-| Lyrics from the internet | Switch lyrics on or off. |
-| Haptics, colors from album art, song list text size | Small comforts. |
-| When the app opens | This phone's music, or reconnect to the last Player. |
-| Device name | What the other phone sees ("GT30 Pro"). |
+- **Queue opens at the song playing**: The Queue tab scrolls to what is playing.
+- **Visualizer**: Moving bars under the cover (microphone permission).
+- **Skins (menu)**: Colors and card roundness.
+- **Crossfade**: 0 to 12 seconds between songs.
+- **Even out loudness**: Replay Gain: Off / By song / By album.
+- **Equalizer (menu)**: Presets, sliders, 10-band view, Preamp, Tone, Limit.
+- **Update tags from files**: Fills Genres, Years, Album Artists, Composers, Replay Gain.
+- **Find missing album art**: Looks up covers online.
+- **Left out of the library**: Folders and songs not added; let them back in.
+- **All files access**: Lets the app write tags into files in any folder.
+- **App updates**: Check, download, install.
+- **Lyrics from the internet**: Switch lyrics on or off.
+- **Haptics, colors from album art, song list text size**: Small comforts.
+- **When the app opens**: This phone's music, or reconnect to the last Player.
+- **Device name**: What the other phone sees ("GT30 Pro").
 
 ---
 
 ## 12. When something is wrong
 
-| What you see | Try |
-|---|---|
-| A song shows as missing | The file was moved or deleted. Re-add its folder, or remove the song. |
-| Genres / Years / Composers lists are empty | Settings > **Update tags from files**. |
-| A folder keeps skipping songs | Settings > **Left out of the library**; let the folder or song back in, add again. |
-| "Saved in RemoteTunes only" when writing tags | Settings > **All files access**, switch it on, save again. |
-| The first crossfade restarted a song | Fixed in `v0.12.1`. Update the app. |
-| Visualizer bars are flat | Allow the microphone permission; some outputs or phones refuse it (tell me which). |
-| The lock screen shows no player | Notification settings of the phone (it worked on the Note 10 Pro, not the GT 30 Pro). |
-| The other phone can't find the Player | Both on the same Wi-Fi; Start remote playback is on; or scan the QR code. |
-| No lyrics | The song may have none, you may be offline, or Lyrics from the internet is off. |
-| The equalizer says play a song first | Android sets the equalizer up when the first song loads. |
+- **A song shows as missing**: The file was moved or deleted. Re-add its folder, or remove the song.
+- **Genres / Years / Composers lists are empty**: Settings > **Update tags from files**.
+- **A folder keeps skipping songs**: Settings > **Left out of the library**; let the folder or song back in, add again.
+- **"Saved in RemoteTunes only" when writing tags**: Settings > **All files access**, switch it on, save again.
+- **The first crossfade restarted a song**: Fixed in `v0.12.1`. Update the app.
+- **Visualizer bars are flat**: Allow the microphone permission; some outputs or phones refuse it (tell me which).
+- **The lock screen shows no player**: Notification settings of the phone (it worked on the Note 10 Pro, not the GT 30 Pro).
+- **The other phone can't find the Player**: Both on the same Wi-Fi; Start remote playback is on; or scan the QR code.
+- **No lyrics**: The song may have none, you may be offline, or Lyrics from the internet is off.
+- **The equalizer says play a song first**: Android sets the equalizer up when the first song loads.
 
 If something is really wrong, send me the screen, what you tapped, which phone, and Settings > Diagnostics > Copy.

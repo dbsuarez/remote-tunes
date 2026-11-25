@@ -1,6 +1,6 @@
 # What is built and what is not
 
-Updated after **`v0.13.0`**. This is the owner's list (UX handoff, Poweramp-inspired ideas, lyrics, releases, and later requests), kept honest: *built* means it has automated tests; **most of it has not been tried on a phone yet**, see [docs/19_PHONE_TEST_CHECKLIST.md](19_PHONE_TEST_CHECKLIST.md) (start at section 14).
+Updated for **`v1.0.0`**. This is the owner's list (UX handoff, Poweramp-inspired ideas, lyrics, releases, and later requests), kept honest: *built* means it has automated tests; **most of it has not been tried on a phone yet**, see [docs/19_PHONE_TEST_CHECKLIST.md](19_PHONE_TEST_CHECKLIST.md) (start at section 14).
 
 Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.md). Privacy: [docs/21_PRIVACY.md](21_PRIVACY.md).
 
@@ -69,10 +69,10 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] Group play and Auto-align (verified on two phones).
 
 ### Docs
-- [x] [User guide for the owner](22_USER_GUIDE.md): where things are and how they work.
+- [x] [User guide for the owner](22_USER_GUIDE.md): where things are and how they work. It is also **inside the app** (Menu > Help > *The full guide*: sections that open, and a search box); it is the same file, bundled at build time.
 - [x] [Privacy page](21_PRIVACY.md): everything that leaves the phone and how to switch it off. README updated.
 
 ---
 
 ## History of the releases (short)
-`v0.2` updates, gapless, haptics, queue peek · `v0.3` lyrics, folders, edge swipes · `v0.4` lock screen, art finder, tag editor · `v0.5`–`v0.6` Now Playing v2, library list, search · `v0.7`–`v0.8` music player first, controller as a mode · `v0.9` crossfade, EQ, Replay Gain · `v0.10` pairing popup, folder multi-select, screen on · `v0.11` lyrics redesign · `v0.12` retired the classic screens, menu, privacy page, composers, folder tree, Megalobiz, skins, queue scroll, tag writing (`v0.12.1`: crossfade fix) · `v0.13` All files access, 10-band EQ, visualizer, leaving folders and songs out, the add report.
+`v0.2` updates, gapless, haptics, queue peek · `v0.3` lyrics, folders, edge swipes · `v0.4` lock screen, art finder, tag editor · `v0.5`–`v0.6` Now Playing v2, library list, search · `v0.7`–`v0.8` music player first, controller as a mode · `v0.9` crossfade, EQ, Replay Gain · `v0.10` pairing popup, folder multi-select, screen on · `v0.11` lyrics redesign · `v0.12` retired the classic screens, menu, privacy page, composers, folder tree, Megalobiz, skins, queue scroll, tag writing (`v0.12.1`: crossfade fix) · `v1.0.0` the guide inside the app (Help) · `v0.13` All files access, 10-band EQ, visualizer, leaving folders and songs out, the add report.
