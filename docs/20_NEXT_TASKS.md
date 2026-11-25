@@ -1,6 +1,6 @@
 # What is built and what is not
 
-Updated for **`v1.0.0`**. This is the owner's list (UX handoff, Poweramp-inspired ideas, lyrics, releases, and later requests), kept honest: *built* means it has automated tests; **most of it has not been tried on a phone yet**, see [docs/19_PHONE_TEST_CHECKLIST.md](19_PHONE_TEST_CHECKLIST.md) (start at section 14).
+Updated for **`v1.0.15`**. This is the owner's list (UX handoff, Poweramp-inspired ideas, lyrics, releases, and later requests), kept honest: *built* means it has automated tests; **most of it has not been tried on a phone yet**, see [docs/19_PHONE_TEST_CHECKLIST.md](19_PHONE_TEST_CHECKLIST.md) (start at section 14).
 
 Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.md). Privacy: [docs/21_PRIVACY.md](21_PRIVACY.md).
 
@@ -8,132 +8,78 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 ## Not done
 
-### Planned next (not coded yet; the owner chose to wait, credits are low)
-
-**1. A true 10-band equalizer** is **built (not yet tried on a phone)**, see Done. What is still open of "our own audio effects": a compressor, stereo width, a real bass boost and reverb. Android's `DynamicsProcessing` (the effect used for the equalizer) also has a multiband compressor, so a compressor is the easy next one; the others would need our own processing (see the note under *Known limits*).
-
-**2. Auto-tagging the local library** (from [remotetuneslocallibrary.md](remotetuneslocallibrary.md); the owner has about 2,000 songs)
-- Rule: trust good tags; fill only what is missing; correct only on a high-confidence match; send doubts to a review queue; never silently overwrite.
-- Already built that this uses: *Update tags from files* (reads genre, year, album artist, composer, Replay Gain), *Edit info*, and **writing tags into files** (title, artist, album, track number; read back to check; *All files access*), plus the *Album art finder*.
-- Phases:
-  - [x] **1. Scan and report:** (built after `v1.0.14`, not tried on a phone yet) a *Tag cleanup* screen with counts (complete, missing title / artist / album / artwork, possible mismatches). Changes nothing.
-  - [x] **2. Safe auto-fill (from file names):** (built; no `tag_jobs` table: the review list is the job) parse the file name when tags are missing; fill only empty fields; progress; resumable (a `tag_jobs` table with the statuses pending, processing, tagged, needs review, no match, failed, skipped).
-  - [~] **3. MusicBrainz by title and artist: built (no fingerprints).** AcoustID is **not** built (the owner does not need it for now): it would need a native Chromaprint library for Android and a key. Original plan: **3. AcoustID / MusicBrainz:** fingerprint only the songs that need help, confidence scoring, conflict detection, a **review queue** (*Keep current* / *Use suggestion* / *Skip*) and *Approve all high-confidence*. Needs a fingerprint library for Android (to choose) and an AcoustID key (kept out of git, like the Jamendo ID). It works for known commercial recordings, so personal recordings, remixes and live versions will often be *no match*.
-  - [x] **4. Batch tag writing (with undo):** built. Original plan: **4. Batch tag writing:** write the cleaned tags into the files on request, with an undo or backup, progress, and the *All files access* rule. (Single-song writing exists; the batch and the undo do not.)
-  - [ ] **5. Cloud Library preparation:** pick cleaned songs to upload (see 3).
-- Not now: AI genre / mood / BPM, lyrics tagging, automatic artwork downloads, silent overwriting, uploading during tagging.
-- Names are sent to MusicBrainz / AcoustID, so add them to the [privacy page](21_PRIVACY.md) with their own switch.
-
-**3. A personal Cloud Library** (from [remotetunescloud.md](remotetunescloud.md))
+### 1. A personal Cloud Library (the one big item left; needs the owner's decisions first)
+From [remotetunescloud.md](remotetunescloud.md).
 - What: your own songs stored in **Cloudflare R2** (one account, bucket `remotetunes`, public development URL, test song verified; keys stay private and never go in git) with the catalog (songs, artists, albums, genres, playlists) in **Supabase**. It is one more music source beside *This phone*, the *Online Library* (Jamendo) and other apps. Songs stream from R2 to whichever phone plays; the player gets a normal URL (the existing *play a link* path), so playback itself does not change.
 - Since the doc was written the app became player-first: a cloud song can play on **this phone** (like an Online Library track) or, when controlling another phone, on that one with the existing `playUrl` command. The Cloud Library should appear like the Online Library does (a Library category, searchable, *Play*, *Add to queue*), and cloud songs behave like internet tracks in the queue (no gapless or crossfade into them, no Replay Gain unless their tags are stored).
 - Phases:
   - [ ] **8.1 Minimum:** a Cloud Library list, search by title, play, add to queue; a basic `songs` table; songs uploaded by hand through the Cloudflare dashboard.
   - [ ] **8.2 Better browsing:** artists, albums, genres, artwork, sort, recently played, genre filters.
-  - [ ] **8.3 Upload and manage:** upload from the phone (with the auto-tagging above and a review screen before saving), edit, delete, duplicate detection.
+  - [ ] **8.3 Upload and manage:** upload from the phone (with Tag cleanup, which is built, and a review screen before saving), edit, delete, duplicate detection. This also covers *Cloud Library preparation* (pick cleaned songs to upload).
   - [ ] **8.4 Private access:** a private bucket with short-lived signed URLs and owner-only access, only if needed (the public URL means anyone who has the exact link can fetch the file).
 - Rules: one Cloudflare account only; MP3s in R2, never in Supabase Storage; only songs you own or may host (not Spotify or YouTube songs); stay offline-first; no accounts, sharing, recommendations or DRM in v1; no automatic uploads of the whole library.
 - Free tier: 10 GB of storage on R2 is roughly 2,500 songs at 128 kbps; no egress fees.
 - Privacy: song titles and the files themselves would go to your own R2 and Supabase; add this to the privacy page when built.
+- Insights charts that wait on it: cloud storage used (of 10 GB), genre distribution and uploads per month.
 
-**4. Insights: a statistics dashboard with charts** (from [remotetunes-visualization.md](remotetunes-visualization.md))
-- What it is: stat cards, a genre doughnut, top artists, library growth, tag-cleanup progress and (later) cloud storage use, drawn with **FL Chart** (`fl_chart`, free and open source, no network use). **Not the audio Visualizer**: the bars under the cover stay as they are. To avoid mixing the two up, the screen is called **Insights** (a menu entry), not "visualization". The doc says "replace the current visualization", but there is no statistics screen today, so this is new.
-- Rules from the doc: only bar, doughnut and line charts, progress bars and stat cards; 5 to 7 categories per chart with the exact numbers beside them; stable colors per genre (not random per rebuild); theme colors and skins respected; charts open a useful filtered list only when tapping makes sense (for example the *Rock* slice opens the Rock songs with *Play all* / *Add all to queue*); no radar, network, 3D or heatmap charts; **aggregate in SQL**, never load all 2,000 songs for a chart.
-- Reusable widgets planned: `GenrePieChart`, `TopArtistsBarChart`, `LibraryLineChart`, `TagCleanupBarChart`, `StorageProgressCard`, `StatCard`.
-- What the library already records (so these need no new data): genre, year, artist, album, duration, file size, **date added**, **play count**, **last played**. So *genre distribution*, *top artists*, *songs per album*, *songs added over time*, *most played songs / artists*, totals and *total size* can be built now.
-- What is missing: there is **no log of individual plays** (only a count and the last time), so *plays over time*, *plays this week / month* and *listening time* need a small play-events table first; the doc itself says not to build playback analytics unless that data exists. Tag-cleanup charts need item 2, and the storage-use card needs item 3.
-- Phases (the doc's, with what depends on what):
-  - [ ] **1. Foundation:** add `fl_chart`, the reusable widgets above, the Insights screen and its menu entry, in the app's theme.
-  - [ ] **2. Library insights** (no other work needed): totals, genre distribution, top artists, songs per album, recently added, songs added over time, size on the phone.
-  - [ ] **3. Tag cleanup charts:** after item 2 phase 1 exists (progress bar plus a bar chart of updates / needs review / no match).
-  - [ ] **4. Cloud Library charts:** after item 3 (R2 storage used of 10 GB, genre distribution, uploads per month).
-  - [ ] **5. Playback insights:** first record each play (song, time, how long it was heard); then most played, plays over time, listening time and plays by genre. Plays would stay on the phone.
-- Privacy: everything is computed on the phone from its own library; nothing is sent anywhere.
+### 2. Small gaps in what is built
+**Audiobooks**
+- [ ] A progress bar (or percent) on book rows.
+- [ ] Audiobooks are not in backups (their folders, marks and places).
+- [ ] No playback speed remembered per book.
 
-**5. Online Library home screen (Jamendo): built (not tried on a phone yet), see Done.** Left over: a *Top this week* shelf per genre, and a refresh of the shelves in the background.
+**Tag cleanup**
+- [ ] **AcoustID fingerprints** (the owner does not need them for now): would need a native Chromaprint library for Android and an AcoustID key (kept out of git, like the Jamendo ID); it identifies a song by its sound, so it helps files with no tags, but only for known commercial recordings. Today the matching is by title, artist, album and length through MusicBrainz.
+- [ ] Undo reaches only the last batch.
+- [ ] No *Tag cleanup* charts in Insights (progress bar, updates / needs review / no match).
 
-**What to listen for in your own library: most played, most skipped** is **built (first step, not tried on a phone yet)**, see Done. Still open from it: a log of every play (for *plays this week*, *listening time* and charts), and header totals.
+**Insights and play history**
+- [ ] Charts are plain bars drawn by the app; no `fl_chart` doughnut or line chart (decided not worth a package for now).
+- [ ] A song stopped by the app being force-closed is not logged (accepted).
 
-**4. Insights: a statistics dashboard with charts** (from [remotetunes-visualization.md](remotetunes-visualization.md))
-- What it is: stat cards, a genre doughnut, top artists, library growth, tag-cleanup progress and (later) cloud storage use, drawn with **FL Chart** (`fl_chart`, free and open source, no network use). **Not the audio Visualizer**: the bars under the cover stay as they are. To avoid mixing the two up, the screen is called **Insights** (a menu entry), not "visualization". The doc says "replace the current visualization", but there is no statistics screen today, so this is new.
-- Rules from the doc: only bar, doughnut and line charts, progress bars and stat cards; 5 to 7 categories per chart with the exact numbers beside them; stable colors per genre (not random per rebuild); theme colors and skins respected; charts open a useful filtered list only when tapping makes sense (for example the *Rock* slice opens the Rock songs with *Play all* / *Add all to queue*); no radar, network, 3D or heatmap charts; **aggregate in SQL**, never load all 2,000 songs for a chart.
-- Reusable widgets planned: `GenrePieChart`, `TopArtistsBarChart`, `LibraryLineChart`, `TagCleanupBarChart`, `StorageProgressCard`, `StatCard`.
-- What the library already records (so these need no new data): genre, year, artist, album, duration, file size, **date added**, **play count**, **last played**. So *genre distribution*, *top artists*, *songs per album*, *songs added over time*, *most played songs / artists*, totals and *total size* can be built now.
-- What is missing: there is **no log of individual plays** (only a count and the last time), so *plays over time*, *plays this week / month* and *listening time* need a small play-events table first; the doc itself says not to build playback analytics unless that data exists. Tag-cleanup charts need item 2, and the storage-use card needs item 3.
-- Phases (the doc's, with what depends on what):
-  - [ ] **1. Foundation:** add `fl_chart`, the reusable widgets above, the Insights screen and its menu entry, in the app's theme.
-  - [ ] **2. Library insights** (no other work needed): totals, genre distribution, top artists, songs per album, recently added, songs added over time, size on the phone.
-  - [ ] **3. Tag cleanup charts:** after item 2 phase 1 exists (progress bar plus a bar chart of updates / needs review / no match).
-  - [ ] **4. Cloud Library charts:** after item 3 (R2 storage used of 10 GB, genre distribution, uploads per month).
-  - [ ] **5. Playback insights:** first record each play (song, time, how long it was heard); then most played, plays over time, listening time and plays by genre. Plays would stay on the phone.
-- Privacy: everything is computed on the phone from its own library; nothing is sent anywhere.
+**Backup and restore**
+- [ ] Edits made before `v1.0.7` are not remembered (there was no flag), only later ones.
+- [ ] Songs added with *Add songs* are copies inside the app: a backup cannot bring them back (*Export copied songs* copies them out by hand).
 
-**5. Online Library home screen (Jamendo): built (not tried on a phone yet), see Done.** Left over: a *Top this week* shelf per genre, and a refresh of the shelves in the background.
+**Rescan**
+- [ ] Folders added before the rescan feature are not remembered until they are added once more.
+- [ ] A song retagged while being moved is added as a new song and the old one is offered for removal (not matched by tags yet).
 
-**What to listen for in your own library: most played, most skipped** (changes item 4)
-- The owner's question: is a chart dashboard needed, when what he wants to know is *which song is played most, skipped most*? Decision: **lists first, charts second.** A ranked, tappable list does that better than any chart: tap a song to play it, long-press to queue it.
-- What is recorded today: only a play count and the last time played. There is **no skip count and no log**, so "most skipped" cannot be answered yet.
-- Plan: record one small **play event** per song played (song, when it started, how long it was really heard, and how it ended: *finished*, *skipped* (left before 30 seconds or before half of it), or *stopped*). It stays on the phone and can be cleared (Settings). Old play counts are kept as they are.
-- **Insights screen, first version (lists, no new package needed):** Most played · Most skipped · Recently played · Never played · Played this week · and by artist / genre. Each row shows the number (plays, skips, minutes). A small header of totals (songs, hours of music, size).
-- Charts (FL Chart, item 4 above) then become an optional second step: a genre doughnut and a songs-added line are the only two worth having at first.
-- [ ] play events recorded (with a switch and *Clear*) · [ ] the lists · [ ] header totals · [ ] charts later
+**Online Library (Jamendo)**
+- [ ] A *Top this week* shelf per genre, and a refresh of the shelves in the background.
+- [ ] Playlists cannot hold Online Library tracks (they are not in the library).
 
-**6. A better audio Visualizer: built (not tried on a phone yet), see Done.**
+**List options**
+- [ ] *Compact header* (from the screenshots), and the song menu inside the Grid view (a long-press picks a song there).
+- [ ] *Per track progress* and *List position* are for audiobooks only (decided); music never remembers its place.
 
-**7. Backup and restore to another phone: built (not tried on a phone yet), see Done.** Built after `v1.0.13`: **Match by hand** (the restore report has a button that lets you pick, for each song not found, which song of this phone it is; then it restores again with those) and **Export copied songs** (Backup screen: copies the songs added with *Add songs* into a folder you choose, named *Artist - Title*). Left over: edits made before `v1.0.7` are not remembered (there was no flag), only later ones.
+**Other**
+- [ ] A menu for whole *folders* in the Folders list (it already has multi-select to a playlist).
+- [ ] **Writing tags into files** writes title, artist, album, track number, and (from group edit and Tag cleanup) year and genre; **not** the cover, and not the composer from here.
 
-**8. List options, per list: first step built after `v1.0.12` (not tried on a phone yet).** Built: the sheet, *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list. Also built: the count and total time at the top left of the list (`128 songs | 9:07:26`). Also built: **pinch-to-zoom** (two fingers apart or together step 1 line, compact, small, list, grid). Left: list position, per-track progress, the song menu inside the grid (long-press picks a song there). (the owner's idea, from the screenshots `docs/arts/drawer_part_1.jpg` and `drawer_part_2.jpg`; the layout idea is free to follow, we draw our own)
-- What the screenshots show: a gear / *List options* sheet that opens from a song list, titled for the kind of list (*List Options: Playlist Songs*), with settings **remembered per kind of list**:
-  - **List memory:** *List position* (come back to where you were in this list when you start it with Play or move with previous / next) and *Per track progress* (each song remembers how far you listened, handy for long recordings).
-  - **Layout:** *Compact header* and *Show titles only*.
-  - **View as** (radio buttons, also changed by **pinch-to-zoom** on the list): *Grid* in four sizes (normal, small, extra small, 1 line small), *List* (normal, small, compact, **no images**) and *1 line* / *1 line extra small*.
-  - A header with the list's cover and name, **how many songs and how long** (`128 | 9:07:26`), and a row of actions (shuffle, play, search, Select, a menu); rows show `3:59 | mp3` under the title.
-- What we already have to build on: *Song list > Text size* (Small, Medium, Large), the Back-returns-to-the-same-spot memory, Select, and the format reader (kHz, kbps, type). What is new: choosing the **view** (list / grid / one line / no images), settings kept **per kind of list** (All Songs, Album, Artist, Playlist, Queue, Most played...), pinch to zoom, the list header with count and total time, and per-track progress.
-- Proposed first step: one *List options* sheet reachable from every song list, with *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list; then the header with count and total time; then pinch-to-zoom; per-track progress last (it changes playback).
-- [x] the sheet and the views · [x] per-list memory · [x] header with count and total time · [x] pinch-to-zoom · [x] list position and per-track progress, **for audiobooks only** (see Done > Audiobooks)
+### 3. Audio effects (the owner's choice to wait)
+- [ ] Our own effects beyond the 10-band equalizer: a compressor (the easy next one: Android's `DynamicsProcessing` also has a multiband compressor), stereo width, a real bass boost and reverb (these would need our own audio processing, which `just_audio` has no hook for).
+- [ ] **Replay Gain** reads the tags only; *measuring* loudness for files that have none needs decoding every file.
 
-**9. Settings, grouped: built (not tried on a phone yet), see Done.**
-
-**10. One-tap rescan of the music folders: built (not tried on a phone yet), see Done.** Built after `v1.0.13`: the switch *Settings > Library > Rescan when the app opens* (off by default; quiet; adds new songs and follows moved ones, never removes, and leaves a new folder for the one-tap rescan to ask about). Left over: folders added before this version are not remembered until they are added once more; a song retagged while being moved is added as a new song and the old one is offered for removal (it is not matched by tags yet).
-
-**11. Edit info: look the song up (metadata, lyrics and cover in one go): built after `v1.0.11`, not tried on a phone yet.** (the owner's idea)
-- In a song's menu > Edit info, a button **Look up this song**: one query for the one song, with a result sheet to choose from.
-  - **Details:** a search of MusicBrainz by title + artist (+ album, length) lists up to five matches, each with title, artist, album, year and track number; tap one to fill the Edit info fields (you can still change them before saving). Only the title, artist, album and length are sent, as the art finder already does.
-  - **Lyrics:** shows whether lyrics were found (LRCLIB, then Megalobiz, then lyrics.ovh, as in the lyrics view) and a preview of the first lines, with *Use these* (kept on the phone like any lyrics) or *Not these*. This is also the way to get lyrics again after a miss (a miss is otherwise remembered for a day).
-  - **Cover:** the cover from the Cover Art Archive for the chosen match, shown as a picture to accept or skip; accepted, it becomes the album's picture on this phone (all songs of that album).
-  - One *Apply* saves what was ticked: the fields (and, with *Also write into the music file* ticked, into the file), the lyrics, the cover.
-- Reuses: the album-art finder (MusicBrainz + Cover Art Archive), `LyricsService`, `TagWriter`. New: a MusicBrainz recording search and the result sheet.
-- Privacy page: add *looking up one song* (the same names and the same two services as the art finder).
-- [ ] the search and result sheet · [ ] lyrics preview · [ ] cover preview · [ ] Apply · [ ] tests with a fake MusicBrainz
-
-**12. Edit info for several songs at once** (the owner's idea)
-- In the Library, after **Select** (long-press) and picking songs, an **Edit info** button opens a version of the dialog that only has the fields that make sense for a group: **Artist, Album, Album artist, Genre, Year** (and Composer). **Title and track number are never offered** (they belong to one song).
-- Each field starts as *unchanged*: it shows the value when every picked song has the same one, or *(different)* when they differ; only the fields you type into are changed, on every picked song. A tick on a field can *clear* it.
-- *Also write into the music file* is ticked from the start, as in the single-song dialog; the report says how many files were written and how many were refused by Android (with the *All files access* hint). Each changed song is marked as edited, so a backup carries the change.
-- Needs: the tag writer to also write year, genre and album artist (title, artist, album and track number only today); a repository method that changes the same fields on many songs in one go.
-- [ ] the group dialog · [ ] repository update for many songs · [ ] tag writer: year, genre, album artist · [ ] report · [ ] tests
-
-Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: built), then **6** (the visualizer: built), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
+### 4. Ideas not started
+- [ ] A **user guide for friends** (a shorter, friendlier version of [22_USER_GUIDE.md](22_USER_GUIDE.md)). Wanted later; for now the app is for personal use only.
+- [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Excluded from library* screen).
+- Decided against for now: AI genre / mood / BPM, lyrics tagging, silent overwriting of tags, uploading during tagging.
 
 ---
 
 ### To check by hand (owner)
-- [ ] Try the phone checklist, sections 14 to 19 (everything since `v0.7.0`: crossfade, tag writing, visualizer, leaving folders out, lock screen, EQ, lyrics, menu, skins...). Group play and Auto-align were verified earlier on two phones.
+- [ ] **Try the phone checklist** ([docs/19](19_PHONE_TEST_CHECKLIST.md)): everything since `v0.7.0` has tests but was not tried on a phone (crossfade, tag writing, visualizer, leaving folders out, lock screen, EQ, lyrics, menu, skins) and so is everything built since `v1.0.0` (backup, Look up, group edit, List options, Insights and play history, rescan, audiobooks, Tag cleanup). Group play and Auto-align were verified earlier on two phones.
 - [ ] Lock screen on the **GT 30 Pro** did not show the player (it works on the Note 10 Pro); probably a phone setting, parked.
 - [ ] Free space on the C: drive (it was nearly full).
 - [ ] GitHub Pages: Settings > Pages > Source: GitHub Actions (once), for the web Controller.
 
 ### Known limits (built, but not as far as it could go)
-- [ ] **True 10-band EQ needs Android 9 or newer** (it uses Android's `DynamicsProcessing`) and a phone that allows it; otherwise the ten sliders are blended onto the phone's ~5 bands, and the screen says which of the two is running. Other effects (stereo width, reverb) would need our own audio processing, which `just_audio` has no hook for.
-- [ ] **Replay Gain** reads the tags only; *measuring* loudness for files that have none needs decoding every file.
-- [ ] **Writing tags into files** depends on Android: files in shared folders are refused unless *All files access* is on (Settings). It writes title, artist, album and track number only (not genre, year, cover).
+- [ ] **True 10-band EQ needs Android 9 or newer** (it uses Android's `DynamicsProcessing`) and a phone that allows it; otherwise the ten sliders are blended onto the phone's ~5 bands, and the screen says which of the two is running.
+- [ ] **Writing tags into files** depends on Android: files in shared folders are refused unless *All files access* is on (Settings).
 - [ ] **Visualizer** needs the microphone permission (Android's rule for reading the sound; nothing is recorded), works only for this phone's own playback, and some phones or outputs may refuse it.
-- [ ] **Crossfade** works only between songs that are files on this phone (not internet tracks); songs shorter than about twice the fade just change.
+- [ ] **Crossfade** works only between songs that are files on this phone (not internet tracks); songs shorter than about twice the fade just change; never into an audiobook.
 - [ ] **Group play card** shows only while controlling another phone.
-
-### Ideas not started
-- [ ] A **user guide for friends** (a shorter, friendlier version of [22_USER_GUIDE.md](22_USER_GUIDE.md)). Wanted later; for now the app is for personal use only.
-- [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Excluded from library* screen).
 
 ---
 
@@ -188,7 +134,8 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 - [x] **Insights (after `v1.0.13`, menu > Insights; this phone's own library):** totals (songs, play time, size, artists, albums, favorites, never played, played this week), genres and top artists as bars, songs added in the last 12 months, and Most played, Most skipped, Recently played, Recently added. Worked out on the phone from the library, sent nowhere. **No chart package:** the bars are drawn by the app itself. **Play history (built after `v1.0.13`):** each library song played is logged on the phone (when it started, seconds really heard, how it ended: finished, skipped or stopped; links are not logged). Insights shows *Listening*: this week and recorded time, % played to the end, plays and minutes for the last 14 days, listening by genre and most listened artists. Settings > Library > *Play history* switches it off; *Clear play history* empties it. It starts empty (older plays only have counts). In backups too (switch *Include play history*, on by default; a restore adds each play once). A song stopped by the app being killed mid-song is not logged (accepted). Still open: tag-cleanup and cloud charts.
 - [x] **List options (first step, after `v1.0.12`):** a *List options* button (sliders icon, top right of every song list) opens a sheet named for the kind of list (All songs, Favorites, Most played, Album songs, Playlist songs...). *Show titles only* hides the artist line; *View as* picks List, List small, List compact, List no images, 1 line or Grid. A change applies at once and is remembered for every list of that kind (and goes in backups). The standard look is the list as before. Not on the web Controller.
 - [x] **Visualizer on the cover (Settings > Visualizer > *Show it on the cover*, off by default):** the visualizer is drawn over the dimmed cover instead of under it. Opening the lyrics removes it and closing them brings it back, so the two are never shown together. Off: it behaves exactly as before. Saved in backups.
-- [x] **Edit info for several songs (item 12) and *Look up this song* (item 11)** are built (see their items above); the look-up sends only title, artist, album and length (docs/21).
+- [x] **Look up this song** (Edit info > *Look up this song*; built after `v1.0.11`, not tried on a phone yet): one query for one song, with a result window to choose from. **Details:** MusicBrainz by title, artist, album and length lists up to six matches (title, artist, album, year, track number, the closest in length first); the chosen one fills the Edit info fields (still changeable before saving). **Lyrics:** shows whether lyrics were found (LRCLIB, Megalobiz, lyrics.ovh) with a preview, *Keep these lyrics* or not (also the way to get lyrics again after a miss). **Cover:** the Cover Art Archive picture for the match, to accept or skip; accepted, it becomes the album's picture. One *Apply*; *Save* then writes the fields (and, if ticked, into the file). Only the title, artist, album and length are sent (docs/21).
+- [x] **Edit info for several songs** (Select, then the edit button; built after `v1.0.11`, not tried on a phone yet): a dialog with only the fields songs can share: **Artist, Album, Album artist, Genre, Year, Composer**; title and track number are never offered. Each field starts *unchanged* (it shows the value when all picked songs agree, or *(different)*); only what you type is changed, and a tick can clear a field. *Also write into the music file* is ticked from the start (the tag writer also writes year, genre, album artist and composer); the report says how many files were written and how many Android refused. Changed songs are marked as edited, so a backup carries the change.
 - [x] **Visualizer button on Now Playing:** in the row of quick actions (favorite, shuffle, repeat, speed, sleep timer), just to the **left of the volume button**: a tap shows or hides the visualizer (saved, same as the Settings switch; turning it on asks for the microphone permission first). On a narrow phone the seven buttons get a slightly smaller touch area so they all fit.
 - [x] **Backup:** *Playlists, favorites and counts* is its own switch, and *Choose lyrics and album art only* sets the switches for a backup that holds just those two.
 
@@ -217,7 +164,7 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Most played, most skipped, never played (built after `v1.0.3`; schema v10)
 - [x] Library > **Most played** (was *Top*; shows how many plays), **Most skipped** (how many skips) and **Never played**. A **skip** is leaving a song before 30 seconds of it were heard (or before half of a shorter song) by pressing next or choosing another song; finishing a song, seeking, and paused time are never skips; links and Online Library tracks are not counted. Counts start from zero now (older plays stay as they were). They also show on the other phone when controlling it.
 - [x] Settings > *Reset play and skip counts* starts them again from zero.
-- Not done: playlists cannot hold Online Library (Jamendo) tracks (they are not in the library); a menu for whole *folders* (the Folders list already has multi-select to a playlist); a play-by-play log, *plays this week*, *listening time*, header totals and charts (see Insights below).
+- The play-by-play log, *plays this week*, *listening time* and the header totals were built later (see *Insights* above). What is left is in *Not done*.
 
 ### Visualizer, second version (built after `v1.0.2`)
 - [x] The bars are smoothed at **60 frames a second** (Android's about 20 readings a second are eased between: quick rise, slow fall), with **caps** that hold a moment and then fall; the spectrum is **evened out** (bass eased, treble lifted), the song's loudness is followed (a quiet song fills the display like a loud one), and a noise gate keeps silence flat.
@@ -240,4 +187,4 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ---
 
 ## History of the releases (short)
-`v0.2` updates, gapless, haptics, queue peek · `v0.3` lyrics, folders, edge swipes · `v0.4` lock screen, art finder, tag editor · `v0.5`–`v0.6` Now Playing v2, library list, search · `v0.7`–`v0.8` music player first, controller as a mode · `v0.9` crossfade, EQ, Replay Gain · `v0.10` pairing popup, folder multi-select, screen on · `v0.11` lyrics redesign · `v0.12` retired the classic screens, menu, privacy page, composers, folder tree, Megalobiz, skins, queue scroll, tag writing (`v0.12.1`: crossfade fix) · `v1.0.0` the guide inside the app (Help) · `v0.13` All files access, 10-band EQ, visualizer, leaving folders and songs out, the add report.
+`v0.2` updates, gapless, haptics, queue peek · `v0.3` lyrics, folders, edge swipes · `v0.4` lock screen, art finder, tag editor · `v0.5`–`v0.6` Now Playing v2, library list, search · `v0.7`–`v0.8` music player first, controller as a mode · `v0.9` crossfade, EQ, Replay Gain · `v0.10` pairing popup, folder multi-select, screen on · `v0.11` lyrics redesign · `v0.12` retired the classic screens, menu, privacy page, composers, folder tree, Megalobiz, skins, queue scroll, tag writing (`v0.12.1`: crossfade fix) · `v1.0.0` the guide inside the app (Help) · `v0.13` All files access, 10-band EQ, visualizer, leaving folders and songs out, the add report. · `v1.0.1`–`v1.0.2` Online Library home, version shown, visualizer v2 · `v1.0.3`–`v1.0.7` skips and Most played / skipped, shuffle rounds, Next crossfades, add to playlist everywhere, backup and restore · `v1.0.8`–`v1.0.9` Settings grouped, queue swipes, build retries · `v1.0.10`–`v1.0.11` one-tap rescan, Edit info for several songs · `v1.0.12` Look up this song, visualizer on the cover · `v1.0.13` List options and pinch-to-zoom, list totals · `v1.0.14` rescan on open, Insights and play history, backup follow-ups · `v1.0.15` audiobooks, Tag cleanup (file names, MusicBrainz, genres, covers, undo).
