@@ -171,6 +171,7 @@ class BackupData {
     this.art = const [],
     this.playLog = const [],
     this.books = const [],
+    this.bookFolders = const [],
   });
 
   static const format = 2;
@@ -197,6 +198,9 @@ class BackupData {
 
   /// The songs that are audiobooks, and where each was left.
   final List<BackupBook> books;
+
+  /// Where the audiobook folders were on the old phone (they are looked for at the same place).
+  final List<String> bookFolders;
 
   int get edited => songs.where((s) => s.edited).length;
   int get favorites => songs.where((s) => s.favorite).length;
@@ -225,6 +229,7 @@ class BackupData {
             },
         ],
         'settings': settings,
+        if (bookFolders.isNotEmpty) 'bookFolders': bookFolders,
         if (books.isNotEmpty)
           'books': [
             for (final b in books) [b.songIndex, b.positionSeconds, b.finished ? 1 : 0, if (b.speed != null) b.speed],
@@ -416,6 +421,7 @@ class BackupData {
       art: art,
       playLog: playLog,
       books: books,
+      bookFolders: strings(j['bookFolders']),
     );
   }
 }

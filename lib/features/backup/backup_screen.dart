@@ -58,6 +58,7 @@ final backupServiceProvider = FutureProvider<BackupService>((ref) async {
     settings: ref.watch(settingsRepositoryProvider),
     exclusions: import.exclusions,
     copiedSongsDir: import.libraryDirPath,
+    folders: import.foldersStore,
     artDir: import.artDirPath,
   );
 });
@@ -254,6 +255,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       if (d.edited > 0) n(d.edited, 'edited song info', 'edited song infos'),
       if (d.playLog.isNotEmpty) n(d.playLog.length, 'play in the history', 'plays in the history'),
       if (d.books.isNotEmpty) n(d.books.length, 'audiobook file', 'audiobook files'),
+      if (d.bookFolders.isNotEmpty) n(d.bookFolders.length, 'audiobook folder'),
     ].join(' · ');
   }
 
@@ -526,9 +528,20 @@ class RestoreReportDialog extends StatelessWidget {
               row('Lyrics added', r.lyricsAdded),
               row('Plays added to the history', r.historyAdded),
               row('Audiobooks marked (with their place)', r.booksRestored),
+              row('Audiobook folders remembered again', r.bookFoldersAdded),
               row('Album covers added', r.artRestored),
               row('Song info changed (edited by hand)', r.infoRestored),
               row('Settings applied', r.settingsApplied),
+              if (r.bookFoldersMissing.isNotEmpty) ...[
+                const Divider(),
+                Text('Audiobook folders not on this phone:', style: theme.textTheme.labelLarge),
+                for (final f in r.bookFoldersMissing.take(8)) Text(f, maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+                Text(
+                  'Add them where they are now (Library > + > Add audiobook folder); the books keep their place.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
               if (r.notFound.isNotEmpty) ...[
                 const Divider(),
                 Text('Not found:', style: theme.textTheme.labelLarge),

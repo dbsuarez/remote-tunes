@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -10,7 +11,7 @@ import 'package:remote_tunes/data/repositories/library_repository.dart';
 import 'package:remote_tunes/data/repositories/settings_repository.dart';
 import 'package:remote_tunes/features/backup/backup_models.dart';
 import 'package:remote_tunes/features/backup/backup_service.dart';
-import 'package:remote_tunes/features/library/import_service.dart' show MemoryExclusionStore;
+import 'package:remote_tunes/features/library/import_service.dart' show MemoryExclusionStore, MemoryMusicFoldersStore, MusicFolder;
 import 'package:remote_tunes/features/music/music_browser.dart';
 import 'package:remote_tunes/features/player/audiobook_tracker.dart';
 import 'package:remote_tunes/features/player/queue/playable_song.dart';
@@ -256,6 +257,56 @@ void main() {
       final a = await r.addSong(title: 'Ch', artist: 'A', album: 'B', filePath: '/x.mp3', durationSeconds: 100);
       await r.setAudiobook([a], true);
       expect((await service(other).create(activity: false)).books, isEmpty);
+    });
+
+    group('the audiobook folders', () {
+      late Directory dir;
+      setUp(() => dir = Directory.systemTemp.createTempSync('bookfolders'));
+      tearDown(() => dir.deleteSync(recursive: true));
+
+      BackupService withFolders(AppDatabase d, MemoryMusicFoldersStore f) => BackupService(
+          db: d,
+          settings: SettingsRepository(d),
+          exclusions: MemoryExclusionStore(),
+          copiedSongsDir: '/app/library',
+          folders: f);
+
+      test('the audiobook folders are in the file; music folders are not', () async {
+        final store = MemoryMusicFoldersStore()
+          ..folders = [
+            MusicFolder(path: '/storage/Audiobooks', audiobooks: true),
+            MusicFolder(path: '/sd/Books', audiobooks: true),
+            MusicFolder(path: '/storage/Music'),
+          ];
+        final data = await withFolders(db, store).create();
+        expect(data.bookFolders, ['/storage/Audiobooks', '/sd/Books']);
+        expect(BackupData.decode(data.encode()).bookFolders, ['/storage/Audiobooks', '/sd/Books']);
+        expect((await withFolders(db, store).create(activity: false)).bookFolders, isEmpty);
+        expect((await service(db).create()).bookFolders, isEmpty, reason: 'no store: none');
+      });
+
+      test('a restore remembers the ones that exist here, and lists the others', () async {
+        final here = Directory('${dir.path}/Books')..createSync();
+        final data = BackupData(created: DateTime(2026), bookFolders: [here.path, '/not/on/this/phone']);
+        final store = MemoryMusicFoldersStore();
+        final report = await withFolders(db, store).restore(data);
+        expect(report.bookFoldersAdded, 1);
+        expect(report.bookFoldersMissing, ['/not/on/this/phone']);
+        expect(store.folders.single.path, here.path);
+        expect(store.folders.single.audiobooks, isTrue);
+        // Again: nothing twice.
+        final again = await withFolders(db, store).restore(data);
+        expect(again.bookFoldersAdded, 0);
+        expect(store.folders, hasLength(1));
+      });
+
+      test('a folder already remembered (as music or as books) is left alone', () async {
+        final here = Directory('${dir.path}/Both')..createSync();
+        final store = MemoryMusicFoldersStore()..folders = [MusicFolder(path: here.path)];
+        final report = await withFolders(db, store).restore(BackupData(created: DateTime(2026), bookFolders: [here.path]));
+        expect(report.bookFoldersAdded, 0);
+        expect(store.folders.single.audiobooks, isFalse);
+      });
     });
 
     test('damaged entries are skipped, odd values kept in range', () {

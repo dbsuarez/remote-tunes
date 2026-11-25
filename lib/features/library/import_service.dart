@@ -237,6 +237,9 @@ class LibraryImportService {
   final ExclusionStore _exclusions;
   final MusicFoldersStore _folders;
 
+  /// Where the remembered folders are kept (the backup reads and writes the audiobook ones).
+  MusicFoldersStore get foldersStore => _folders;
+
   /// The left-out list (for the backup).
   ExclusionStore get exclusions => _exclusions;
 

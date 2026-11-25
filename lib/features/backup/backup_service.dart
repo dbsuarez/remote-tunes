@@ -6,7 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../data/database/app_database.dart';
 import '../../data/repositories/settings_repository.dart';
-import '../library/import_service.dart' show ExclusionStore;
+import '../library/import_service.dart' show ExclusionStore, MusicFolder, MusicFoldersStore;
 import 'backup_models.dart';
 
 /// How a song of the backup was found in this phone's library.
@@ -40,6 +40,10 @@ class RestoreReport {
   int artSkipped = 0;
   int historyAdded = 0;
   int booksRestored = 0;
+  int bookFoldersAdded = 0;
+
+  /// Audiobook folders of the old phone that are not on this one.
+  final List<String> bookFoldersMissing = [];
 
   int get found => byPath + byTags + looseMatches + picked;
 }
@@ -57,7 +61,11 @@ class BackupService {
     required this.exclusions,
     required this.copiedSongsDir,
     this.artDir = '',
+    this.folders,
   });
+
+  /// The remembered folders (for the audiobook folders). Null: they are not in the backup.
+  final MusicFoldersStore? folders;
 
   final AppDatabase db;
   final SettingsRepository settings;
@@ -335,6 +343,12 @@ class BackupService {
       art: covers,
       playLog: playLog,
       books: books,
+      bookFolders: activity
+          ? [
+              for (final f in await (folders?.load() ?? Future.value(const <MusicFolder>[])))
+                if (f.audiobooks) f.path,
+            ]
+          : const [],
     );
   }
 
@@ -671,6 +685,24 @@ class BackupService {
             variables: [Variable<double>(b.speed!), Variable<int>(id)]);
       }
       report.booksRestored++;
+    }
+
+    // Audiobook folders: remembered again where they exist on this phone (add the others yourself).
+    final store = folders;
+    if (store != null && data.bookFolders.isNotEmpty) {
+      final have = await store.load();
+      var changed = false;
+      for (final path in data.bookFolders) {
+        if (have.any((f) => f.path == path)) continue;
+        if (!Directory(path).existsSync()) {
+          report.bookFoldersMissing.add(path);
+          continue;
+        }
+        have.add(MusicFolder(path: path, audiobooks: true));
+        report.bookFoldersAdded++;
+        changed = true;
+      }
+      if (changed) await store.save(have);
     }
 
     if (includeHistory) {
