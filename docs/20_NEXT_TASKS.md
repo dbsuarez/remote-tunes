@@ -50,7 +50,21 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
   - [ ] **5. Playback insights:** first record each play (song, time, how long it was heard); then most played, plays over time, listening time and plays by genre. Plays would stay on the phone.
 - Privacy: everything is computed on the phone from its own library; nothing is sent anywhere.
 
-Suggested order: **1** first (the owner's choice, and it stands alone), then **4 (phases 1 to 2)** because it needs nothing else and shows the library at a glance, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
+**5. Online Library home screen (Jamendo) with something to see before you search**
+- Today the Online Library is blank until you search. Jamendo's `tracks` request (the one the app already uses) can also be sorted, which should give ready-made shelves with no search: **Popular this week**, **Popular this month**, **Newest releases**, and **Top in a genre** (the genre chips, sorted by popularity). The app already sends `order=popularity_total`; the other orders (`popularity_week`, `popularity_month`, `releasedate_desc`, `listens_*`) are to be checked against the API when this is built.
+- Shape: shelves of covers you can scroll sideways (each tap plays, each has *Play all* / *Add all to queue*), genre chips that open the top tracks of that genre, and the search box stays on top. Shelves are fetched when the tab opens (a few requests, one at a time, the existing gap between requests applies) and kept for the session; offline it says so and still shows the history.
+- Needs the Jamendo client ID as before; nothing new is sent beyond the same requests. Add a switch (*Show suggestions in the Online Library*) so the tab can stay quiet.
+- [ ] shelves (week, month, newest) · [ ] top by genre · [ ] play / queue all · [ ] a switch · [ ] tests with the fake Jamendo
+
+**What to listen for in your own library: most played, most skipped** (changes item 4)
+- The owner's question: is a chart dashboard needed, when what he wants to know is *which song is played most, skipped most*? Decision: **lists first, charts second.** A ranked, tappable list does that better than any chart: tap a song to play it, long-press to queue it.
+- What is recorded today: only a play count and the last time played. There is **no skip count and no log**, so "most skipped" cannot be answered yet.
+- Plan: record one small **play event** per song played (song, when it started, how long it was really heard, and how it ended: *finished*, *skipped* (left before 30 seconds or before half of it), or *stopped*). It stays on the phone and can be cleared (Settings). Old play counts are kept as they are.
+- **Insights screen, first version (lists, no new package needed):** Most played · Most skipped · Recently played · Never played · Played this week · and by artist / genre. Each row shows the number (plays, skips, minutes). A small header of totals (songs, hours of music, size).
+- Charts (FL Chart, item 4 above) then become an optional second step: a genre doughnut and a songs-added line are the only two worth having at first.
+- [ ] play events recorded (with a switch and *Clear*) · [ ] the lists · [ ] header totals · [ ] charts later
+
+Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: small and visible), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
 ---
 
