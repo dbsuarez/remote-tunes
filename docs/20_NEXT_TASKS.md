@@ -23,7 +23,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [ ] **Group play card** shows only while controlling another phone.
 
 ### Ideas not started
-- [ ] A **user guide** for friends (built from these docs). Wanted later; for now the app is for personal use only.
+- [ ] A **user guide for friends** (a shorter, friendlier version of [22_USER_GUIDE.md](22_USER_GUIDE.md)). Wanted later; for now the app is for personal use only.
 - [ ] A true 10-band equalizer / our own audio effects (see above).
 - [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Left out of the library* screen).
 
@@ -69,6 +69,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] Group play and Auto-align (verified on two phones).
 
 ### Docs
+- [x] [User guide for the owner](22_USER_GUIDE.md): where things are and how they work.
 - [x] [Privacy page](21_PRIVACY.md): everything that leaves the phone and how to switch it off. README updated.
 
 ---
