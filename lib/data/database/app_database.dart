@@ -127,6 +127,17 @@ extension PlayEventsTable on AppDatabase {
       'score INTEGER NOT NULL DEFAULT 0, high INTEGER NOT NULL DEFAULT 0, '
       "status TEXT NOT NULL DEFAULT 'new')",
     );
+    // Columns added later (a database from before them gets them here).
+    final have = {
+      for (final r in await customSelect('PRAGMA table_info(tag_suggestions)').get()) r.read<String>('name'),
+    };
+    for (final c in const [
+      ('genre', 'TEXT'),
+      ('release_id', 'TEXT'),
+      ('asked_genre', 'INTEGER NOT NULL DEFAULT 0'),
+    ]) {
+      if (!have.contains(c.$1)) await customStatement('ALTER TABLE tag_suggestions ADD COLUMN ${c.$1} ${c.$2}');
+    }
     await customStatement(
       'CREATE TABLE IF NOT EXISTS tag_changes ('
       'id INTEGER PRIMARY KEY AUTOINCREMENT, batch INTEGER NOT NULL, song_id INTEGER NOT NULL, '

@@ -146,6 +146,40 @@ void main() {
       expect(m.where((x) => x.title == 'Song 0'), hasLength(1));
     });
 
+    test('the genre: MusicBrainz own genres first, else the most used tag that is a genre', () async {
+      Map<String, dynamic> withTags(Map<String, dynamic> extra) =>
+          {..._recording('Song', 'Band', 100, 200000, [_release(_release1, 'Alb', '2000', '1')]), ...extra};
+      respond = (u) => http.Response(
+          _results([
+            withTags({
+              'genres': [
+                {'name': 'alternative rock', 'count': 3},
+                {'name': 'rock', 'count': 9}
+              ],
+              'tags': [
+                {'name': 'seen live', 'count': 50}
+              ],
+            }),
+          ]),
+          200);
+      expect((await make().search(title: 'Song')).single.genre, 'Rock');
+      respond = (u) => http.Response(
+          _results([
+            withTags({
+              'tags': [
+                {'name': 'seen live', 'count': 50},
+                {'name': 'hip hop', 'count': 4},
+                {'name': 'american', 'count': 20},
+                {'name': 'rap', 'count': 2},
+              ],
+            }),
+          ]),
+          200);
+      expect((await make().search(title: 'Song')).single.genre, 'Hip Hop', reason: 'junk tags are skipped');
+      respond = (u) => http.Response(_results([withTags({'tags': []})]), 200);
+      expect((await make().search(title: 'Song')).single.genre, isNull);
+    });
+
     test('a recording with no release still gives the title and artist', () async {
       respond = (u) => http.Response(_results([_recording('Lone', 'Solo', 80, 100000, [])]), 200);
       final m = await make().search(title: 'Lone');

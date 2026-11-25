@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/providers.dart';
 import '../library/lookup_models.dart';
+import '../settings/album_art_dialog.dart';
 import 'tag_cleanup.dart';
 import 'tag_cleanup_service.dart';
 import 'tag_review_screen.dart';
@@ -54,7 +55,13 @@ class _TagCleanupScreenState extends ConsumerState<TagCleanupScreen> {
 
   Future<void> _review(String title, List<TagChange> changes, {bool canSkip = false}) async {
     await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => TagReviewScreen(title: title, changes: changes, service: _service, canSkip: canSkip),
+      builder: (_) => TagReviewScreen(
+        title: title,
+        changes: changes,
+        service: _service,
+        canSkip: canSkip,
+        coverLookup: ref.read(songLookupProvider),
+      ),
     ));
     await _load();
   }
@@ -187,7 +194,7 @@ class _TagCleanupScreenState extends ConsumerState<TagCleanupScreen> {
                   Text('Find missing details online', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'Asks MusicBrainz about songs that lack an album or a year, by title, artist, album and '
+                    'Asks MusicBrainz about songs that lack an album, a year or a genre, by title, artist, album and '
                     'length (about one song a second; 2,000 songs take roughly half an hour). You can stop '
                     'and carry on later. Nothing is changed until you approve it.',
                     style: muted,
@@ -228,6 +235,16 @@ class _TagCleanupScreenState extends ConsumerState<TagCleanupScreen> {
                       padding: const EdgeInsets.only(top: 6),
                       child: Text('${r.noMatch} song${r.noMatch == 1 ? '' : 's'} had no match.', style: muted),
                     ),
+                  const Divider(height: 32),
+                  Text('Covers', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${r.noCover} song${r.noCover == 1 ? ' has' : 's have'} no cover. Sure matches from the online '
+                    'search can bring their cover when you apply them; this finds covers for the rest, album '
+                    'by album (MusicBrainz and the Cover Art Archive).',
+                    style: muted,
+                  ),
+                  const AlbumArtTile(),
                   const Divider(height: 32),
                   Text('Undo', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),

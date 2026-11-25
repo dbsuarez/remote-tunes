@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +42,15 @@ class _Lookup implements SongLookupService {
   Future<void> discardLyrics(int songId) async {}
   @override
   Future<int> applyCover(int songId, LookupCover cover) async => 0;
+}
+
+class _CoverLookup extends _Lookup {
+  final asked = <String>[];
+  @override
+  Future<LookupCover?> coverFor(LookupMatch m) async {
+    asked.add(m.releaseId!);
+    return LookupCover(Uint8List.fromList(List.filled(200, 1)), 'jpg');
+  }
 }
 
 void main() {
@@ -135,6 +146,54 @@ void main() {
       expect(tester.widget<CheckboxListTile>(find.byKey(const ValueKey('change-1'))).value, isTrue);
       expect(tester.widget<CheckboxListTile>(find.byKey(const ValueKey('change-2'))).value, isFalse);
       expect(find.text('Select the sure ones (1)'), findsOneWidget);
+    });
+
+    testWidgets('sure matches with a release offer covers, which are downloaded when ticked', (tester) async {
+      final id = await add('Hello', '/m/h.mp3', artist: 'Ann');
+      final covers = _CoverLookup();
+      final change = TagChange(songId: id, label: 'Hello - Ann', source: 'musicbrainz', year: 2001, releaseId: 'rel-1', high: true, was: const {'year': null});
+      tester.view.physicalSize = const Size(500, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: TagReviewScreen(title: 'Suggestions', changes: [change], service: service, coverLookup: covers),
+      ));
+      await tester.pump();
+      expect(find.byKey(const Key('review-covers')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('review-all')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('review-apply')));
+      await settle(tester);
+      expect(covers.asked, ['rel-1']);
+      expect(find.textContaining('1 cover downloaded'), findsOneWidget);
+    });
+
+    testWidgets('with the covers box unticked nothing is downloaded; without releases there is no box', (tester) async {
+      final id = await add('Hello', '/m/h.mp3', artist: 'Ann');
+      final covers = _CoverLookup();
+      final change = TagChange(songId: id, label: 'Hello', source: 'musicbrainz', year: 2001, releaseId: 'rel-1', was: const {'year': null});
+      tester.view.physicalSize = const Size(500, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: TagReviewScreen(title: 'S', changes: [change], service: service, coverLookup: covers),
+      ));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('review-covers')));
+      await tester.tap(find.byKey(const Key('review-all')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('review-apply')));
+      await settle(tester);
+      expect(covers.asked, isEmpty);
+      await tester.pumpWidget(MaterialApp(
+        home: TagReviewScreen(
+            title: 'S',
+            changes: [TagChange(songId: id, label: 'x', source: 'filename', title: 'T', was: const {})],
+            service: service,
+            coverLookup: covers),
+      ));
+      await tester.pump();
+      expect(find.byKey(const Key('review-covers')), findsNothing);
     });
 
     testWidgets('Set aside marks suggestions as skipped and removes them', (tester) async {

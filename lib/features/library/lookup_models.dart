@@ -13,6 +13,7 @@ class LookupMatch {
     this.releaseId,
     this.score = 0,
     this.lengthSeconds,
+    this.genre,
   });
 
   final String title;
@@ -25,6 +26,9 @@ class LookupMatch {
   final String? releaseId;
   final int score;
   final int? lengthSeconds;
+
+  /// The best-liked genre of the recording (MusicBrainz's own genres, else its most used tag).
+  final String? genre;
 
   /// "Title · Artist · Album (1999) · track 3".
   String get label => [

@@ -53,6 +53,38 @@ class SongLookup implements SongLookupService {
     }
   }
 
+  /// Tags that people add but that are not genres.
+  static const _notGenres = {
+    'seen live', 'favorite', 'favorites', 'favourite', 'favourites', 'awesome', 'my music', 'love',
+    'male vocalists', 'female vocalists', 'male vocalist', 'female vocalist', 'american', 'british',
+    'english', 'usa', 'uk', 'canadian', 'australian', 'german', 'french', '00s', '90s', '80s', '70s',
+    '60s', '10s', '2000s', '1990s', '1980s', '1970s', 'cover', 'covers', 'live', 'good', 'best',
+  };
+
+  /// The most liked genre in a recording's `genres` (curated) or `tags` (what people typed).
+  static String? genreOf(Map recording) {
+    String? best(Object? list, {required bool filter}) {
+      if (list is! List) return null;
+      String? name;
+      var top = -1;
+      for (final e in list.whereType<Map>()) {
+        final n = e['name'];
+        if (n is! String || n.trim().isEmpty) continue;
+        if (filter && _notGenres.contains(n.trim().toLowerCase())) continue;
+        final c = e['count'] is num ? (e['count'] as num).toInt() : 0;
+        if (c > top) {
+          top = c;
+          name = n.trim();
+        }
+      }
+      return name;
+    }
+
+    final g = best(recording['genres'], filter: false) ?? best(recording['tags'], filter: true);
+    if (g == null) return null;
+    return g.split(' ').where((w) => w.isNotEmpty).map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
+  }
+
   static String _q(String s) => s.replaceAll('"', ' ').replaceAll(r'\', ' ').trim();
 
   static bool _unknown(String s) {
@@ -133,6 +165,7 @@ class SongLookup implements SongLookupService {
           releaseId: id is String && RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(id) ? id : null,
           score: score,
           lengthSeconds: length,
+          genre: genreOf(r),
         ));
       }
     }

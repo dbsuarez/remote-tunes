@@ -17,6 +17,7 @@ class ApplyResult {
     this.written = 0,
     this.notAllowed = 0,
     this.failed = 0,
+    this.covers = 0,
   });
 
   /// The number to undo it by (0: nothing was changed).
@@ -27,6 +28,9 @@ class ApplyResult {
   final int written;
   final int notAllowed;
   final int failed;
+
+  /// Album covers downloaded for songs that had none.
+  final int covers;
 }
 
 typedef TagProgress = void Function(int done, int total, String? current);
@@ -138,6 +142,7 @@ class TagCleanupService {
   Future<ApplyResult> apply(
     List<TagChange> changes, {
     bool writeToFile = false,
+    SongLookupService? coverLookup,
     TagProgress? onProgress,
   }) async {
     final todo = [for (final c in changes) if (!c.isEmpty) c];
@@ -150,7 +155,7 @@ class TagCleanupService {
       final c = todo[i];
       onProgress?.call(i, todo.length, c.label);
       final row = await db
-          .customSelect('SELECT title, artist, album, track_number, year, file_path FROM songs WHERE id = ?',
+          .customSelect('SELECT title, artist, album, track_number, year, genre, file_path FROM songs WHERE id = ?',
               variables: [Variable<int>(c.songId)])
           .getSingleOrNull();
       if (row == null) continue;
@@ -160,6 +165,7 @@ class TagCleanupService {
         'album': row.readNullable<String>('album'),
         'track': row.readNullable<int>('track_number'),
         'year': row.readNullable<int>('year'),
+        'genre': row.readNullable<String>('genre'),
       };
       final title = c.title ?? old['title'] as String;
       final artist = c.artist ?? (old['artist'] as String?) ?? unknownArtist;
@@ -167,14 +173,15 @@ class TagCleanupService {
       final track = c.track ?? old['track'] as int?;
       final ok = await library.updateSongInfo(c.songId, title: title, artist: artist, album: album, trackNumber: track);
       if (!ok) continue;
-      if (c.year != null) await library.updateGroupInfo([c.songId], {'year': c.year});
+      final extra = <String, Object?>{if (c.year != null) 'year': c.year, if (c.genre != null) 'genre': c.genre};
+      if (extra.isNotEmpty) await library.updateGroupInfo([c.songId], extra);
       applied++;
       var wrote = false;
       final path = row.readNullable<String>('file_path');
       if (writeToFile && path != null) {
         var result = writer.write(path, title: title, artist: artist, album: album, trackNumber: track);
-        if (result == TagWriteResult.written && c.year != null) {
-          result = writer.writeGroup(path, {'year': c.year});
+        if (result == TagWriteResult.written && extra.isNotEmpty) {
+          result = writer.writeGroup(path, extra);
         }
         switch (result) {
           case TagWriteResult.written:
@@ -198,8 +205,43 @@ class TagCleanupService {
       );
       if (c.source == 'musicbrainz') await markSuggestions([c.songId], 'applied');
     }
+    // Covers: for songs that came from a sure release and still have no picture, one download
+    // per release (every song of that album gets it).
+    var covers = 0;
+    if (coverLookup != null) {
+      final byRelease = <String, TagChange>{};
+      for (final c in todo) {
+        final id = c.releaseId;
+        if (id != null && !byRelease.containsKey(id)) byRelease[id] = c;
+      }
+      var n = 0;
+      for (final e in byRelease.entries) {
+        onProgress?.call(n++, byRelease.length, 'covers');
+        final c = e.value;
+        final needs = await db.customSelect(
+          "SELECT artist, album FROM songs WHERE id = ? AND (album_art_path IS NULL OR album_art_path = '')",
+          variables: [Variable<int>(c.songId)],
+        ).getSingleOrNull();
+        if (needs == null) continue;
+        try {
+          final cover = await coverLookup.coverFor(LookupMatch(
+            title: c.label,
+            artist: needs.readNullable<String>('artist') ?? '',
+            album: needs.readNullable<String>('album') ?? '',
+            releaseId: e.key,
+          ));
+          if (cover != null) {
+            await coverLookup.applyCover(c.songId, cover);
+            covers++;
+          }
+        } on LookupException {
+          break; // MusicBrainz or the archive is busy: the rest can be done later
+        } catch (_) {}
+      }
+    }
     onProgress?.call(todo.length, todo.length, null);
-    return ApplyResult(batchId: applied == 0 ? 0 : batch, applied: applied, written: written, notAllowed: notAllowed, failed: failed);
+    return ApplyResult(
+        batchId: applied == 0 ? 0 : batch, applied: applied, written: written, notAllowed: notAllowed, failed: failed, covers: covers);
   }
 
   /// Puts the newest batch back as it was (in the library, and in the files that were changed).
@@ -227,13 +269,15 @@ class TagCleanupService {
       final album = old['album'] as String? ?? unknownAlbum;
       final track = old['track'] as int?;
       if (!await library.updateSongInfo(id, title: title, artist: artist, album: album, trackNumber: track)) continue;
-      await library.updateGroupInfo([id], {'year': old['year']});
+      await library.updateGroupInfo([id], {'year': old['year'], if (old.containsKey('genre')) 'genre': old['genre']});
       restored++;
       if (r.read<int>('wrote_file') == 1) {
         final path = (await library.songById(id))?.filePath;
         if (path != null) {
           var result = writer.write(path, title: title, artist: artist, album: album, trackNumber: track);
-          if (result == TagWriteResult.written) result = writer.writeGroup(path, {'year': old['year']});
+          if (result == TagWriteResult.written) {
+            result = writer.writeGroup(path, {'year': old['year'], if (old.containsKey('genre')) 'genre': old['genre']});
+          }
           switch (result) {
             case TagWriteResult.written:
               written++;
@@ -265,9 +309,11 @@ class TagCleanupService {
   }) async {
     final rows = await db
         .customSelect(
-          'SELECT id, title, artist, album, year, track_number, duration_seconds FROM songs '
-          'WHERE $_music AND ($_albumUnknown OR year IS NULL) '
-          'AND id NOT IN (SELECT song_id FROM tag_suggestions) ORDER BY id',
+          'SELECT id, title, artist, album, year, track_number, duration_seconds, genre FROM songs '
+          "WHERE $_music AND ($_albumUnknown OR year IS NULL OR genre IS NULL OR genre = '') "
+          // Not asked yet; or asked before genres were looked for, and still without one.
+          'AND (id NOT IN (SELECT song_id FROM tag_suggestions) OR id IN (SELECT song_id FROM tag_suggestions '
+          "WHERE asked_genre = 0 AND status IN ('new', 'nomatch') AND (genre IS NULL OR genre = ''))) ORDER BY id",
         )
         .get();
     var asked = 0;
@@ -293,7 +339,9 @@ class TagCleanupService {
       final newYear = m != null && year == null ? m.year : null;
       final newTrack = m != null && track == null ? m.trackNumber : null;
       final newArtist = m != null && _isUnknown(artist) && m.artist.isNotEmpty ? m.artist : null;
-      final nothing = newAlbum == null && newYear == null && newTrack == null && newArtist == null;
+      final hasGenre = (r.readNullable<String>('genre') ?? '').isNotEmpty;
+      final newGenre = m != null && !hasGenre ? m.genre : null;
+      final nothing = newAlbum == null && newYear == null && newTrack == null && newArtist == null && newGenre == null;
       // A sure match: the same title, the same artist (or none yet), about the same length.
       final high = m != null &&
           !nothing &&
@@ -304,8 +352,8 @@ class TagCleanupService {
           (m.lengthSeconds! - duration).abs() <= 3 &&
           m.score >= 90;
       await db.customInsert(
-        'INSERT OR REPLACE INTO tag_suggestions (song_id, artist, album, year, track, score, high, status) '
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO tag_suggestions (song_id, artist, album, year, track, score, high, status, genre, release_id, asked_genre) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
         variables: [
           Variable<int>(r.read<int>('id')),
           Variable<String>(newArtist),
@@ -315,6 +363,8 @@ class TagCleanupService {
           Variable<int>(m?.score ?? 0),
           Variable<int>(high ? 1 : 0),
           Variable<String>(nothing ? 'nomatch' : 'new'),
+          Variable<String>(newGenre),
+          Variable<String>(high ? m.releaseId : null),
         ],
       );
     }
@@ -327,7 +377,7 @@ class TagCleanupService {
     final rows = await db
         .customSelect(
           'SELECT g.song_id, g.artist AS n_artist, g.album AS n_album, g.year AS n_year, g.track AS n_track, '
-          'g.high, s.title, s.artist, s.album, s.year, s.track_number FROM tag_suggestions g '
+          'g.high, g.genre AS n_genre, g.release_id, s.title, s.artist, s.album, s.year, s.track_number, s.genre FROM tag_suggestions g '
           "JOIN songs s ON s.id = g.song_id WHERE g.status = 'new' ORDER BY g.high DESC, s.title COLLATE NOCASE",
         )
         .get();
@@ -341,8 +391,11 @@ class TagCleanupService {
           album: r.readNullable<String>('n_album'),
           year: r.readNullable<int>('n_year'),
           track: r.readNullable<int>('n_track'),
+          genre: r.readNullable<String>('n_genre'),
+          releaseId: r.readNullable<String>('release_id'),
           high: r.read<int>('high') == 1,
           was: {
+            'genre': r.readNullable<String>('genre'),
             'artist': r.readNullable<String>('artist'),
             'album': r.readNullable<String>('album'),
             'year': r.readNullable<int>('year'),

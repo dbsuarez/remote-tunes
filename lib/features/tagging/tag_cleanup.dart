@@ -43,6 +43,8 @@ class TagChange {
     this.album,
     this.year,
     this.track,
+    this.genre,
+    this.releaseId,
     this.high = false,
     this.was = const {},
   });
@@ -60,6 +62,10 @@ class TagChange {
   final String? album;
   final int? year;
   final int? track;
+  final String? genre;
+
+  /// The MusicBrainz release this came from (so its cover can be fetched).
+  final String? releaseId;
 
   /// A sure match (it can be approved in one go).
   final bool high;
@@ -67,7 +73,8 @@ class TagChange {
   /// The values before the change, by field (`title`, `artist`, `album`, `year`, `track`).
   final Map<String, Object?> was;
 
-  bool get isEmpty => title == null && artist == null && album == null && year == null && track == null;
+  bool get isEmpty =>
+      title == null && artist == null && album == null && year == null && track == null && genre == null;
 
   /// The fields that would change, by name.
   Map<String, Object> get fields => {
@@ -76,6 +83,7 @@ class TagChange {
         if (album != null) 'album': album!,
         if (year != null) 'year': year!,
         if (track != null) 'track': track!,
+        if (genre != null) 'genre': genre!,
       };
 
   /// "artist: Unknown artist -> Ann" lines for the review.

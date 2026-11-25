@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../library/lookup_models.dart';
 import 'tag_cleanup.dart';
 import 'tag_cleanup_service.dart';
 
@@ -13,7 +14,11 @@ class TagReviewScreen extends StatefulWidget {
     required this.changes,
     required this.service,
     this.canSkip = false,
+    this.coverLookup,
   });
+
+  /// Where covers are downloaded from for sure matches (null: no cover option).
+  final SongLookupService? coverLookup;
 
   final String title;
   final List<TagChange> changes;
@@ -30,6 +35,7 @@ class _TagReviewScreenState extends State<TagReviewScreen> {
   late final List<TagChange> _left = [...widget.changes];
   final Set<int> _picked = {};
   bool _write = true;
+  bool _covers = true;
   bool _busy = false;
   bool _changed = false;
   int _done = 0;
@@ -54,6 +60,7 @@ class _TagReviewScreenState extends State<TagReviewScreen> {
       final r = await widget.service.apply(
         chosen,
         writeToFile: _write,
+        coverLookup: _covers && chosen.any((c) => c.releaseId != null) ? widget.coverLookup : null,
         onProgress: (d, t, _) {
           if (mounted) setState(() => _done = d);
         },
@@ -72,7 +79,8 @@ class _TagReviewScreenState extends State<TagReviewScreen> {
               : r.failed > 0
                   ? ' ${r.written} file${r.written == 1 ? '' : 's'} changed, ${r.failed} could not be.'
                   : ' ${r.written} file${r.written == 1 ? '' : 's'} changed too.';
-      _say('Changed ${r.applied} song${r.applied == 1 ? '' : 's'}.$files You can undo this in Tag cleanup.');
+      final covers = r.covers > 0 ? ' ${r.covers} cover${r.covers == 1 ? '' : 's'} downloaded.' : '';
+      _say('Changed ${r.applied} song${r.applied == 1 ? '' : 's'}.$files$covers You can undo this in Tag cleanup.');
     } catch (_) {
       _say("The changes couldn't be applied.");
     } finally {
@@ -173,6 +181,16 @@ class _TagReviewScreenState extends State<TagReviewScreen> {
                       ),
                     ),
                     if (_busy) LinearProgressIndicator(value: _total == 0 ? null : _done / _total),
+                    if (widget.coverLookup != null && _left.any((c) => c.releaseId != null))
+                      CheckboxListTile(
+                        key: const Key('review-covers'),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        dense: true,
+                        title: const Text('Also download covers'),
+                        subtitle: const Text('For sure matches whose album has no cover yet (a little slower)'),
+                        value: _covers,
+                        onChanged: _busy ? null : (v) => setState(() => _covers = v ?? true),
+                      ),
                     CheckboxListTile(
                       key: const Key('review-write'),
                       controlAffinity: ListTileControlAffinity.leading,
