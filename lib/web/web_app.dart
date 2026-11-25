@@ -13,6 +13,10 @@ import '../features/controller/controller_client.dart';
 import '../features/controller/controller_views.dart';
 import '../features/online/online_transport.dart';
 import '../features/online/supabase_relay.dart';
+import '../features/cloud/cloud_library_view.dart';
+import '../features/cloud/cloud_pickers.dart';
+import '../features/cloud/cloud_settings_screen.dart';
+import '../features/cloud/cloud_web_upload.dart';
 import 'web_storage.dart';
 
 /// The browser's storage. Overridden in `main_web.dart` (and in tests).
@@ -182,6 +186,14 @@ class _WebHomeState extends ConsumerState<WebHome> {
           ],
         ),
         actions: [
+          IconButton(
+            key: const Key('web-cloud'),
+            tooltip: 'Cloud Library',
+            icon: const Icon(Icons.cloud_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => WebCloudPage(client: _client)),
+            ),
+          ),
           if (connected)
             TextButton.icon(
               onPressed: _disconnect,
@@ -415,6 +427,40 @@ class _ConnectPanelState extends State<ConnectPanel> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The Cloud Library on the web page: browse and upload from the computer; play on the connected Player.
+class WebCloudPage extends ConsumerWidget {
+  const WebCloudPage({super.key, required this.client});
+
+  final ControllerClient client;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Cloud Library')),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: CloudLibraryView(
+              onOpenSettings: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
+              ),
+              onUpload: ref.watch(cloudSongPickerProvider) == null ? null : () => uploadPickedSongs(context, ref),
+              // The Player streams the song itself; the browser plays nothing.
+              onTrack: (s, url, image, {required queue}) {
+                if (!client.current.isConnected) {
+                  throw ControllerException('Connect to a Player first: the web page plays songs on a Player.');
+                }
+                return client.playUrl(url, title: s.title, artist: s.artist, album: s.album, imageUrl: image, queue: queue);
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

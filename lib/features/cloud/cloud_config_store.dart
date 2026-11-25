@@ -1,7 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -77,17 +73,6 @@ final cloudConfigStoreProvider = Provider<CloudConfigStore>((ref) => PrefsCloudC
 
 /// The Cloud Library settings; read again (invalidate) after they are saved.
 final cloudConfigProvider = FutureProvider<CloudConfig>((ref) => ref.watch(cloudConfigStoreProvider).load());
-
-/// Lets the user pick a notes file and gives its text (null: nothing picked). Replaced in tests.
-final cloudNotesPickerProvider = Provider<Future<String?> Function()>((ref) => () async {
-      final r = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
-      final f = r?.files.singleOrNull;
-      if (f == null) return null;
-      final bytes = f.bytes ?? (f.path == null ? null : await File(f.path!).readAsBytes());
-      // A notes file is small; anything big is not one.
-      if (bytes == null || bytes.length > 64 * 1024) return null;
-      return utf8.decode(bytes, allowMalformed: true);
-    });
 
 /// Makes a Cloud Library service for some settings (replaced in tests).
 final cloudServiceFactoryProvider = Provider<CloudLibraryService Function(CloudConfig)>((ref) => CloudLibraryService.new);

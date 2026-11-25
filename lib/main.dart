@@ -1,3 +1,5 @@
+import 'features/cloud/cloud_pickers.dart';
+import 'features/cloud/cloud_pickers_phone.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -22,6 +24,8 @@ void main() {
   runApp(
     ProviderScope(
       overrides: [
+        // The Cloud Library settings can be filled from a notes file picked on the phone.
+        cloudNotesPickerProvider.overrideWithValue(pickNotesFile),
         // Recent links live in the phone's database.
         recentLinksStoreProvider.overrideWith(
           (ref) => DriftRecentLinksStore(ref.watch(recentUrlsRepositoryProvider)),

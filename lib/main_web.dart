@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/pairing_qr.dart';
+import 'features/cloud/cloud_pickers.dart';
 import 'providers/recent_links.dart';
 import 'web/web_app.dart';
+import 'web/web_file_picker.dart';
 import 'web/web_storage.dart';
 
 /// Web Controller entry point (docs/17_WEB_CONTROLLER.md).
@@ -30,6 +32,8 @@ Future<void> main() async {
         webStorageProvider.overrideWithValue(storage),
         webLaunchLinkProvider.overrideWithValue(link),
         recentLinksStoreProvider.overrideWithValue(WebRecentLinksStore(storage)),
+        // Songs to upload are picked from the computer with the browser's file chooser.
+        cloudSongPickerProvider.overrideWithValue(pickSongsFromComputer),
       ],
       child: const WebControllerApp(),
     ),

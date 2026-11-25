@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'cloud_config_store.dart';
 import 'cloud_models.dart';
+import 'cloud_pickers.dart';
 import 'r2_client.dart';
 
 /// Settings > Lyrics and online > Cloud Library: where your cloud songs live, and the keys to upload.
@@ -111,7 +113,7 @@ class _CloudSettingsScreenState extends ConsumerState<CloudSettingsScreen> {
   Future<void> _import() async {
     final String? text;
     try {
-      text = await ref.read(cloudNotesPickerProvider)();
+      text = await ref.read(cloudNotesPickerProvider)?.call();
     } catch (_) {
       _say("The file couldn't be opened.");
       return;
@@ -196,19 +198,21 @@ class _CloudSettingsScreenState extends ConsumerState<CloudSettingsScreen> {
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    key: const Key('cloud-import'),
-                    onPressed: _busy ? null : _import,
-                    icon: const Icon(Icons.file_open_outlined),
-                    label: const Text('Import everything from a file'),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'A text file with the details Cloudflare shows (account id, bucket, public address, access key id and '
-                    'secret). Copy it to this phone, pick it here, and the fields are filled in and the keys tried.',
-                    style: muted,
-                  ),
-                  const SizedBox(height: 16),
+                  if (ref.watch(cloudNotesPickerProvider) != null) ...[
+                    OutlinedButton.icon(
+                      key: const Key('cloud-import'),
+                      onPressed: _busy ? null : _import,
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: const Text('Import everything from a file'),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'A text file with the details Cloudflare shows (account id, bucket, public address, access key id and '
+                      'secret). Copy it to this phone, pick it here, and the fields are filled in and the keys tried.',
+                      style: muted,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   Text('To browse and play', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text('Every phone that should see the Cloud Library needs just the public address.', style: muted),
@@ -282,6 +286,34 @@ class _CloudSettingsScreenState extends ConsumerState<CloudSettingsScreen> {
                   ),
                   if (_busy)
                     const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator()),
+                  const SizedBox(height: 24),
+                  ExpansionTile(
+                    key: const Key('cloud-cors'),
+                    tilePadding: EdgeInsets.zero,
+                    title: Text('Using it from the web page', style: theme.textTheme.titleMedium),
+                    children: [
+                      Text(
+                        'A web page may only read your bucket if the bucket allows it. In Cloudflare: R2 > your bucket > '
+                        'Settings > CORS Policy > Add, and paste this (it names the address of the web Controller). The phone app '
+                        'does not need it.',
+                        style: muted,
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(CloudCors.policy(), key: const Key('cloud-cors-text'), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          key: const Key('cloud-cors-copy'),
+                          onPressed: () async {
+                            await Clipboard.setData(ClipboardData(text: CloudCors.policy()));
+                            _say('Copied.', good: true);
+                          },
+                          icon: const Icon(Icons.copy_rounded),
+                          label: const Text('Copy'),
+                        ),
+                      ),
+                    ],
+                  ),
                   if (_message != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),

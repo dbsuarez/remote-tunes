@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:remote_tunes/features/cloud/cloud_config_store.dart';
 import 'package:remote_tunes/features/cloud/cloud_models.dart';
+import 'package:remote_tunes/features/cloud/cloud_pickers.dart';
 import 'package:remote_tunes/features/cloud/cloud_service.dart';
 import 'package:remote_tunes/features/cloud/cloud_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';

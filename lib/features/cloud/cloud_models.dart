@@ -309,3 +309,23 @@ class R2Notes {
     return R2Notes(accountId: account, bucket: bucket, publicUrl: publicUrl, keys: keys);
   }
 }
+
+/// The CORS rule a bucket needs so a web page (the web Controller) can read the catalog and upload.
+/// The phone app does not need it.
+class CloudCors {
+  CloudCors._();
+
+  /// Where the web Controller is published (GitHub Pages): only its address, no path.
+  static const defaultOrigin = 'https://dbsuarez.github.io';
+
+  /// The rule as Cloudflare's R2 > Settings > CORS Policy accepts it.
+  static String policy([String origin = defaultOrigin]) => '''[
+  {
+    "AllowedOrigins": ["$origin"],
+    "AllowedMethods": ["GET", "PUT", "DELETE", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]''';
+}

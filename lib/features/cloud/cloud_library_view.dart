@@ -16,7 +16,10 @@ typedef CloudTrackAction = Future<void> Function(CloudSong song, String audioUrl
 /// play on this phone (or on the Player when controlling another phone), queue, and delete if this
 /// phone has the keys. Songs are put up from the Library (select songs, then Upload to cloud).
 class CloudLibraryView extends ConsumerStatefulWidget {
-  const CloudLibraryView({super.key, required this.onTrack, this.enabled = true, this.onOpenSettings});
+  const CloudLibraryView({super.key, required this.onTrack, this.enabled = true, this.onOpenSettings, this.onUpload});
+
+  /// Starts an upload of songs picked here (the web page; the phone uploads from the Library). Null: not offered.
+  final Future<void> Function()? onUpload;
 
   final CloudTrackAction onTrack;
 
@@ -207,6 +210,16 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                 icon: const Icon(Icons.refresh_rounded),
                 onPressed: _loading ? null : _refresh,
               ),
+              if (widget.onUpload != null && config.canWrite)
+                IconButton(
+                  key: const Key('cloud-upload'),
+                  tooltip: 'Upload songs to the cloud',
+                  icon: const Icon(Icons.cloud_upload_outlined),
+                  onPressed: () async {
+                    await widget.onUpload!();
+                    if (mounted) await _refresh();
+                  },
+                ),
               if (widget.onOpenSettings != null)
                 IconButton(tooltip: 'Cloud Library settings', icon: const Icon(Icons.settings_outlined), onPressed: widget.onOpenSettings),
             ],
@@ -265,7 +278,9 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'Nothing is in the cloud yet. In your Library, long-press songs to select them, then tap Upload to cloud.',
+            widget.onUpload != null
+                ? 'Nothing is in the cloud yet. Tap the upload button above to put songs up.'
+                : 'Nothing is in the cloud yet. In your Library, long-press songs to select them, then tap Upload to cloud.',
             textAlign: TextAlign.center,
             style: muted,
           ),
