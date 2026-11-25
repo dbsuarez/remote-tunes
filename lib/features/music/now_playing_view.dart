@@ -143,7 +143,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
 
     // The queue peek rests along the bottom; the page scrolls clear of it.
     return LayoutBuilder(builder: (context, box) {
-      final peekSpace = p.isExternal ? 0.0 : box.maxHeight * QueuePeekSheet.peekSize + 12;
+      final peekSpace = p.isExternal ? 0.0 : QueuePeekSheet.handleHeight + 12;
       // The cover is as wide as the page allows, but not taller than about half
       // the screen so the controls stay in reach on a small phone.
       final heroSize = [box.maxWidth - 64, box.maxHeight * 0.42, 340.0]
@@ -175,18 +175,20 @@ class NowPlayingViewState extends State<NowPlayingView> {
                     state: p,
                     enabled: enabled,
                     onSeek: (s) => _run(() => session.seek(s)),
-                    art: session.art((p.songId ?? 0) <= 0 ? null : p.songId,
-                        size: heroSize, radius: 20),
+                    // The cover, with the lyrics button in its corner.
+                    art: CoverWithLyrics(
+                      cover: session.art((p.songId ?? 0) <= 0 ? null : p.songId,
+                          size: heroSize, radius: 20),
+                      size: heroSize,
+                      radius: 20,
+                      songId: p.songId,
+                      positionSeconds: p.positionSeconds,
+                      isPlaying: p.isPlaying,
+                      enabled: enabled,
+                      fetch: session.lyrics,
+                      onSeek: (s) => _run(() => session.seek(s)),
+                    ),
                     actions: _quickActions(p, enabled),
-                  ),
-                if (!p.isExternal)
-                  LyricsSection(
-                    songId: p.songId,
-                    positionSeconds: p.positionSeconds,
-                    isPlaying: p.isPlaying,
-                    enabled: enabled,
-                    fetch: session.lyrics,
-                    onSeek: (s) => _run(() => session.seek(s)),
                   ),
                 const SizedBox(height: 8),
                 TransportControls(

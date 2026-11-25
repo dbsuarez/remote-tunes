@@ -6,7 +6,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/pairing_qr.dart';
 import '../../providers/library_providers.dart';
-import '../music/lyrics_view.dart';
 import 'local_now_playing.dart';
 
 import '../../core/models/enums.dart';
@@ -645,15 +644,6 @@ class _LocalPlayer extends ConsumerWidget {
           state: state,
           onSeek: engine == null ? null : (s) => engine.seek(s),
         ),
-        if (!state.isExternal)
-          LyricsSection(
-            songId: state.songId,
-            positionSeconds: state.positionSeconds,
-            isPlaying: state.isPlaying,
-            enabled: engine != null,
-            fetch: ref.read(lyricsServiceProvider).forSong,
-            onSeek: engine == null ? null : (s) => engine.seek(s),
-          ),
         const SizedBox(height: 8),
         TransportControls(
           canSkip: state.canSkip,

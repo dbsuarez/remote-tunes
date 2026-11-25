@@ -248,8 +248,11 @@ void main() {
         MaterialApp(
           theme: ThemeData.dark(useMaterial3: true),
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: LyricsSection(
+            body: Center(
+              child: CoverWithLyrics(
+                cover: Container(color: Colors.purple),
+                size: 320,
+                radius: 20,
                 songId: songId,
                 positionSeconds: position,
                 isPlaying: false,
@@ -261,7 +264,7 @@ void main() {
         );
 
     Future<void> open(WidgetTester tester) async {
-      await tester.tap(find.text('Lyrics'));
+      await tester.tap(find.byTooltip('Show lyrics'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
     }
@@ -272,15 +275,15 @@ void main() {
         asked.add(id);
         return const RemoteLyrics();
       }));
-      expect(find.text('Lyrics'), findsOneWidget);
+      expect(find.byTooltip('Show lyrics'), findsOneWidget);
       expect(asked, isEmpty);
     });
 
     testWidgets('no button for a song without a library id (internet tracks)', (tester) async {
       await tester.pumpWidget(host((id) async => const RemoteLyrics(), songId: null));
-      expect(find.text('Lyrics'), findsNothing);
+      expect(find.byTooltip('Show lyrics'), findsNothing);
       await tester.pumpWidget(host((id) async => const RemoteLyrics(), songId: -1));
-      expect(find.text('Lyrics'), findsNothing);
+      expect(find.byTooltip('Show lyrics'), findsNothing);
     });
 
     testWidgets('synced lyrics show with the current line first', (tester) async {

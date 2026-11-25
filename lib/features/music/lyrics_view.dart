@@ -6,22 +6,30 @@ import '../../core/haptics.dart';
 import '../../core/lyrics/lrc.dart';
 import '../../core/protocol/library_models.dart';
 
-/// A "Lyrics" button under the song playing and, when pressed, a panel with the
-/// lyrics. Lyrics with times follow the song line by line; plain lyrics just
-/// scroll. Used on both phones; [fetch] asks the Player.
-class LyricsSection extends StatefulWidget {
-  const LyricsSection({
+/// The cover of the song playing, with a button in its top right corner that
+/// shows the lyrics in the same place. Lyrics with times follow the song line
+/// by line; plain lyrics just scroll. [fetch] asks the Player.
+class CoverWithLyrics extends StatefulWidget {
+  const CoverWithLyrics({
     super.key,
+    required this.cover,
+    required this.size,
+    required this.radius,
     required this.songId,
     required this.positionSeconds,
     required this.isPlaying,
     required this.fetch,
     this.onSeek,
     this.enabled = true,
-    this.height = 280,
   });
 
-  /// The library song playing (null or 0 or less: no lyrics to look up).
+  /// The picture itself (already [size] pixels square).
+  final Widget cover;
+  final double size;
+  final double radius;
+
+  /// The library song playing (null or 0 or less: no lyrics to look up, so no
+  /// button).
   final int? songId;
   final int positionSeconds;
   final bool isPlaying;
@@ -30,42 +38,33 @@ class LyricsSection extends StatefulWidget {
   /// Called with a position in seconds when a line is tapped.
   final ValueChanged<int>? onSeek;
   final bool enabled;
-  final double height;
 
   @override
-  State<LyricsSection> createState() => _LyricsSectionState();
+  State<CoverWithLyrics> createState() => _CoverWithLyricsState();
 }
 
-class _LyricsSectionState extends State<LyricsSection> {
+class _CoverWithLyricsState extends State<CoverWithLyrics> {
   bool _open = false;
 
   @override
   Widget build(BuildContext context) {
     final id = widget.songId;
-    if (id == null || id <= 0) return const SizedBox.shrink();
+    final hasLyrics = id != null && id > 0;
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: widget.enabled
-                ? () {
-                    Haptics.selection();
-                    setState(() => _open = !_open);
-                  }
-                : null,
-            icon: Icon(_open ? Icons.expand_less_rounded : Icons.lyrics_outlined),
-            label: Text(_open ? 'Hide lyrics' : 'Lyrics'),
-          ),
-        ),
-        if (_open)
-          Card(
-            child: SizedBox(
-              height: widget.height,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: Stack(
+        children: [
+          widget.cover,
+          if (_open && hasLyrics)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.93),
+                  borderRadius: BorderRadius.circular(widget.radius),
+                ),
+                padding: const EdgeInsets.fromLTRB(14, 52, 14, 10),
                 child: LyricsPanel(
                   key: ValueKey(id),
                   songId: id,
@@ -77,8 +76,24 @@ class _LyricsSectionState extends State<LyricsSection> {
                 ),
               ),
             ),
-          ),
-      ],
+          if (hasLyrics)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: IconButton.filledTonal(
+                tooltip: _open ? 'Show cover' : 'Show lyrics',
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.enabled
+                    ? () {
+                        Haptics.selection();
+                        setState(() => _open = !_open);
+                      }
+                    : null,
+                icon: Icon(_open ? Icons.image_outlined : Icons.lyrics_outlined),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

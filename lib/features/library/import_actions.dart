@@ -178,23 +178,39 @@ class _ProgressDialog extends StatelessWidget {
         valueListenable: progress,
         builder: (context, p, _) {
           final total = p?.total ?? 0;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LinearProgressIndicator(
-                value: (p == null || total == 0) ? null : p.done / total,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                p == null
-                    ? 'Looking for songs…'
-                    : '${p.done} of ${p.total}'
-                        '${p.currentName != null ? '\n${p.currentName}' : ''}',
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          // A fixed size, so the card does not jump as file names change length.
+          return SizedBox(
+            width: 280,
+            height: 76,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(
+                  value: (p == null || total == 0) ? null : p.done / total,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  p == null ? 'Looking for songs\u2026' : '${p.done} of ${p.total}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                // The file being read: one line, cut with ... when long.
+                SizedBox(
+                  height: 20,
+                  child: Text(
+                    p?.currentName ?? '',
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),

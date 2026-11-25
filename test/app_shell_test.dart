@@ -194,7 +194,7 @@ void main() {
     expect(find.byTooltip('Set playback speed'), findsOneWidget);
     expect(find.byTooltip('Set sleep timer'), findsOneWidget);
     expect(find.byTooltip('Back 10 seconds'), findsOneWidget);
-    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.byTooltip('Show lyrics'), findsOneWidget);
     expect(find.text('Up next'), findsOneWidget, reason: 'the queue peek sheet');
   });
 

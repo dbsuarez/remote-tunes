@@ -83,19 +83,35 @@ void main() {
     await settleUi(tester);
   }
 
-  testWidgets('resting: a header and the song playing; the player stays visible',
-      (tester) async {
+  /// Slides the sheet up by dragging its handle.
+  Future<void> slideUp(WidgetTester tester, {double by = 300}) async {
+    await tester.dragFrom(const Offset(200, 785), Offset(0, -by));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('resting: only a handle shows, the player stays clear', (tester) async {
     await open(tester);
-    expect(find.text('Up next'), findsOneWidget);
-    expect(find.text('Song One'), findsOneWidget);
+    final list = find.descendant(of: find.byType(QueuePeekSheet), matching: find.byType(ListView));
+    expect(tester.getSize(list).height, closeTo(QueuePeekSheet.handleHeight, 1));
     expect(find.text('the player behind'), findsOneWidget);
-    expect(find.text('5 more · 6 in queue'), findsOneWidget);
-    // Only the first row fits when resting.
-    expect(find.text('Song Three'), findsNothing);
+    // The rows are there but below the screen edge: nothing is in the way.
+    expect(tester.getTopLeft(find.text('Up next')).dy, greaterThanOrEqualTo(790));
+  });
+
+  testWidgets('tapping the handle slides it up, and tapping again tucks it away', (tester) async {
+    await open(tester);
+    await tester.tapAt(const Offset(200, 785));
+    await tester.pumpAndSettle();
+    expect(find.text('Song Four'), findsOneWidget, reason: 'the next three are showing');
+    await tester.tap(find.byType(InkWell).first);
+    await tester.pumpAndSettle();
+    final list = find.descendant(of: find.byType(QueuePeekSheet), matching: find.byType(ListView));
+    expect(tester.getSize(list).height, closeTo(QueuePeekSheet.handleHeight, 1));
   });
 
   testWidgets('the song playing is marked', (tester) async {
     await open(tester);
+    await slideUp(tester);
     expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
     expect(tester.widget<ListTile>(find.widgetWithText(ListTile, 'Song One')).selected, isTrue);
   });
@@ -103,14 +119,12 @@ void main() {
   testWidgets('sliding it up shows the song playing and the next three, then the rest',
       (tester) async {
     await open(tester);
-    // To the middle height.
-    await tester.drag(find.text('Up next'), const Offset(0, -260));
-    await tester.pumpAndSettle();
+    await slideUp(tester, by: 300);
     for (final t in ['Song One', 'Song Two', 'Song Three', 'Song Four']) {
       expect(find.text(t), findsOneWidget, reason: t);
     }
     // All the way up: everything.
-    await tester.drag(find.text('Up next'), const Offset(0, -500));
+    await tester.dragFrom(const Offset(200, 420), const Offset(0, -500));
     await tester.pumpAndSettle();
     for (final t in ['Song Five', 'Song Six']) {
       expect(find.text(t), findsOneWidget, reason: t);
@@ -119,19 +133,17 @@ void main() {
 
   testWidgets('sliding it back down gets it out of the way again', (tester) async {
     await open(tester);
-    await tester.drag(find.text('Up next'), const Offset(0, -500));
-    await tester.pumpAndSettle();
+    await slideUp(tester, by: 700);
     expect(find.text('Song Four'), findsOneWidget);
-    await tester.drag(find.text('Up next'), const Offset(0, 700));
+    await tester.dragFrom(const Offset(200, 120), const Offset(0, 800));
     await tester.pumpAndSettle();
-    expect(find.text('Song Four'), findsNothing);
-    expect(find.text('Song One'), findsOneWidget);
+    final list = find.descendant(of: find.byType(QueuePeekSheet), matching: find.byType(ListView));
+    expect(tester.getSize(list).height, closeTo(QueuePeekSheet.handleHeight, 1));
   });
 
   testWidgets('tapping a song jumps to it', (tester) async {
     await open(tester);
-    await tester.drag(find.text('Up next'), const Offset(0, -500));
-    await tester.pumpAndSettle();
+    await slideUp(tester, by: 700);
     await tester.tap(find.text('Song Three'));
     await tester.pump();
     expect(source.calls, ['jump 3']);
@@ -140,6 +152,7 @@ void main() {
   testWidgets('it starts from the song playing now, not from the top of the queue',
       (tester) async {
     await open(tester, currentIndex: 2);
+    await slideUp(tester);
     expect(find.text('Song Three'), findsOneWidget, reason: 'the one playing');
     expect(find.text('Song One'), findsNothing, reason: 'already played');
     expect(find.text('3 more · 6 in queue'), findsOneWidget);
@@ -147,6 +160,7 @@ void main() {
 
   testWidgets('on the last song it says so', (tester) async {
     await open(tester, currentIndex: 5);
+    await slideUp(tester);
     expect(find.text('Song Six'), findsOneWidget);
     expect(find.text('Last song'), findsOneWidget);
   });
@@ -185,7 +199,11 @@ void main() {
 
   testWidgets('while reconnecting it cannot be used', (tester) async {
     await open(tester, enabled: false);
-    await tester.tap(find.text('Song One'), warnIfMissed: false);
+    await tester.dragFrom(const Offset(200, 785), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final list = find.descendant(of: find.byType(QueuePeekSheet), matching: find.byType(ListView));
+    expect(tester.getSize(list).height, closeTo(QueuePeekSheet.handleHeight, 1),
+        reason: 'it did not move');
     expect(source.calls, isEmpty);
   });
 
@@ -194,6 +212,7 @@ void main() {
       ..clear()
       ..add(item(9, 'Ghost', available: false));
     await open(tester);
+    await slideUp(tester);
     expect(find.text('File missing from the Player'), findsOneWidget);
   });
 

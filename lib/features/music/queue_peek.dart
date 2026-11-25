@@ -36,8 +36,10 @@ class QueuePeekSheet extends StatefulWidget {
   final int currentIndex;
   final bool enabled;
 
-  /// Height of the resting (peek) sheet as a fraction of the space it sits in.
-  static const double peekSize = 0.14;
+  /// The resting sheet is just its handle: this many pixels tall.
+  static const double handleHeight = 30;
+
+  /// Heights when slid up, as a fraction of the space it sits in.
   static const double midSize = 0.46;
   static const double fullSize = 0.88;
 
@@ -48,6 +50,26 @@ class QueuePeekSheet extends StatefulWidget {
 class _QueuePeekSheetState extends State<QueuePeekSheet> {
   List<RemoteQueueItem> _items = const [];
   int _loadGeneration = 0;
+  final DraggableScrollableController _own = DraggableScrollableController();
+
+  DraggableScrollableController get _controller => widget.controller ?? _own;
+
+  @override
+  void dispose() {
+    _own.dispose();
+    super.dispose();
+  }
+
+  /// Tapping the handle slides the queue up (and back down when it is up).
+  void _toggle() {
+    if (!_controller.isAttached) return;
+    final up = _controller.size > QueuePeekSheet.midSize - 0.05;
+    _controller.animateTo(
+      up ? _controller.pixelsToSize(QueuePeekSheet.handleHeight) : QueuePeekSheet.midSize,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   void initState() {
@@ -96,10 +118,13 @@ class _QueuePeekSheetState extends State<QueuePeekSheet> {
 
     return IgnorePointer(
       ignoring: !widget.enabled,
-      child: DraggableScrollableSheet(
-        controller: widget.controller,
-        initialChildSize: QueuePeekSheet.peekSize,
-        minChildSize: QueuePeekSheet.peekSize,
+      child: LayoutBuilder(builder: (context, box) {
+        // Resting height = the handle only.
+        final rest = (QueuePeekSheet.handleHeight / box.maxHeight).clamp(0.01, 0.3);
+        return DraggableScrollableSheet(
+        controller: _controller,
+        initialChildSize: rest,
+        minChildSize: rest,
         maxChildSize: QueuePeekSheet.fullSize,
         snap: true,
         snapSizes: const [QueuePeekSheet.midSize],
@@ -125,6 +150,7 @@ class _QueuePeekSheetState extends State<QueuePeekSheet> {
                   return _Header(
                     count: _items.length,
                     remaining: upcoming.length - 1,
+                    onTapHandle: _toggle,
                   );
                 }
                 final item = upcoming[i - 1];
@@ -138,16 +164,18 @@ class _QueuePeekSheetState extends State<QueuePeekSheet> {
             ),
           );
         },
-      ),
+        );
+      }),
     );
   }
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.count, required this.remaining});
+  const _Header({required this.count, required this.remaining, required this.onTapHandle});
 
   final int count;
   final int remaining;
+  final VoidCallback onTapHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -155,17 +183,26 @@ class _Header extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 8),
-        Container(
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(2),
+        // The handle: all that shows until the sheet is slid up. Tap or drag it.
+        InkWell(
+          onTap: onTapHandle,
+          child: SizedBox(
+            height: QueuePeekSheet.handleHeight,
+            width: double.infinity,
+            child: Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: Row(
             children: [
               Text('Up next', style: theme.textTheme.titleSmall),
