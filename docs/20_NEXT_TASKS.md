@@ -84,6 +84,13 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] Shuffle and repeat are remembered between runs (they use the Settings > Playback values, which now follow the Now Playing buttons).
 - [ ] Not done: retiring the classic Home / Player / Controller screens (kept: they still back the "Classic start screen" option and many tests).
 
+### Next: lyrics redesign (owner's brief)
+Today the lyrics are drawn over the cover (a dark box on top of the picture). What is wanted instead:
+- [ ] **Fade, then replace.** Pressing the lyrics button fades the album cover out completely (it must not show through), and a lyrics box takes its place, using the whole width of the cover's space with normal margins. The button flips back to the cover the same way.
+- [ ] **Full-screen lyrics ("Show fullscreen").** While in lyrics mode a button opens the lyrics in a lightbox-like full-screen view (like an image lightbox, but showing the lyrics instead of a picture), with a way to close it.
+- [ ] **A designed look, not just text on a dark background.** Ideas to try: a soft background built from the cover's colors (the accent we already take from the art) as a blurred gradient; the current line large and bright, the lines before and after it smaller and dimmer, with a fade at the top and bottom edges; a smooth scroll that eases to the current line; the song title and artist as a small header; a progress hint; larger type in the full-screen view; the "Lyrics: LRCLIB" credit kept as a quiet footer. Plain (unsynced) lyrics get the same styling and a gentle scroll.
+- [ ] Keep: tap a line to jump there, the retry / "no lyrics" / "switched off" messages, and it must work on both phones (Player and Controller) through the shared Now Playing view.
+
 ### Verification and housekeeping (owner)
 - [ ] Try everything on the phones with `docs/19_PHONE_TEST_CHECKLIST.md`: gapless, lyrics, edge swipes, Now Playing v2, library list, search, album-art finder, lock screen, updates, and group play / Auto-align (never verified).
 - [ ] Free space on the C: drive (it was nearly full).
