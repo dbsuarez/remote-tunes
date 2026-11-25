@@ -132,6 +132,20 @@ https://dbsuarez.github.io/remote-tunes/ : on the playing phone use remote playb
 
 ---
 
+## Moving to another phone (backup and restore)
+
+A backup is a small file with your **playlists, favorites, play and skip counts, the folders you left out, lyrics and settings**. It does **not** contain your music, so the new phone needs the same music (copy your music folder over first).
+
+1. **Old phone:** Settings > **Backup and restore** > **Back up to a file**. Choose where to save it, then copy it to the new phone (cable, cloud, Bluetooth, anything).
+2. **New phone:** add your music folder (Library > **Add folder**). Wait for the report.
+3. Settings > **Backup and restore** > **Choose a backup file**. It shows what is inside.
+4. **Where is your music on this phone?** Tap **Choose** and pick the folder that holds your music (the same one you added). The old place is shown for reference. The folder layout does not have to be the same: songs that are not at the same place are found by their title, artist, album and length.
+5. **Restore.** A report says how many songs were found and lists the ones that were not.
+
+Good to know: restoring only **adds**. Nothing on the new phone is deleted; a playlist with the same name gets the missing songs; play counts keep the bigger number. Run it again any time: nothing is added twice. Songs you added with **Add songs** are copies kept inside the app, so a backup cannot bring those songs back: add them again, then restore. The backup never contains your Jamendo ID, pairing or keys.
+
+---
+
 ## 10. Other things
 
 - **Online Library:** free music from Jamendo (search by keyword, genre, artist, album; licence shown). Needs internet and your Jamendo ID once. Before you search it shows **Popular this week**, **Popular this month** and **Newest releases** as rows of covers: tap one to play it, press and hold to queue it, or use *Play all* / *Add all* on a row. The genre chips open the top tracks of that genre. Pull down to refresh. Switch it off in Settings > *Suggestions in the Online Library*.

@@ -80,13 +80,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **6. A better audio Visualizer: built (not tried on a phone yet), see Done.**
 
-**7. Backup and restore to another phone** (the owner's idea; about 95% of the music is already copied over)
-- What goes in a backup file (one `.rtbackup` zip, no audio): **playlists**, **favorites**, **play / skip counts and last played**, the **left-out list**, **lyrics** found so far, edited **song info** (Edit info), **album art** found by the art finder (optional, shows its size), and the **settings** (skin, equalizer and its per-output memory, crossfade, visualizer style...). Never in it: the Jamendo client ID, pairing tokens and trusted devices, other secrets.
-- The path problem is solved by not using paths as the key. Each song is saved with its **path relative to your music root** plus a **fingerprint of its tags** (title, artist, album, length to the nearest second, file size when known). On the new phone: add the music folder first, then *Restore*, and say where the music root is (the old root is remembered in the file, so usually it is one tap). Each song is found by (1) old root swapped for the new root, then (2) the tags fingerprint for the few that moved or were renamed. Songs that cannot be found are listed in a report (like the add report), never guessed.
-- Restore only **adds and merges**: it never deletes what is on the new phone; a playlist with the same name is merged (songs added once); counts take the larger number; settings can be skipped with a switch.
-- Limits to say honestly: songs added with **Add songs** are copies kept inside the app, so a backup cannot bring them back (the audio is not in the file; re-add them); embedded covers come with the music files themselves, so only extra art is stored.
-- Phases: [ ] **A.** playlists, favorites, counts, left-out list, with the root picker and the report · [ ] **B.** lyrics, edited song info, settings · [ ] **C.** album art (optional) · [ ] **D.** share to another phone (Android share sheet / save to a folder) and pick the file on the new phone.
-- Privacy: everything stays in the file you choose to share; nothing is uploaded.
+**7. Backup and restore to another phone: built (phases A, B and D; not tried on a phone yet), see Done.** Left over: **C**, the album art found by the art finder (needs a zip with images); edited **song info** (Edit info only changes this phone's listing, and there is no record of which songs were edited, so it is not in the backup; with *Also write into the music file* the change travels with the file); a matching report that lets you pick a song by hand for the ones not found.
 
 **8. List options, per list** (the owner's idea, from the screenshots `docs/arts/drawer_part_1.jpg` and `drawer_part_2.jpg`; the layout idea is free to follow, we draw our own)
 - What the screenshots show: a gear / *List options* sheet that opens from a song list, titled for the kind of list (*List Options: Playlist Songs*), with settings **remembered per kind of list**:
@@ -157,6 +151,11 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Lyrics
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
+
+### Backup and restore (built after `v1.0.5`; not tried on a phone yet)
+- [x] **Settings > Backup and restore.** *Back up to a file* makes `RemoteTunes-<date>.rtbackup` (compressed JSON, no audio) with: playlists (in order), favorites, play / skip counts and last played, the left-out list, lyrics found so far (switch), and the safe settings (switch: look, equalizer and its per-output memory, crossfade, visualizer style, list size...). Never in it: Jamendo ID, pairing, Supabase keys, device name.
+- [x] **Restore** reads the file, shows what is in it, and asks *Where is your music on this phone?* (the old place is shown; if the same folder exists it is chosen). Songs are found by **path under the new root**, then by **title + artist + album + length** (one second either way), then by **title + artist** when only one song has them (said in the report). Songs not found are listed, never guessed. It only adds and merges: playlists of the same name are merged (nothing twice), counts keep the larger number, this phone's own lyrics are never replaced, settings can be skipped, and only the safe settings are ever written whatever the file says.
+- Limits: songs added with **Add songs** are copies kept inside the app, so the backup cannot bring them back; add the music folder on the new phone before restoring.
 
 ### Built after `v1.0.4` (none of it tried on a phone yet)
 - [x] **Shuffle keeps track of what has played:** a round plays every song once; a song that played (or was chosen) does not come up again until the round is over; with repeat on a new round starts and never opens with the song that just ended. Back and Next walk the same path, *Play next* joins right after the song playing, added songs join the round, removed songs leave it.

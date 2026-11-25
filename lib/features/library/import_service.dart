@@ -123,6 +123,12 @@ class LibraryImportService {
 
   final LibraryRepository _library;
   final ExclusionStore _exclusions;
+
+  /// The left-out list (for the backup).
+  ExclusionStore get exclusions => _exclusions;
+
+  /// Where songs added with "Add songs" are copied to.
+  String get libraryDirPath => _libraryDir.path;
   final MetadataExtractor _extractor;
   final Directory _libraryDir;
   final Directory _artDir;

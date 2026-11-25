@@ -1,3 +1,4 @@
+import '../backup/backup_screen.dart';
 import '../../providers/library_providers.dart';
 import '../library/folder_choice.dart';
 import '../player/visualizer.dart';
@@ -346,6 +347,15 @@ class SettingsScreen extends ConsumerWidget {
                     'Reads the genre, year and album artist of every song again, so the '
                     'Genres, Years and Album Artists lists fill in. Nothing is changed in the files.'),
                 onTap: () => refreshLibraryTags(context, ref),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.settings_backup_restore_rounded),
+                title: const Text('Backup and restore'),
+                subtitle: const Text(
+                    'Save your playlists, favorites, counts, lyrics and settings to a file, or put them on another phone.'),
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute<void>(builder: (_) => const BackupScreen())),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
