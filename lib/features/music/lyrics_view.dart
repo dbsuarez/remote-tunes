@@ -99,7 +99,12 @@ class CoverWithLyrics extends StatefulWidget {
     this.enabled = true,
     this.openRequests,
     this.coverAction,
+    this.overlay,
   });
+
+  /// Drawn over the cover, which is dimmed behind it (for example the visualizer). It goes away
+  /// for good while the lyrics show, so the two are never on screen together.
+  final Widget? overlay;
 
   /// Asked to show the lyrics (the menu's Lyrics shortcut): each time it
   /// notifies, the cover gives way to the lyrics if they are not showing yet.
@@ -242,6 +247,26 @@ class _CoverWithLyricsState extends State<CoverWithLyrics> with SingleTickerProv
       child: Stack(
         children: [
           FadeTransition(opacity: coverOpacity, child: widget.cover),
+          if (widget.overlay != null)
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _fade,
+                builder: (context, child) => _fade.value >= 1 ? const SizedBox.shrink() : child!,
+                child: FadeTransition(
+                  opacity: coverOpacity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(widget.radius),
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Center(child: widget.overlay),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (hasLyrics)
             Positioned.fill(
               child: AnimatedBuilder(

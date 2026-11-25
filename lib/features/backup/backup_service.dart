@@ -80,6 +80,7 @@ class BackupService {
     SettingKeys.queueScrollToCurrent,
     SettingKeys.visualizer,
     SettingKeys.visualizerStyle,
+    SettingKeys.visualizerOnCover,
     SettingKeys.onlineSuggestions,
   };
 

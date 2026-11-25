@@ -159,7 +159,7 @@ void main() {
       'Queue opens at the song playing',
       'Find missing album art',
       'Update tags from files',
-      'Left out of the library',
+      'Excluded from library',
       'Reset play and skip counts',
       'All files access',
       'Skins',

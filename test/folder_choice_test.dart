@@ -147,7 +147,7 @@ void main() {
       ..removed = 1;
     r.failures.add(const ImportFailure('bad.mp3', 'This file is empty.'));
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ImportReportDialog(result: r))));
-    for (final l in ['Songs found', 'Added', 'Already in your library', 'Left out (excluded)',
+    for (final l in ['Songs found', 'Added', 'Already in your library', 'Excluded',
         'Removed from the library', 'Skipped (problems)', 'bad.mp3', 'This file is empty.']) {
       expect(find.text(l), findsOneWidget, reason: l);
     }
@@ -162,7 +162,7 @@ void main() {
       ..added = 2;
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ImportReportDialog(result: r))));
     expect(find.text('Added'), findsOneWidget);
-    expect(find.text('Left out (excluded)'), findsNothing);
+    expect(find.text('Excluded'), findsNothing);
     expect(find.text('Skipped (problems)'), findsNothing);
   });
 }

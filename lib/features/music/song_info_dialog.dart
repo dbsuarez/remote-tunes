@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/protocol/library_models.dart';
+import '../library/lookup_models.dart';
+import 'song_lookup_sheet.dart';
 
 /// New title, artist, album and track number for a song.
 class SongInfoEdit {
@@ -10,7 +12,11 @@ class SongInfoEdit {
     required this.album,
     this.trackNumber,
     this.writeToFile = false,
+    this.cover,
   });
+
+  /// A cover chosen in the look-up: it becomes the picture of the song's album.
+  final LookupCover? cover;
 
   /// Also change the tags inside the music file.
   final bool writeToFile;
@@ -26,18 +32,21 @@ class SongInfoEdit {
 
 /// Asks for new details for [song]; null if cancelled.
 Future<SongInfoEdit?> showSongInfoDialog(BuildContext context, RemoteSong song,
-    {bool canWriteFile = false}) {
+    {bool canWriteFile = false, SongLookupService? lookup}) {
   return showDialog<SongInfoEdit>(
     context: context,
-    builder: (_) => _SongInfoDialog(song: song, canWriteFile: canWriteFile),
+    builder: (_) => _SongInfoDialog(song: song, canWriteFile: canWriteFile, lookup: lookup),
   );
 }
 
 class _SongInfoDialog extends StatefulWidget {
-  const _SongInfoDialog({required this.song, required this.canWriteFile});
+  const _SongInfoDialog({required this.song, required this.canWriteFile, this.lookup});
 
   final RemoteSong song;
   final bool canWriteFile;
+
+  /// Looks the song up on the internet (null: no button).
+  final SongLookupService? lookup;
 
   @override
   State<_SongInfoDialog> createState() => _SongInfoDialogState();
@@ -65,6 +74,44 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
 
   bool get _valid => _title.text.trim().isNotEmpty;
 
+  LookupCover? _cover;
+  String? _lookupNote;
+
+  /// Looks the song up, and fills in what was chosen (nothing is saved until Save).
+  Future<void> _lookUp() async {
+    final lookup = widget.lookup;
+    if (lookup == null) return;
+    final choice = await showSongLookup(
+      context,
+      lookup: lookup,
+      song: RemoteSong(
+        id: widget.song.id,
+        title: _title.text.trim(),
+        artist: _artist.text.trim(),
+        album: _album.text.trim(),
+        durationSeconds: widget.song.durationSeconds,
+      ),
+    );
+    if (choice == null || !mounted) return;
+    final parts = <String>[];
+    setState(() {
+      final m = choice.match;
+      if (m != null) {
+        _title.text = m.title;
+        _artist.text = m.artist;
+        if (m.album.isNotEmpty) _album.text = m.album;
+        if (m.trackNumber != null) _track.text = '${m.trackNumber}';
+        parts.add('details filled in');
+      }
+      if (choice.cover != null) {
+        _cover = choice.cover;
+        parts.add('cover ready');
+      }
+      if (choice.keepLyrics) parts.add('lyrics kept');
+      _lookupNote = parts.isEmpty ? null : '${parts.join(' · ')} (Save to keep the details and the cover)';
+    });
+  }
+
   void _save() {
     if (!_valid) return;
     Navigator.pop(
@@ -75,6 +122,7 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
         album: _album.text,
         trackNumber: int.tryParse(_track.text.trim()),
         writeToFile: widget.canWriteFile && _writeToFile,
+        cover: _cover,
       ),
     );
   }
@@ -108,6 +156,32 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Track number'),
             ),
+            if (widget.lookup != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    OutlinedButton.icon(
+                      key: const Key('look-up'),
+                      onPressed: _lookUp,
+                      icon: const Icon(Icons.search_rounded),
+                      label: const Text('Look up this song'),
+                    ),
+                    if (_lookupNote != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          _lookupNote!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.primary),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             if (widget.canWriteFile)
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,

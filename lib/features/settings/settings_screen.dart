@@ -275,12 +275,24 @@ final List<_Group> _groups = [
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Visualizer'),
                 subtitle: const Text(
-                  'Moving bars under the cover while music plays. Android asks for the microphone '
+                  'Moving bars under the cover (or over it, see below) while music plays. Android asks for the microphone '
                   'permission to read the sound; nothing is recorded. Uses a little more battery.',
                 ),
                 value: s.visualizerEnabled,
                 onChanged: (on) => switchVisualizer(context, repo, on),
               ),
+              if (s.visualizerEnabled)
+                SwitchListTile(
+                  key: const ValueKey('viz-on-cover'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show it on the cover'),
+                  subtitle: const Text(
+                    'Draws it over the dimmed cover instead of under it. The lyrics and the visualizer '
+                    'then never show together: opening the lyrics hides it.',
+                  ),
+                  value: s.visualizerOnCover,
+                  onChanged: repo.setVisualizerOnCover,
+                ),
               if (s.visualizerEnabled)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -334,7 +346,7 @@ final List<_Group> _groups = [
     id: 'library',
     title: 'Library',
     icon: Icons.library_music_outlined,
-    summary: (s) => 'Music folders and rescan, album art, tags, left-out folders, counts',
+    summary: (s) => 'Music folders and rescan, album art, tags, excluded folders, counts',
     entries: [
       _Entry(
         id: 'musicfolders',
@@ -402,8 +414,8 @@ final List<_Group> _groups = [
       ),
       _Entry(
         id: 'leftout',
-        title: 'Left out of the library',
-        keywords: 'left out excluded ignore folders songs hide',
+        title: 'Excluded from library',
+        keywords: 'excluded exclude left out ignore folders songs hide',
         build: (c) {
           final context = c.context;
           final ref = c.ref;
@@ -416,7 +428,7 @@ final List<_Group> _groups = [
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.folder_off_outlined),
-                title: const Text('Left out of the library'),
+                title: const Text('Excluded from library'),
                 subtitle: const Text(
                   'Folders you unticked when adding music, and songs you removed. They are not added again.',
                 ),

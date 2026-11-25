@@ -96,7 +96,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **10. One-tap rescan of the music folders: built (not tried on a phone yet), see Done.** Left over: a switch *Rescan when the app opens* (quiet, a few seconds); folders added before this version are not remembered until they are added once more; a song retagged while being moved is added as a new song and the old one is offered for removal (it is not matched by tags yet).
 
-**11. Edit info: look the song up (metadata, lyrics and cover in one go)** (the owner's idea)
+**11. Edit info: look the song up (metadata, lyrics and cover in one go): built after `v1.0.11`, not tried on a phone yet.** (the owner's idea)
 - In a song's menu > Edit info, a button **Look up this song**: one query for the one song, with a result sheet to choose from.
   - **Details:** a search of MusicBrainz by title + artist (+ album, length) lists up to five matches, each with title, artist, album, year and track number; tap one to fill the Edit info fields (you can still change them before saving). Only the title, artist, album and length are sent, as the art finder already does.
   - **Lyrics:** shows whether lyrics were found (LRCLIB, then Megalobiz, then lyrics.ovh, as in the lyrics view) and a preview of the first lines, with *Use these* (kept on the phone like any lyrics) or *Not these*. This is also the way to get lyrics again after a miss (a miss is otherwise remembered for a day).
@@ -133,7 +133,7 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 
 ### Ideas not started
 - [ ] A **user guide for friends** (a shorter, friendlier version of [22_USER_GUIDE.md](22_USER_GUIDE.md)). Wanted later; for now the app is for personal use only.
-- [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Left out of the library* screen).
+- [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Excluded from library* screen).
 
 ---
 
@@ -166,7 +166,7 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 - [x] Search: sections, *See all*, history, Album Artists, Play / Shuffle, and **Select** (pick songs for the queue or a playlist).
 - [x] Folders: multi-select to a playlist or the queue; Back returns to the same spot with the folder tinted.
 - [x] **Edit info** (title, artist, album, track number) and **write into the music file** (read back to confirm; **All files access** switch in Settings for Android 11+).
-- [x] **Adding music:** *Choose what to add* lets you untick folders (and single songs) to leave out; remembered; *Left out of the library* (Settings) lists them and lets them back in; a removed song does not return when its folder is added again; an optional *also remove their songs already in the library*; and every add ends with a **report** (found, added, already there, left out, removed, skipped with reasons). The screen stays on while it runs.
+- [x] **Adding music:** *Choose what to add* lets you untick folders (and single songs) to leave out; remembered; *Excluded from library* (Settings) lists them and lets them back in; a removed song does not return when its folder is added again; an optional *also remove their songs already in the library*; and every add ends with a **report** (found, added, already there, left out, removed, skipped with reasons). The screen stays on while it runs.
 - [x] Album art finder (MusicBrainz + Cover Art Archive, on request); *Update tags from files* (genre, year, album artist, composer, Replay Gain).
 
 ### Lyrics
@@ -183,6 +183,8 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 - [x] **Queue rows:** swipe **left** to remove (a message with **Undo** puts it back where it was; a link from the Online Library is removed without Undo), swipe **right** to add the song to a playlist (the row stays). The cross and the add-to-playlist buttons are gone from the rows. **Long-press** a row to pick several (tap picks more, *Select all*, *Cancel*): then **Add selected to a playlist** (links are left out of the list) or **Remove selected from the queue**. Swiping and dragging are off while picking.
 - [x] **Cover buttons swap:** the *Add to a playlist* button on the cover (top left) gives that corner to *Show fullscreen* while the lyrics show, and comes back with the cover.
 - [x] **Edit info:** *Also write into the music file* is **ticked from the start** (untick it to change the library listing only; if Android refuses the file, the change is still saved and the message says so).
+- [x] **Visualizer on the cover (Settings > Visualizer > *Show it on the cover*, off by default):** the visualizer is drawn over the dimmed cover instead of under it. Opening the lyrics removes it and closing them brings it back, so the two are never shown together. Off: it behaves exactly as before. Saved in backups.
+- [x] **Edit info for several songs (item 12) and *Look up this song* (item 11)** are built (see their items above); the look-up sends only title, artist, album and length (docs/21).
 - [x] **Visualizer button on Now Playing:** in the row of quick actions (favorite, shuffle, repeat, speed, sleep timer), just to the **left of the volume button**: a tap shows or hides the visualizer (saved, same as the Settings switch; turning it on asks for the microphone permission first). On a narrow phone the seven buttons get a slightly smaller touch area so they all fit.
 - [x] **Backup:** *Playlists, favorites and counts* is its own switch, and *Choose lyrics and album art only* sets the switches for a backup that holds just those two.
 

@@ -29,7 +29,11 @@ class NowPlayingView extends StatefulWidget {
     this.lyricsRequests,
     this.visualizer,
     this.visualizerButton,
+    this.visualizerOnCover = false,
   });
+
+  /// The visualizer goes over the dimmed cover, and gives way to the lyrics.
+  final bool visualizerOnCover;
 
   /// A button in the row of quick actions, to the left of the volume button, that shows or
   /// hides the visualizer (null: none, e.g. when controlling another phone).
@@ -292,10 +296,13 @@ class NowPlayingViewState extends State<NowPlayingView> {
                           // Top-left while the cover shows; the lyrics' fullscreen button
                           // has that corner when they show.
                           coverAction: _playlistButton(context, p),
+                          overlay: widget.visualizerOnCover && widget.visualizer != null
+                              ? widget.visualizer!(p.isPlaying)
+                              : null,
                         ),
                         actions: _quickActions(p, enabled),
                       ),
-                    if (widget.visualizer != null && !p.isExternal)
+                    if (widget.visualizer != null && !widget.visualizerOnCover && !p.isExternal)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: widget.visualizer!(p.isPlaying),

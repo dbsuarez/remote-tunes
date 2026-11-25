@@ -1,3 +1,4 @@
+import '../library/lookup_models.dart';
 import 'group_menu.dart';
 import '../../core/widgets/default_art.dart';
 import 'dart:async';
@@ -103,6 +104,7 @@ class MusicBrowser extends StatefulWidget {
     this.onEditSong,
     this.canWriteTags = false,
     this.onEditSongs,
+    this.songLookup,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
     this.homeList = false,
@@ -152,6 +154,9 @@ class MusicBrowser extends StatefulWidget {
   /// Edit info for the songs picked with Select (null: not offered, e.g. for another phone's
   /// library). Returns true if anything changed.
   final Future<bool> Function(BuildContext context, List<int> ids)? onEditSongs;
+
+  /// Looks a song up on the internet from Edit info (this phone's library only).
+  final SongLookupService? songLookup;
   final String emptyMessage;
 
   @override
@@ -811,7 +816,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
             ? null
             : () async {
                 final edit = await showSongInfoDialog(context, song,
-                    canWriteFile: widget.canWriteTags);
+                    canWriteFile: widget.canWriteTags, lookup: widget.songLookup);
                 if (edit == null) return;
                 await _run(() async {
                   if (!await widget.onEditSong!(song, edit)) {

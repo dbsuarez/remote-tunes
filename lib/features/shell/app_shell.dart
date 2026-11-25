@@ -160,6 +160,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               goLibrary: () => setState(() => _tab = 1),
               lyricsRequests: _lyricsRequests,
               visualizer: ref.watch(settingsProvider).valueOrNull?.visualizerEnabled ?? false,
+              visualizerOnCover: ref.watch(settingsProvider).valueOrNull?.visualizerOnCover ?? false,
               suggestions: ref.watch(settingsProvider).valueOrNull?.onlineSuggestions ?? true);
     }
 
@@ -425,6 +426,7 @@ class _Active {
       {required VoidCallback goLibrary,
       Listenable? lyricsRequests,
       bool visualizer = false,
+      bool visualizerOnCover = false,
       bool suggestions = true}) {
     final playback = ref.watch(playerPlaybackProvider).valueOrNull ?? core.engine.state;
     final source = LocalMusicSource(core.library, core.engine);
@@ -442,6 +444,7 @@ class _Active {
         onOpenLibrary: goLibrary,
         lyricsRequests: lyricsRequests,
         // Shows or hides the visualizer without going to Settings.
+        visualizerOnCover: visualizerOnCover,
         visualizerButton: Builder(
           builder: (context) => HapticButton(
             kind: HapticKind.selection,
@@ -550,6 +553,7 @@ class _LibraryTab extends ConsumerWidget {
           : null,
       canWriteTags: local,
       onEditSongs: local ? (context, ids) => editSelectedSongs(context, ref, ids) : null,
+      songLookup: local ? ref.read(songLookupProvider) : null,
       onEditSong: local
           ? (song, e) async {
               final library = ref.read(libraryRepositoryProvider);
@@ -560,6 +564,10 @@ class _LibraryTab extends ConsumerWidget {
                 album: e.album,
                 trackNumber: e.trackNumber,
               );
+              // A cover chosen in the look-up becomes the album's picture.
+              if (saved && e.cover != null) {
+                await ref.read(songLookupProvider).applyCover(song.id, e.cover!);
+              }
               if (saved && e.writeToFile) {
                 final row = await library.songById(song.id);
                 final path = row?.filePath;

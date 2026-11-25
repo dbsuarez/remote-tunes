@@ -10,6 +10,7 @@ import '../data/repositories/library_repository.dart';
 import '../data/repositories/recent_urls_repository.dart';
 import '../features/library/import_service.dart';
 import '../features/library/metadata_extractor.dart';
+import '../features/library/song_lookup.dart';
 import '../features/player/lyrics_service.dart';
 import 'providers.dart';
 
@@ -20,6 +21,15 @@ final lyricsServiceProvider = Provider<LyricsService>((ref) {
     library: ref.watch(libraryRepositoryProvider),
     db: db,
     isEnabled: () async => (await ref.read(settingsRepositoryProvider).load()).lyricsEnabled,
+  );
+});
+
+/// Looks up one song (details, cover, lyrics) from Edit info, on request.
+final songLookupProvider = Provider<SongLookup>((ref) {
+  return SongLookup(
+    db: ref.watch(databaseProvider),
+    lyrics: ref.watch(lyricsServiceProvider),
+    artDir: () async => Directory(p.join((await getApplicationDocumentsDirectory()).path, 'art')),
   );
 });
 

@@ -47,7 +47,10 @@ class LyricsService {
   final Map<String, Future<RemoteLyrics>> _inFlight = {};
 
   /// Lyrics for a library song.
-  Future<RemoteLyrics> forSong(int songId) async {
+  ///
+  /// With [refresh] the saved answer (a found one, or a remembered miss) is ignored and the
+  /// lookup is made again.
+  Future<RemoteLyrics> forSong(int songId, {bool refresh = false}) async {
     if (!await _isEnabled()) return const RemoteLyrics(disabled: true);
     final song = await library.songById(songId);
     if (song == null) return const RemoteLyrics();
@@ -58,8 +61,9 @@ class LyricsService {
     final duration = song.durationSeconds ?? 0;
     final key = trackKey(title, artist, album, duration);
 
-    final cached = await (db.select(db.lyricsCache)..where((t) => t.trackKey.equals(key)))
-        .getSingleOrNull();
+    final cached = refresh
+        ? null
+        : await (db.select(db.lyricsCache)..where((t) => t.trackKey.equals(key))).getSingleOrNull();
     if (cached != null) {
       final age = _now().difference(cached.fetchedAt);
       if (age < (cached.found ? foundTtl : missTtl)) return _fromRow(cached);
@@ -69,6 +73,15 @@ class LyricsService {
       // (A block, so the removed Future is not waited on: it is this very one.)
       _inFlight.remove(key);
     });
+  }
+
+  /// Forgets what was found for the song (so the next look is a new one).
+  Future<void> discard(int songId) async {
+    final song = await library.songById(songId);
+    if (song == null) return;
+    final key = trackKey(_clean(song.title), _clean(song.artist), _clean(song.album),
+        song.durationSeconds ?? 0);
+    await (db.delete(db.lyricsCache)..where((t) => t.trackKey.equals(key))).go();
   }
 
   /// Same song, same key, whatever the case or spacing.

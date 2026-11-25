@@ -40,7 +40,7 @@ After you pick a folder, **Choose what to add** lists its folders, all ticked, w
 - **Also remove their songs that are already in the library** (appears if you already added some): takes those out of the library.
 - The button says how many songs it will add.
 
-Your choice is **remembered**: adding the same folder again leaves the same things out. To undo it: **Settings > Left out of the library**, tap the undo arrow beside what you want back, then add that folder again.
+Your choice is **remembered**: adding the same folder again leaves the same things out. To undo it: **Settings > Excluded from library**, tap the undo arrow beside what you want back, then add that folder again.
 
 Removing a song from the library (its menu) also puts it on that list, so it does not come back next time you add its folder.
 
@@ -103,13 +103,13 @@ One song fades out while the next fades in. Works between songs that are files o
 Off / By song / By album. Turns loud songs **down** to the level in their Replay Gain tags (it never turns a song up). Run *Update tags from files* first; songs with no tags are unchanged.
 
 ### Visualizer (Settings, off by default)
-Moving bars under the cover. **Show or hide them with the button just left of the volume button on Now Playing** (no need to open Settings), and **tap the bars to change the style** (its name shows for a moment). Six styles, all horizontal: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Wave** (a glowing line), **LED** (columns of lit squares), **Spread** (the bass in the middle, spreading out to both sides) and **Dots** (a row of glowing dots). You can also pick one in Settings. Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
+Moving bars under the cover. **Show or hide them with the button just left of the volume button on Now Playing** (no need to open Settings), and **tap the bars to change the style** (its name shows for a moment). Six styles, all horizontal: **Bars** (rounded, with small caps that fall slowly), **Mirror** (growing up and down from the middle), **Wave** (a glowing line), **LED** (columns of lit squares), **Spread** (the bass in the middle, spreading out to both sides) and **Dots** (a row of glowing dots). You can also pick one in Settings. **Settings > Visualizer > Show it on the cover** draws it over the dimmed cover instead of under it; then the lyrics and the visualizer never show together (opening the lyrics hides it). Off, it stays under the cover. Android needs the **microphone permission** to let the app see the sound's spectrum; **nothing is recorded**. It uses a little more battery and only works for this phone's own music.
 
 ---
 
 ## 7. Fixing a song's info
 
-**Song menu > Edit info:** title, artist, album, track number.
+**Song menu > Edit info:** title, artist, album, track number. **Look up this song** (one button there) asks MusicBrainz for the details, the Cover Art Archive for the cover and the lyrics sources for the lyrics, and lets you choose what to use; only the title, artist, album and length are sent. To fix many songs at once, pick several and choose Edit info: only the fields they share (artist, album, album artist, genre, year, composer) can be changed.
 - By default this only changes **how RemoteTunes lists the song**; the file is untouched.
 - **Also write into the music file** is ticked from the start, so the file's tags change too (so other players see it). Android may refuse files in shared folders. Then it says *Saved in RemoteTunes only*. Fix: **Settings > All files access**, which opens Android's page for the app; switch it on, come back (the row says Allowed), save again.
 
@@ -189,7 +189,7 @@ The list below says what each one does. (Where other parts of this guide say "Se
 - **Equalizer (menu)**: Presets, sliders, 10-band view, Preamp, Tone, Limit.
 - **Update tags from files**: Fills Genres, Years, Album Artists, Composers, Replay Gain.
 - **Find missing album art**: Looks up covers online.
-- **Left out of the library**: Folders and songs not added; let them back in.
+- **Excluded from library**: Folders and songs not added; let them back in.
 - **All files access**: Lets the app write tags into files in any folder.
 - **App updates**: Check, download, install.
 - **Lyrics from the internet**: Switch lyrics on or off.
@@ -203,7 +203,7 @@ The list below says what each one does. (Where other parts of this guide say "Se
 
 - **A song shows as missing**: The file was moved or deleted. Re-add its folder, or remove the song.
 - **Genres / Years / Composers lists are empty**: Settings > **Update tags from files**.
-- **A folder keeps skipping songs**: Settings > **Left out of the library**; let the folder or song back in, add again.
+- **A folder keeps skipping songs**: Settings > **Excluded from library**; let the folder or song back in, add again.
 - **"Saved in RemoteTunes only" when writing tags**: Settings > **All files access**, switch it on, save again.
 - **The first crossfade restarted a song**: Fixed in `v0.12.1`. Update the app.
 - **Visualizer bars are flat**: Allow the microphone permission; some outputs or phones refuse it (tell me which).

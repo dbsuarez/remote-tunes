@@ -36,6 +36,7 @@ class SettingKeys {
   static const queueScrollToCurrent = 'queue_scroll_to_current';
   static const visualizer = 'visualizer';
   static const visualizerStyle = 'visualizer_style';
+  static const visualizerOnCover = 'visualizer_on_cover';
   static const onlineSuggestions = 'online_suggestions';
   static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
@@ -99,6 +100,7 @@ class AppSettings {
     this.queueScrollToCurrent = true,
     this.visualizerEnabled = false,
     this.visualizerStyle = 'bars',
+    this.visualizerOnCover = false,
     this.onlineSuggestions = true,
     this.customSkins = const [],
     this.remoteAutoStart = false,
@@ -160,6 +162,10 @@ class AppSettings {
   /// How the visualizer is drawn (a `VisualizerStyle` name).
   final String visualizerStyle;
 
+  /// The visualizer is drawn over the (dimmed) cover instead of under it; the lyrics and the
+  /// visualizer then never show together.
+  final bool visualizerOnCover;
+
   /// Popular and newest tracks on the Online Library home screen.
   final bool onlineSuggestions;
 
@@ -214,6 +220,7 @@ class AppSettings {
       queueScrollToCurrent: m[SettingKeys.queueScrollToCurrent] != 'false',
       visualizerEnabled: m[SettingKeys.visualizer] == 'true',
       visualizerStyle: m[SettingKeys.visualizerStyle] ?? 'bars',
+      visualizerOnCover: m[SettingKeys.visualizerOnCover] == 'true',
       onlineSuggestions: m[SettingKeys.onlineSuggestions] != 'false',
       customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
@@ -319,6 +326,8 @@ class SettingsRepository {
   Future<void> setOnlineSuggestions(bool v) => _put(SettingKeys.onlineSuggestions, v.toString());
 
   Future<void> setVisualizerStyle(String v) => _put(SettingKeys.visualizerStyle, v);
+
+  Future<void> setVisualizerOnCover(bool v) => _put(SettingKeys.visualizerOnCover, v.toString());
 
   Future<void> setVisualizerEnabled(bool v) => _put(SettingKeys.visualizer, v.toString());
 

@@ -419,7 +419,7 @@ class ImportReportDialog extends StatelessWidget {
               if (r.relinked > 0)
                 row(Icons.drive_file_move_outline, 'Moved (found again at the new place)', r.relinked,
                     color: theme.colorScheme.primary),
-              if (r.excluded > 0) row(Icons.block_rounded, 'Left out (excluded)', r.excluded),
+              if (r.excluded > 0) row(Icons.block_rounded, 'Excluded', r.excluded),
               if (r.removed > 0) row(Icons.remove_circle_outline_rounded, 'Removed from the library', r.removed),
               if (r.missing.isNotEmpty)
                 row(Icons.link_off_rounded, 'Missing (file not found)', r.missing.length,
@@ -485,7 +485,7 @@ class _LeftOutScreenState extends ConsumerState<LeftOutScreen> {
   Widget build(BuildContext context) {
     final paths = _paths;
     return Scaffold(
-      appBar: AppBar(title: const Text('Left out of the library')),
+      appBar: AppBar(title: const Text('Excluded from library')),
       body: SafeArea(
         child: paths == null
             ? const Center(child: CircularProgressIndicator())
