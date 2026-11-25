@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:just_audio/just_audio.dart';
 
 import '../eq/eq_model.dart';
@@ -86,6 +87,20 @@ abstract class AudioBackend {
   /// Android's id for this backend's sound (for the visualizer); null if not known.
   int? get audioSessionId;
 
+  /// Our own multi-band equalizer: one filter per entry of [centersHz], with
+  /// [gains] in dB and an optional limiter against clipping. Returns false if
+  /// this phone cannot do it (the caller then uses [setEqualizer]).
+  Future<bool> setTrueEqualizer({
+    required bool enabled,
+    required List<double> centersHz,
+    required List<double> gains,
+    required bool limiter,
+  });
+
+  /// Whether the equalizer above is really working: null before it was tried (or
+  /// while it waits for the first song), then true or false.
+  bool? get trueEqualizerActive;
+
   Future<void> dispose();
 }
 
@@ -128,6 +143,63 @@ class JustAudioBackend implements AudioBackend {
 
   @override
   int? get audioSessionId => Platform.isAndroid ? _player.androidAudioSessionId : null;
+
+  // ----------------------------------------------------- our own equalizer
+
+  static const _dynamics = MethodChannel('remotetunes/dynamics');
+  ({bool enabled, List<double> hz, List<double> gains, bool limiter})? _trueWanted;
+  bool? _trueActive;
+  int? _trueSession;
+
+  @override
+  bool? get trueEqualizerActive => _trueActive;
+
+  @override
+  Future<bool> setTrueEqualizer({
+    required bool enabled,
+    required List<double> centersHz,
+    required List<double> gains,
+    required bool limiter,
+  }) async {
+    if (!Platform.isAndroid) return false;
+    _trueWanted = (enabled: enabled, hz: [...centersHz], gains: [...gains], limiter: limiter);
+    final id = audioSessionId;
+    // No sound loaded yet: it is applied as soon as there is one.
+    if (id == null || id <= 0) {
+      try {
+        final ok = await _dynamics.invokeMethod<bool>('supported') ?? false;
+        _trueActive = ok ? null : false;
+        return ok;
+      } catch (_) {
+        _trueActive = false;
+        return false;
+      }
+    }
+    return _applyTrue();
+  }
+
+  Future<bool> _applyTrue() async {
+    final want = _trueWanted;
+    final id = audioSessionId;
+    if (want == null || id == null || id <= 0) return false;
+    try {
+      final ok = await _dynamics.invokeMethod<bool>('set', {
+            'session': id,
+            'enabled': want.enabled,
+            'hz': want.hz,
+            'gains': want.gains,
+            'limiter': want.limiter,
+          }) ??
+          false;
+      _trueSession = ok ? id : _trueSession;
+      // Turning it off is not a failure.
+      _trueActive = want.enabled ? ok : _trueActive;
+      return ok;
+    } catch (_) {
+      _trueActive = false;
+      return false;
+    }
+  }
 
   @override
   bool get supportsCrossfade => false;
@@ -244,7 +316,9 @@ class JustAudioBackend implements AudioBackend {
   Future<Duration?> load(String filePath) async {
     try {
       _resetList(filePath);
-      return await _player.setFilePath(filePath);
+      final length = await _player.setFilePath(filePath);
+      unawaited(_applyTrue());
+      return length;
     } on PlayerInterruptedException {
       // A newer load replaced this one; not an error for the user.
       return null;
@@ -262,7 +336,9 @@ class JustAudioBackend implements AudioBackend {
   Future<Duration?> loadUrl(String url) async {
     try {
       _resetList(null);
-      return await _player.setUrl(url);
+      final length = await _player.setUrl(url);
+      unawaited(_applyTrue());
+      return length;
     } on PlayerInterruptedException {
       return null;
     } on PlayerException {
@@ -299,5 +375,13 @@ class JustAudioBackend implements AudioBackend {
   Future<void> setSpeed(double speed) => _player.setSpeed(speed);
 
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    final id = _trueSession;
+    if (id != null) {
+      try {
+        await _dynamics.invokeMethod<void>('release', {'session': id});
+      } catch (_) {}
+    }
+    await _player.dispose();
+  }
 }

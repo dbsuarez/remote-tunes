@@ -10,11 +10,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 ### Planned next (not coded yet; the owner chose to wait, credits are low)
 
-**1. A true 10-band equalizer / our own audio effects** (the owner wants this built first)
-- Why: Android's equalizer has about 5 bands, so today's *10 bands* view only blends ten sliders onto them. A real one needs our own processing of the sound.
-- Idea: our own filter chain (ten peaking filters, plus a gain stage and a limiter so boosts do not clip) that the audio passes through before the speaker. Once there is a place for our own effects, more can follow (a real bass boost, stereo width, a compressor, reverb).
-- The hard part (to decide when coding): `just_audio` has no hook for our own processing. The options are a small native audio processor added to its Android player, or a different playback engine that allows one. Crossfade (two players), gapless playback, Replay Gain, the visualizer and the notification all sit on the current engine, so they must be rechecked with whichever route is chosen. Try it on a phone early; battery and glitches are the risks.
-- Keep: per-output memory (speaker / wired / Bluetooth), presets, Preamp, Tone and Limit; the current Android equalizer stays as a fallback for phones where ours fails.
+**1. A true 10-band equalizer** is **built (not yet tried on a phone)**, see Done. What is still open of "our own audio effects": a compressor, stereo width, a real bass boost and reverb. Android's `DynamicsProcessing` (the effect used for the equalizer) also has a multiband compressor, so a compressor is the easy next one; the others would need our own processing (see the note under *Known limits*).
 
 **2. Auto-tagging the local library** (from [remotetuneslocallibrary.md](remotetuneslocallibrary.md); the owner has about 2,000 songs)
 - Rule: trust good tags; fill only what is missing; correct only on a high-confidence match; send doubts to a review queue; never silently overwrite.
@@ -51,7 +47,7 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **2
 - [ ] GitHub Pages: Settings > Pages > Source: GitHub Actions (once), for the web Controller.
 
 ### Known limits (built, but not as far as it could go)
-- [ ] **10-band EQ is virtual** (a true one is planned, see *Planned next*): Android's equalizer has about 5 bands, so the ten sliders are blended onto them (the screen says so). A true 10-band filter would need our own audio processing.
+- [ ] **True 10-band EQ needs Android 9 or newer** (it uses Android's `DynamicsProcessing`) and a phone that allows it; otherwise the ten sliders are blended onto the phone's ~5 bands, and the screen says which of the two is running. Other effects (stereo width, reverb) would need our own audio processing, which `just_audio` has no hook for.
 - [ ] **Replay Gain** reads the tags only; *measuring* loudness for files that have none needs decoding every file.
 - [ ] **Writing tags into files** depends on Android: files in shared folders are refused unless *All files access* is on (Settings). It writes title, artist, album and track number only (not genre, year, cover).
 - [ ] **Visualizer** needs the microphone permission (Android's rule for reading the sound; nothing is recorded), works only for this phone's own playback, and some phones or outputs may refuse it.
@@ -83,6 +79,7 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **2
 - [x] Gapless playback for local songs.
 - [x] **Crossfade** (Settings, 0 to 12 s): two players, equal-power fade; the next song is loaded early and the fade starts at the right moment (fixed in `v0.12.1`: the first fade used to restart the next song).
 - [x] **Equalizer:** Android's bands with 9 presets, per-output memory (speaker / wired / Bluetooth), a response curve, Preamp, Bass / Treble and Limit, plus a **10-band view**.
+- [x] **True 10-band equalizer** (built after `v1.0.0`, **not tried on a phone yet**): in the *10 bands* view the ten sliders (31 Hz to 16 kHz) are ten real filters, using Android's `DynamicsProcessing` effect on each player's audio session (so crossfade, gapless and the visualizer are untouched). *Limit* becomes a real limiter. The phone's own equalizer stays flat while it runs. If a phone refuses it (Android 8 or older, or a maker that blocks it), it falls back to blending onto the phone's bands, and the screen says which is in use.
 - [x] **Replay Gain** from tags (Off / By song / By album); it never turns a song up.
 - [x] **Visualizer** (Settings, off by default): 24 moving bars under the cover; follows whichever player is audible.
 - [x] Lock screen / notification: cover, length, shuffle / repeat / speed, a heart for library songs; own channel; rebuilt only when something changes.

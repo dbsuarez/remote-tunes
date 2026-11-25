@@ -37,6 +37,27 @@ class FakeAudioBackend implements AudioBackend {
   @override
   int? audioSessionId;
 
+  /// Whether the pretend phone accepts our own equalizer.
+  bool trueEqSupported = true;
+
+  /// Every call to [setTrueEqualizer].
+  final List<({bool enabled, List<double> hz, List<double> gains, bool limiter})> trueCalls = [];
+
+  @override
+  bool? trueEqualizerActive;
+
+  @override
+  Future<bool> setTrueEqualizer({
+    required bool enabled,
+    required List<double> centersHz,
+    required List<double> gains,
+    required bool limiter,
+  }) async {
+    trueCalls.add((enabled: enabled, hz: [...centersHz], gains: [...gains], limiter: limiter));
+    if (enabled) trueEqualizerActive = trueEqSupported;
+    return trueEqSupported;
+  }
+
   @override
   Stream<String?> get advancedStream => _advanced.stream;
 

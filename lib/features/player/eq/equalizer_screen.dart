@@ -47,6 +47,7 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     c.refreshOutput();
+    c.reapply();
   }
 
   @override
@@ -146,8 +147,12 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  "This phone's equalizer really has ${bands.count} bands, so the ten sliders are "
-                  'blended onto them: neighbouring sliders work together.',
+                  c.trueTenBand
+                      ? 'Ten real filters: each slider changes only its own part of the sound, and '
+                          'Limit is a true limiter.'
+                      : "This phone's equalizer really has ${bands.count} bands, so the ten sliders are "
+                          'blended onto them: neighbouring sliders work together. (Ten real filters '
+                          'need Android 9 or newer, a song playing, and a phone that allows it.)',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
@@ -161,8 +166,16 @@ class _EqualizerViewState extends State<EqualizerView> with WidgetsBindingObserv
                 child: CustomPaint(
                   key: const Key('eq-curve'),
                   painter: EqCurvePainter(
-                    bands: bands,
-                    gains: s.effectiveGains(bands),
+                    // With ten real filters the curve is drawn at their frequencies.
+                    bands: ten && c.trueTenBand
+                        ? EqBands(
+                            minDb: bands.minDb,
+                            maxDb: bands.maxDb,
+                            centersHz: EqPreset.tenCenters)
+                        : bands,
+                    gains: ten && c.trueTenBand
+                        ? s.effectiveTenGains(bands)
+                        : s.effectiveGains(bands),
                     line: theme.colorScheme.primary,
                     grid: theme.colorScheme.outlineVariant,
                   ),

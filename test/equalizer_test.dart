@@ -153,7 +153,9 @@ void main() {
     });
 
 
-    test('ten bands: the ten sliders are blended onto the phone bands', () async {
+    test('ten bands: when the phone refuses real filters, the sliders are blended onto its bands',
+        () async {
+      backend.trueEqSupported = false;
       final c = make();
       await c.init();
       await c.setTenBand(true);
@@ -166,6 +168,72 @@ void main() {
       expect(backend.eqCalls.last.gains.last, closeTo(0, 0.001));
       expect(c.settings.preset, isNull);
       expect(c.settings.enabled, isTrue);
+      expect(c.trueTenBand, isFalse);
+    });
+
+    test('ten bands: real filters get all ten gains and the phone equalizer stays flat', () async {
+      final c = make();
+      await c.init();
+      await c.setTenBand(true);
+      await c.setTenBandGain(0, 6);
+      await c.setTenBandGain(9, -4);
+      final call = backend.trueCalls.last;
+      expect(call.enabled, isTrue);
+      expect(call.hz, EqPreset.tenCenters);
+      expect(call.gains[0], 6);
+      expect(call.gains[9], -4);
+      expect(call.gains.sublist(1, 9).every((g) => g == 0), isTrue);
+      expect(backend.eqCalls.last.gains, [0, 0, 0, 0, 0], reason: 'no double processing');
+      expect(backend.eqCalls.last.enabled, isTrue);
+      expect(c.trueTenBand, isTrue);
+    });
+
+    test('ten bands: Bass and Treble are added to the ten filters', () async {
+      final c = make();
+      await c.init();
+      await c.setTenBand(true);
+      await c.setEnabled(true);
+      await c.setBass(6);
+      final g = backend.trueCalls.last.gains;
+      expect(g[0], greaterThan(5), reason: 'the 31 Hz filter takes the bass');
+      expect(g[9], closeTo(0, 0.01));
+    });
+
+    test('ten bands: Limit is a real limiter, and the preamp is not turned down for it', () async {
+      final c = make();
+      await c.init();
+      await c.setTenBand(true);
+      await c.setTenBandGain(2, 8);
+      await c.setLimit(true);
+      expect(backend.trueCalls.last.limiter, isTrue);
+      expect(backend.preampDb, 0);
+    });
+
+    test('ten bands: switching back or off turns the real filters off', () async {
+      final c = make();
+      await c.init();
+      await c.setTenBand(true);
+      await c.setTenBandGain(2, 5);
+      await c.setTenBand(false);
+      expect(backend.trueCalls.last.enabled, isFalse);
+      expect(c.trueTenBand, isFalse);
+      await c.setTenBand(true);
+      await c.setEnabled(false);
+      expect(backend.trueCalls.last.enabled, isFalse);
+    });
+
+    test('ten bands: if it only fails once a song is playing, the blend takes over', () async {
+      final c = make();
+      await c.init();
+      await c.setTenBand(true);
+      await c.setTenBandGain(0, 6);
+      expect(c.trueTenBand, isTrue);
+      // The phone refuses once a song is playing.
+      backend.trueEqualizerActive = false;
+      backend.trueEqSupported = false;
+      expect(c.trueTenBand, isFalse);
+      await c.reapply();
+      expect(backend.eqCalls.last.gains.first, greaterThan(0), reason: 'blended again');
     });
 
     test('ten bands start where the phone bands are, and a preset fills them', () async {
@@ -399,6 +467,19 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
       await tester.pump();
       expect(find.byType(Slider), findsNWidgets(8));
+    });
+
+    testWidgets('the 10 bands view says whether the filters are real', (tester) async {
+      await open(tester);
+      await tester.tap(find.text('10 bands'));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+      expect(find.textContaining('blended onto them'), findsOneWidget, reason: 'switched off');
+      await tester.tap(find.text('Bass boost'));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+      expect(find.textContaining('Ten real filters'), findsOneWidget);
+      expect(find.textContaining('blended onto them'), findsNothing);
     });
 
     testWidgets('a preset chip sets the sliders and switches it on', (tester) async {

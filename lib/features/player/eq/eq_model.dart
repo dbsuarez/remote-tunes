@@ -189,11 +189,30 @@ class EqSettings {
     ];
   }
 
+  /// The ten sliders as they are really applied by our own equalizer: the
+  /// sliders plus, when Tone is on, Bass and Treble.
+  List<double> effectiveTenGains(EqBands bands) {
+    final base = tenGains.length == EqPreset.tenCenters.length
+        ? tenGains
+        : List.filled(EqPreset.tenCenters.length, 0.0);
+    return [
+      for (var i = 0; i < base.length; i++)
+        (base[i] +
+                (toneOn
+                    ? bassDb * bassWeight(EqPreset.tenCenters[i]) +
+                        trebleDb * trebleWeight(EqPreset.tenCenters[i])
+                    : 0))
+            .clamp(bands.minDb, bands.maxDb)
+            .toDouble(),
+    ];
+  }
+
   /// The level change to apply before the bands: the preamp, and with Limit on,
-  /// enough turning down to cancel the biggest boost.
-  double effectivePreampDb(EqBands bands) {
+  /// enough turning down to cancel the biggest boost. With our own equalizer
+  /// ([trueTen]) Limit is a real limiter instead, so nothing is turned down.
+  double effectivePreampDb(EqBands bands, {bool trueTen = false}) {
     var db = preampDb;
-    if (limit) {
+    if (limit && !trueTen) {
       final boost = effectiveGains(bands).fold<double>(0, math.max);
       db -= boost;
     }

@@ -198,6 +198,29 @@ class CrossfadeBackend implements AudioBackend {
   }
 
   @override
+  Future<bool> setTrueEqualizer({
+    required bool enabled,
+    required List<double> centersHz,
+    required List<double> gains,
+    required bool limiter,
+  }) async {
+    final a = await _a.setTrueEqualizer(
+        enabled: enabled, centersHz: centersHz, gains: gains, limiter: limiter);
+    final b = await _b.setTrueEqualizer(
+        enabled: enabled, centersHz: centersHz, gains: gains, limiter: limiter);
+    return a && b;
+  }
+
+  @override
+  bool? get trueEqualizerActive {
+    final a = _a.trueEqualizerActive, b = _b.trueEqualizerActive;
+    if (a == false || b == false) return false;
+    if (a == true && b == true) return true;
+    // One side has a sound loaded and works; the other waits for its first one.
+    return a ?? b;
+  }
+
+  @override
   Future<void> setPreamp(double db) async {
     await _a.setPreamp(db);
     await _b.setPreamp(db);

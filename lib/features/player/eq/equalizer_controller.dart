@@ -37,6 +37,12 @@ class EqualizerController extends ChangeNotifier {
   String _output = 'unknown';
   bool _outputSaved = false;
   bool _started = false;
+  bool _trueTen = false;
+
+  /// The ten sliders are really ten filters of our own (not blended onto the
+  /// phone's five bands). False when it is off, waiting for the first song, or
+  /// this phone does not allow it.
+  bool get trueTenBand => _trueTen && _backend.trueEqualizerActive != false;
 
   /// The phone's bands; null until the first song has been loaded (Android only
   /// sets the equalizer up then) or when the phone has none.
@@ -88,18 +94,47 @@ class EqualizerController extends ChangeNotifier {
         _settings = _settings.copyWith(gains: gains);
       }
       try {
+        // The ten sliders as ten real filters, when this phone allows it.
+        _trueTen = false;
+        if (_settings.tenBand && _settings.enabled) {
+          _trueTen = await _backend.setTrueEqualizer(
+            enabled: true,
+            centersHz: EqPreset.tenCenters,
+            gains: _settings.effectiveTenGains(b),
+            limiter: _settings.limit,
+          );
+        } else {
+          await _backend.setTrueEqualizer(
+            enabled: false,
+            centersHz: EqPreset.tenCenters,
+            gains: List.filled(EqPreset.tenCenters.length, 0.0),
+            limiter: false,
+          );
+        }
         // What each band is really set to (sliders plus Bass / Treble), and the
         // preamp (plus Limit's turning down). Nothing changes while it is off.
+        // With our own equalizer the phone's one stays flat.
         await _backend.setEqualizer(
           enabled: _settings.enabled,
-          gains: _settings.effectiveGains(b),
+          gains: _trueTen
+              ? List.filled(b.count, 0.0)
+              : _settings.effectiveGains(b),
         );
-        await _backend.setPreamp(_settings.enabled ? _settings.effectivePreampDb(b) : 0);
+        await _backend.setPreamp(
+            _settings.enabled ? _settings.effectivePreampDb(b, trueTen: _trueTen) : 0);
       } catch (_) {
         // The effect could not be changed; the settings are still kept.
       }
     }
     if (notify) notifyListeners();
+  }
+
+  /// Applies the settings again (the screen calls this when it opens: a song
+  /// may have been loaded since, and whether our own equalizer works is only
+  /// known then).
+  Future<void> reapply() async {
+    _bands ??= await _backend.equalizerBands();
+    await _apply(notify: true);
   }
 
   Future<void> _save() async {

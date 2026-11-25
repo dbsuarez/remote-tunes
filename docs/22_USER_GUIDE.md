@@ -81,8 +81,8 @@ Every add ends with a report: songs **found**, **added**, **already in your libr
 
 ### Equalizer (menu > Equalizer, play a song first)
 - Switch it on, pick a **preset** (Bass boost, Vocal, Rock...), or move the sliders (then it says *Custom*).
-- **Phone bands / 10 bands:** your phone's equalizer really has about 5 bands. The *10 bands* view gives ten sliders (31 Hz to 16 kHz) that are **blended onto** those 5, so it is not a true 10-band filter.
-- **Preamp** (overall level), **Bass / Treble** (Tone), **Limit** (turns everything down by as much as you boosted, so loud parts don't distort).
+- **Phone bands / 10 bands:** your phone's own equalizer has about 5 bands. The *10 bands* view gives ten sliders (31 Hz to 16 kHz). On Android 9 or newer they are **ten real filters**, each changing only its own part of the sound, and the note under the switch says *Ten real filters*. If your phone refuses that, the ten sliders are **blended onto** the phone's 5 bands instead, and the note says so.
+- **Preamp** (overall level), **Bass / Treble** (Tone), **Limit** (stops loud parts from distorting after a boost: with the ten real filters it is a true limiter; with the phone's bands it turns everything down by as much as you boosted).
 - **Remember for this output:** speaker, wired headphones and Bluetooth each keep their own settings, applied when that output is in use.
 
 ### Crossfade (Settings > Crossfade, 0 to 12 seconds)
