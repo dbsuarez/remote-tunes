@@ -159,6 +159,18 @@ Good to know: restoring only **adds**. Nothing on the new phone is deleted; a pl
 
 ## 11. Settings, in one list
 
+Settings has a **search box at the top**: type a word ("crossfade", "lyrics", "vibration", "backup") and the setting shows up right there, ready to change. Without searching, the front page is a short list of **groups**, each opening its own page:
+
+- **Playback and sound:** default volume, repeat and shuffle, crossfade, even out loudness, equalizer, visualizer, queue opens at the song playing.
+- **Library:** find missing album art, update tags from files, left out of the library, reset play and skip counts, all files access.
+- **Look:** skins, song list text size, haptic feedback, colors from album art.
+- **Lyrics and online:** lyrics from the internet, Online Library suggestions.
+- **Other phones and connection:** device name, when the app opens, connection mode, online relay, external app control, player port.
+- **Updates and about:** app updates (and the installed version), diagnostics.
+- **Backup and restore** has its own row.
+
+The list below says what each one does. (Where other parts of this guide say "Settings > Crossfade" and the like, open the group above that holds it, or just search for it.)
+
 - **Queue opens at the song playing**: The Queue tab scrolls to what is playing.
 - **Visualizer**: Moving bars under the cover (microphone permission).
 - **Suggestions in the Online Library**: Popular and newest Jamendo tracks before you search.

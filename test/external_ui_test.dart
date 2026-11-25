@@ -131,6 +131,9 @@ void main() {
       await settleUi(tester);
       await tester.tap(find.byTooltip('Settings'));
       await settleUi(tester);
+      // The setting is in the group "Other phones and connection".
+      await tester.tap(find.byKey(const ValueKey('group-other')));
+      await settleUi(tester);
       return settings;
     }
 

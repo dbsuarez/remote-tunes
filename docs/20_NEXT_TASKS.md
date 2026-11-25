@@ -92,18 +92,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - Proposed first step: one *List options* sheet reachable from every song list, with *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list; then the header with count and total time; then pinch-to-zoom; per-track progress last (it changes playback).
 - [ ] the sheet and the views · [ ] per-list memory · [ ] header with count and total time · [ ] pinch-to-zoom · [ ] per-track progress
 
-**9. Settings, grouped** (the owner: "it is now a long scroll to find a setting")
-- Today Settings is one long page of nine sections (Device, Connection mode, Online relay, Playback defaults, Song list, When the app opens, Look and feel, App updates, Advanced) with about forty rows, and most things added lately (backup, left-out, counts reset, visualizer, suggestions, All files access, queue scroll...) were put in wherever they fit.
-- Plan: the front page becomes a short list of **groups**, each a row with an icon, a name and a one-line summary of what it holds, opening its own page; and a **search box** at the top ("crossfade", "lyrics", "backup") that jumps straight to a setting.
-  - **Playback:** crossfade, even out loudness, shuffle / repeat defaults, default volume, queue opens at the song playing, visualizer and its style, equalizer (a shortcut).
-  - **Library:** add music, update tags, find missing album art, left out of the library, All files access, reset play and skip counts.
-  - **Look:** skins, song list text size, accent from album art, haptics.
-  - **Lyrics and online:** lyrics from the internet, Online Library suggestions, Jamendo client ID.
-  - **Other phone:** device name, remote playback, when the app opens, connection mode, online relay, external app control.
-  - **Backup and restore** (its own row).
-  - **Updates and about:** app updates, version, What's new, Help, Privacy, Diagnostics.
-- Keep: every setting keeps its place in the saved data, so nothing is lost; the menu shortcuts (Skins, Equalizer) still go straight to their pages; the Help guide and the checklist are updated to the new places.
-- [ ] groups and pages · [ ] search box · [ ] the guide, checklist and tests moved to the new paths
+**9. Settings, grouped: built (not tried on a phone yet), see Done.**
 
 **10. One-tap rescan of the music folders** (the owner puts new songs in the right folder and rescans)
 - **Moved songs are now followed** (built after `v1.0.7`): when a file was moved to another folder and the folder is added again, the app recognises it (same tags, length and size as a song whose file is gone) and points that song at the new place, so playlists, hearts and counts stay; the report says *Moved (found again at the new place)*. Before this, a moved song was skipped as "already in your library" and stayed missing. A song retagged while being moved is not recognised (it is added as new and the old one stays missing: see *Missing files* below).
@@ -172,6 +161,12 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Lyrics
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
+
+### Settings, grouped (built after `v1.0.7`)
+- [x] Settings opens on a short list of **groups** (Playback and sound, Library, Look, Lyrics and online, Other phones and connection, Updates and about) plus a **Backup and restore** row; each group opens its own page. A **search box** at the top finds a setting by its name or by other words people use (vibration, replay gain, spotify, supabase...) and shows it in place, ready to change. Nothing about how settings are saved changed.
+
+### Moved songs followed on rescan (built after `v1.0.7`)
+- [x] Moving a song file to another folder and adding the folder again now **relinks** the song (playlists, hearts and counts kept) instead of skipping it as a duplicate; the report says *Moved*.
 
 ### Backup and restore (built after `v1.0.5`; not tried on a phone yet)
 - [x] **Settings > Backup and restore.** *Back up to a file* makes `RemoteTunes-<date>.rtbackup` (compressed JSON, no audio) with: playlists (in order), favorites, play / skip counts and last played, the left-out list, lyrics found so far (switch), and the safe settings (switch: look, equalizer and its per-output memory, crossfade, visualizer style, list size...). Never in it: Jamendo ID, pairing, Supabase keys, device name.

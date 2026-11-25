@@ -309,6 +309,9 @@ void main() {
       await settleUi(tester);
       await tester.tap(find.byTooltip('Settings'));
       await settleUi(tester);
+      // The online relay is in the group "Other phones and connection".
+      await tester.tap(find.byKey(const ValueKey('group-other')));
+      await settleUi(tester);
       // Home is still in the tree underneath: scroll the Settings list on top.
       await tester.dragUntilVisible(
         find.text('Test online relay'),
