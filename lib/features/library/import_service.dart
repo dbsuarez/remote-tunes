@@ -23,6 +23,10 @@ class ImportResult {
   int added = 0;
   int duplicates = 0;
 
+  /// Songs whose file was moved: found again at the new place, so they are the same
+  /// song as before (playlists, hearts and counts kept).
+  int relinked = 0;
+
   /// Songs left out because their folder (or file) is on the excluded list.
   int excluded = 0;
 
@@ -41,6 +45,7 @@ class ImportResult {
   String get summary {
     final parts = <String>[
       if (added > 0) 'Added $added song${added == 1 ? '' : 's'}',
+      if (relinked > 0) '$relinked moved',
       if (duplicates > 0) '$duplicates already in your library',
       if (excluded > 0) '$excluded excluded',
       if (removed > 0) '$removed removed',
@@ -314,13 +319,26 @@ class LibraryImportService {
     final artist = meta.artist ?? unknownArtist;
     final album = meta.album ?? unknownAlbum;
 
-    if (await _library.hasDuplicate(
+    final same = await _library.duplicatesOf(
       title: title,
       artist: artist,
       album: album,
       durationSeconds: meta.durationSeconds,
       fileSizeBytes: size,
-    )) {
+    );
+    if (same.isNotEmpty) {
+      if (!copy) {
+        // A song we know whose file is no longer where it was, and this file is the
+        // same song: it was moved. Follow it instead of calling it a duplicate.
+        for (final d in same) {
+          final old = d.path;
+          if (old != null && !File(old).existsSync()) {
+            await _library.relinkSong(d.id, path);
+            result.relinked++;
+            return;
+          }
+        }
+      }
       result.duplicates++;
       return;
     }

@@ -327,6 +327,37 @@ class LibraryRepository {
     ];
   }
 
+  /// Songs that are the same as this one (same tags, length and file size), with where
+  /// each one's file is, so a moved file can be told from a real second copy.
+  Future<List<({int id, String? path})>> duplicatesOf({
+    required String title,
+    required String artist,
+    required String album,
+    int? durationSeconds,
+    int? fileSizeBytes,
+  }) async {
+    final rows = await _db.customSelect(
+      'SELECT id, file_path FROM songs WHERE title = ? AND artist = ? AND album = ? '
+      'AND IFNULL(duration_seconds, -1) = ? AND IFNULL(file_size_bytes, -1) = ? ORDER BY id',
+      variables: [
+        Variable<String>(title),
+        Variable<String>(artist),
+        Variable<String>(album),
+        Variable<int>(durationSeconds ?? -1),
+        Variable<int>(fileSizeBytes ?? -1),
+      ],
+    ).get();
+    return [for (final r in rows) (id: r.read<int>('id'), path: r.readNullable<String>('file_path'))];
+  }
+
+  /// Points a song at its file's new place (it was moved). Its playlists, hearts and
+  /// counts stay, because it is the same song record.
+  Future<void> relinkSong(int songId, String newPath) => _db.customUpdate(
+        'UPDATE songs SET file_path = ? WHERE id = ?',
+        variables: [Variable<String>(newPath), Variable<int>(songId)],
+        updates: {_db.songs},
+      );
+
   /// True if an equivalent song is already in the library (used to skip
   /// duplicates when importing copied files, whose paths always differ).
   Future<bool> hasDuplicate({

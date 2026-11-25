@@ -274,6 +274,9 @@ class ImportReportDialog extends StatelessWidget {
               row(Icons.add_circle_outline_rounded, 'Added', r.added, color: theme.colorScheme.primary),
               if (r.duplicates > 0)
                 row(Icons.library_music_outlined, 'Already in your library', r.duplicates),
+              if (r.relinked > 0)
+                row(Icons.drive_file_move_outline, 'Moved (found again at the new place)', r.relinked,
+                    color: theme.colorScheme.primary),
               if (r.excluded > 0) row(Icons.block_rounded, 'Left out (excluded)', r.excluded),
               if (r.removed > 0) row(Icons.remove_circle_outline_rounded, 'Removed from the library', r.removed),
               if (r.failed > 0)

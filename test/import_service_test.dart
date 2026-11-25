@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:drift/drift.dart' show Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -369,6 +370,85 @@ void main() {
       await service.includeAgain(gone.filePath!);
       final back = await service.importFolder(source.path);
       expect(back.added, 1);
+    });
+  });
+
+  group('rescanning after files were moved', () {
+    Future<int> idOf(String title) async =>
+        (await db.customSelect('SELECT id FROM songs WHERE title = ?',
+                variables: [Variable<String>(title)])
+            .getSingle())
+            .read<int>('id');
+
+    test('a song moved to another folder is found again, not added twice or left missing',
+        () async {
+      final old = await makeFile('Inbox/one.mp3', bytes: 64);
+      await makeFile('Inbox/two.mp3', bytes: 65);
+      extractor.byName['one.mp3'] =
+          const ExtractedMetadata(title: 'One', artist: 'Ann', album: 'First', durationSeconds: 100);
+      extractor.byName['two.mp3'] =
+          const ExtractedMetadata(title: 'Two', artist: 'Bob', album: 'Second', durationSeconds: 100);
+      await service.importFolder(source.path);
+      final idBefore = await idOf('One');
+      // The user puts it in its proper folder.
+      final home = File(p.join(source.path, 'Rock', 'one.mp3'));
+      await home.parent.create(recursive: true);
+      await File(old).rename(home.path);
+
+      final r = await service.importFolder(source.path);
+      expect(r.added, 0, reason: 'it is not a new song');
+      expect(r.relinked, 1);
+      expect(r.duplicates, 1, reason: 'Two did not move');
+      expect(r.summary, contains('1 moved'));
+      expect(await repo.count(), 2);
+      expect(await idOf('One'), idBefore, reason: 'the same song record');
+      final row = await db.customSelect('SELECT file_path AS p FROM songs WHERE title = ?',
+          variables: [Variable<String>('One')]).getSingle();
+      expect(row.read<String>('p'), home.path);
+    });
+
+    test('its playlists, heart and counts stay with it', () async {
+      final old = await makeFile('Inbox/one.mp3');
+      extractor.byName['one.mp3'] =
+          const ExtractedMetadata(title: 'One', artist: 'Ann', album: 'First', durationSeconds: 100);
+      await service.importFolder(source.path);
+      final id = await idOf('One');
+      final list = await repo.createPlaylist('Mine');
+      await repo.addToPlaylist(list, [id]);
+      await repo.setFavorite(id, true);
+      await repo.markPlayed(id);
+      final home = File(p.join(source.path, 'Rock', 'one.mp3'));
+      await home.parent.create(recursive: true);
+      await File(old).rename(home.path);
+
+      await service.importFolder(source.path);
+      final fav = await db.customSelect('SELECT favorite, play_count FROM songs').getSingle();
+      expect(fav.read<bool>('favorite'), isTrue);
+      expect(fav.read<int>('play_count'), 1);
+      final inList = await db.customSelect('SELECT COUNT(*) AS c FROM playlist_songs').getSingle();
+      expect(inList.read<int>('c'), 1);
+    });
+
+    test('a real second copy is still a duplicate when the first is still there', () async {
+      await makeFile('A/one.mp3');
+      extractor.byName['one.mp3'] =
+          const ExtractedMetadata(title: 'One', artist: 'Ann', album: 'First', durationSeconds: 100);
+      extractor.byName['copy.mp3'] = extractor.byName['one.mp3']!;
+      await service.importFolder(source.path);
+      await makeFile('B/copy.mp3');
+      final r = await service.importFolder(source.path);
+      expect(r.relinked, 0);
+      expect(r.duplicates, 2, reason: 'the first one (known) and the copy (a duplicate)');
+      expect(await repo.count(), 1);
+    });
+
+    test('a song that is gone and not found anywhere stays as it was', () async {
+      final old = await makeFile('Inbox/one.mp3');
+      await service.importFolder(source.path);
+      File(old).deleteSync();
+      final r = await service.importFolder(source.path);
+      expect(r.relinked, 0);
+      expect(await repo.count(), 1);
     });
   });
 }
