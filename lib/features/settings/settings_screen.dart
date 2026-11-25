@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../update/update_widgets.dart';
 import 'album_art_dialog.dart';
+import '../library/import_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -215,6 +216,15 @@ class SettingsScreen extends ConsumerWidget {
                 onChanged: repo.setLyricsEnabled,
               ),
               const AlbumArtTile(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.sell_outlined),
+                title: const Text('Update tags from files'),
+                subtitle: const Text(
+                    'Reads the genre, year and album artist of every song again, so the '
+                    'Genres, Years and Album Artists lists fill in. Nothing is changed in the files.'),
+                onTap: () => refreshLibraryTags(context, ref),
+              ),
               const SizedBox(height: 16),
               const _SectionHeader('App updates'),
               UpdateSettingsTiles(settings: s),

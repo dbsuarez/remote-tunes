@@ -104,6 +104,41 @@ Future<void> _explainPermission(
   );
 }
 
+/// Reads the tags of every song again to fill in genres, years and album
+/// artists (songs added before those were kept have none). Shows the same
+/// fixed-size progress card as adding music.
+Future<void> refreshLibraryTags(BuildContext context, WidgetRef ref) async {
+  final service = await ref.read(importServiceProvider.future);
+  if (!context.mounted) return;
+  final progress = ValueNotifier<ImportProgress?>(null);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PopScope(
+      canPop: false,
+      child: _ProgressDialog(progress: progress, title: 'Updating tags'),
+    ),
+  );
+  int? filled;
+  Object? error;
+  try {
+    filled = await service.refreshTags(onProgress: (p) => progress.value = p);
+  } catch (e) {
+    error = e;
+  }
+  if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+  progress.dispose();
+  if (!context.mounted) return;
+  _snack(
+    context,
+    error != null
+        ? friendlyError(error)
+        : filled == 0
+            ? 'No new tags found in the files.'
+            : 'Updated the tags of $filled song${filled == 1 ? '' : 's'}.',
+  );
+}
+
 Future<bool> _runImport(
   BuildContext context,
   Future<ImportResult> Function(ProgressCallback onProgress) job,
@@ -166,14 +201,15 @@ Future<bool> _runImport(
 }
 
 class _ProgressDialog extends StatelessWidget {
-  const _ProgressDialog({required this.progress});
+  const _ProgressDialog({required this.progress, this.title = 'Adding music'});
 
   final ValueNotifier<ImportProgress?> progress;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Adding music'),
+      title: Text(title),
       content: ValueListenableBuilder<ImportProgress?>(
         valueListenable: progress,
         builder: (context, p, _) {

@@ -1,6 +1,6 @@
 # Next tasks
 
-What is built and what is still to do, from the owner's lists (the UX handoff, the Poweramp-inspired ideas and screenshots, lyrics, releases). Updated at release `v0.6.0`.
+What is built and what is still to do, from the owner's lists (the UX handoff, the Poweramp-inspired ideas and screenshots, lyrics, releases). Updated after `v0.7.0` (the next batch is built but not yet released).
 
 Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.md). Everything below marked done has automated tests; **none of the audio, gesture and layout items have been tried on a phone yet** (see [docs/19](19_PHONE_TEST_CHECKLIST.md)).
 
@@ -45,7 +45,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [ ] **Replay Gain scanner** (background isolate; needs a new column and a re-scan of the library).
 
 ### Library and search
-- [ ] Album Artists, Genres, Years and Composers (need tags we do not read yet: schema change and a re-read of the files) and a folder tree next to the flat Folders list.
+- [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Still to do: Composers (the tag reader only gives it for MP3) and a folder tree next to the flat Folders list.
 - [ ] Search: an Album Artists scope, and a Shuffle / Play / Select row on the results.
 - [ ] Tag editor: write the tags into the music files (needs a writer and Android 11+ file-edit permission); today it only changes RemoteTunes' listing.
 
@@ -68,6 +68,14 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] **Step 3:** the Controller is a mode of the same screens. The source chip opens a sheet: *This phone*, *Control another phone* (finds a Player; once connected the same tabs show and control that Player; if it goes away the app falls back to this phone), *Disconnect*, and **Start remote playback** (starts the Player server on demand; Stop ends it; the sheet's row opens the QR / pairing page). Nothing listens on the network until pressed; Settings can start it automatically. Online Library and Play a link are rows in the Library list.
 - [x] **Now Playing is the same screen on both phones** (`NowPlayingView` on a `PlaybackSession`: `LocalSession` for this phone, `RemoteSession` for another): big cover, quick row, transport, lyrics, queue peek, edge swipes. The sleep timer is shared by this phone's screen and the Player server.
 - [ ] Still to do here: the "Group play" card only shows when controlling another phone; the classic Home / Player / Controller screens are still reachable (Settings > Classic start screen) and could be retired once the new flow is trusted; the Player server's pairing page could show in the shell instead of its own screen; the shell has no tablet / landscape layout.
+
+### Done after v0.7.0 (this batch)
+- [x] The queue sheet rests as just a handle (tap or swipe it up).
+- [x] Lyrics show inside the cover (button in its top-right corner); the separate Lyrics button is gone.
+- [x] The volume is a button in the quick row with a small vertical slider.
+- [x] The "Adding music" card has a fixed size (file names no longer make it jump).
+- [x] Notification: rebuilt only when something changes (it was rebuilt every second), and it has its own channel with normal importance and no sound. Lock-screen player: see the notes below.
+- [x] Group play and Auto-align verified by the owner on two phones.
 
 ### Verification and housekeeping (owner)
 - [ ] Try everything on the phones with `docs/19_PHONE_TEST_CHECKLIST.md`: gapless, lyrics, edge swipes, Now Playing v2, library list, search, album-art finder, lock screen, updates, and group play / Auto-align (never verified).

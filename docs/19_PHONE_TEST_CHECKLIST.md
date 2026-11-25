@@ -155,6 +155,12 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Start remote playback:** tap the chip > Start remote playback. The pairing / QR page opens; the notification now stays while nothing plays. From the other phone: chip > Control another phone > pick it. That phone's music shows in the same tabs and the buttons control it. Stop remote playback on the first phone: nothing is listening (the other phone shows it disconnected and falls back to its own music).
 - [ ] **Now Playing looks and behaves the same** on the Player and on the Controller: cover, accent title, favorite / shuffle / repeat / speed / sleep, 10-second jumps, lyrics, queue peek, edge swipes.
 - [ ] **When the app opens** (Settings): "Control my last Player" reconnects by itself (chip says Controlling ...); "Classic start screen" brings back the Player / Controller buttons. "Start remote playback when the app opens" starts it at once.
+- [ ] **Queue handle:** on Now Playing only a thin handle shows at the bottom; tap it or swipe it up for the queue, and tap or swipe down to put it away.
+- [ ] **Lyrics in the cover:** the button in the cover's top-right corner shows the lyrics over the cover, the same button brings the cover back.
+- [ ] **Volume:** the speaker icon in the row under the title opens a small vertical slider; there is no separate volume bar.
+- [ ] **Adding music:** the progress card keeps the same size while file names change.
+- [ ] **Lock screen:** start a song, lock the phone: the player (title, cover, buttons) shows on the lock screen. If it does not, tell me what you see (nothing at all, or a notification without buttons).
+- [ ] **Genres / Years / Album Artists:** Settings > Update tags from files, then Library > Genres, Years and Album Artists fill in and open like albums.
 
 ---
 

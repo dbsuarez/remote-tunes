@@ -10,11 +10,35 @@ import 'music_source.dart';
 import 'song_art.dart';
 import 'song_info_dialog.dart';
 
-enum _Scope { songs, artists, albums, favorites, recent, playlists, top, newest, folders }
+enum _Scope {
+  songs,
+  artists,
+  albums,
+  favorites,
+  recent,
+  playlists,
+  top,
+  newest,
+  folders,
+  albumArtists,
+  genres,
+  years,
+}
 
 class _Drill {
-  const _Drill(
-      {required this.title, this.artist, this.album, this.playlistId, this.folderId});
+  const _Drill({
+    required this.title,
+    this.artist,
+    this.album,
+    this.playlistId,
+    this.folderId,
+    this.groupKind,
+    this.groupValue,
+  });
+
+  /// A genre, a year or an album artist ([GroupKind]) and which one.
+  final String? groupKind;
+  final String? groupValue;
 
   final String title;
   final String? artist;
@@ -129,6 +153,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
         _Scope.top => 'Top',
         _Scope.newest => 'New',
         _Scope.playlists => 'Playlists',
+        _Scope.albumArtists => 'Album Artists',
+        _Scope.genres => 'Genres',
+        _Scope.years => 'Years',
       };
   String _query = '';
   int _generation = 0;
@@ -181,6 +208,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
           album: d.album,
           playlistId: d.playlistId,
           folderId: d.folderId,
+          groupKind: d.groupKind,
+          groupValue: d.groupValue,
           offset: offset,
           limit: 100);
       ids.addAll([for (final s in page.items) s.id]);
@@ -216,6 +245,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
           view: view,
           playlistId: drill?.playlistId,
           folderId: drill?.folderId,
+          groupKind: drill?.groupKind,
+          groupValue: drill?.groupValue,
           offset: offset,
           limit: 100);
       ids.addAll([for (final s in page.items) s.id]);
@@ -411,9 +442,38 @@ class _MusicBrowserState extends State<MusicBrowser> {
     }, done: 'Playlist deleted');
   }
 
+  /// A list of genres, years or album artists; opening one lists its songs.
+  Widget _groupList(String kind, IconData icon) {
+    final key = ValueKey('$_scope|$_query|${widget.refreshToken}|$_generation');
+    return _PagedList<RemoteGroup>(
+      key: key,
+      emptyMessage: _query.isNotEmpty
+          ? 'No matches.'
+          : switch (kind) {
+              GroupKind.genre => 'No genres yet. In Settings, "Update tags from files" reads them.',
+              GroupKind.year => 'No years yet. In Settings, "Update tags from files" reads them.',
+              _ => 'No album artists yet. In Settings, "Update tags from files" reads them.',
+            },
+      load: (offset, limit) =>
+          widget.source.groups(kind: kind, query: _query, offset: offset, limit: limit),
+      itemBuilder: (context, g) => ListTile(
+        minTileHeight: 64,
+        leading: CircleAvatar(child: Icon(icon)),
+        title: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text('${g.songCount} song${g.songCount == 1 ? '' : 's'}'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => setState(() {
+          _search.clear();
+          _query = '';
+          _drill = _Drill(title: g.name, groupKind: kind, groupValue: g.name);
+        }),
+      ),
+    );
+  }
+
   Widget _songList(_Drill? drill, {String? view}) {
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
-        '${drill?.playlistId}|${drill?.folderId}|${widget.refreshToken}|$_generation');
+        '${drill?.playlistId}|${drill?.folderId}|${drill?.groupValue}|${widget.refreshToken}|$_generation');
     return _PagedList<RemoteSong>(
       key: key,
       emptyMessage: _query.isNotEmpty
@@ -434,6 +494,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
         view: view,
         playlistId: drill?.playlistId,
         folderId: drill?.folderId,
+        groupKind: drill?.groupKind,
+        groupValue: drill?.groupValue,
         offset: offset,
         limit: limit,
       ),
@@ -507,7 +569,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
     final key = ValueKey('$_scope|$_query|${drill?.artist}|${drill?.album}|'
         '${drill?.playlistId}|${widget.refreshToken}|$_generation');
     // Moving to another list drops the selection.
-    final ctx = '$_scope|${drill?.artist}|${drill?.album}|${drill?.playlistId}|${drill?.folderId}';
+    final ctx =
+        '$_scope|${drill?.artist}|${drill?.album}|${drill?.playlistId}|${drill?.folderId}|${drill?.groupValue}';
     if (ctx != _selectionContext) {
       _selectionContext = ctx;
       _selected.clear();
@@ -607,6 +670,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.newest => 'New',
                           _Scope.folders => 'Folders',
                           _Scope.playlists => 'Playlists',
+                          _Scope.albumArtists => 'Album Artists',
+                          _Scope.genres => 'Genres',
+                          _Scope.years => 'Years',
                         }),
                         selected: _scope == s,
                         onSelected: (_) {
@@ -649,6 +715,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 _Scope.recent => _songList(null, view: LibraryView.recent),
                 _Scope.top => _songList(null, view: LibraryView.top),
                 _Scope.newest => _songList(null, view: LibraryView.newest),
+                _Scope.albumArtists => _groupList(GroupKind.albumArtist, Icons.mic_rounded),
+                _Scope.genres => _groupList(GroupKind.genre, Icons.piano_rounded),
+                _Scope.years => _groupList(GroupKind.year, Icons.calendar_month_rounded),
                 _Scope.folders => _PagedList<RemoteFolder>(
                     key: key,
                     emptyMessage: _query.isEmpty ? widget.emptyMessage : 'No matches.',
@@ -774,6 +843,9 @@ class _CategoryList extends StatelessWidget {
     (_Scope.folders, Icons.folder_rounded, Color(0xFF4FC3F7)),
     (_Scope.albums, Icons.album_rounded, Color(0xFF7C6CFF)),
     (_Scope.artists, Icons.person_rounded, Color(0xFFB388FF)),
+    (_Scope.albumArtists, Icons.mic_rounded, Color(0xFFCE93D8)),
+    (_Scope.genres, Icons.piano_rounded, Color(0xFFFFD54F)),
+    (_Scope.years, Icons.calendar_month_rounded, Color(0xFFFF8A65)),
     (_Scope.favorites, Icons.favorite_rounded, Color(0xFFFF6B8B)),
     (_Scope.recent, Icons.history_rounded, Color(0xFFFFB74D)),
     (_Scope.top, Icons.trending_up_rounded, Color(0xFFFF8A65)),
