@@ -174,13 +174,23 @@ Future<bool> _runImport(
   BuildContext context,
   Future<ImportResult> Function(ProgressCallback onProgress) job,
 ) async {
+  final result = await _runJob(context, job);
+  return result != null && result.added > 0;
+}
+
+/// Runs an adding job behind the progress card and shows its report. Null if it failed.
+Future<ImportResult?> _runJob(
+  BuildContext context,
+  Future<ImportResult> Function(ProgressCallback onProgress) job, {
+  String title = 'Adding music',
+}) async {
   final progress = ValueNotifier<ImportProgress?>(null);
   showDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (_) => PopScope(
       canPop: false,
-      child: _ProgressDialog(progress: progress),
+      child: _ProgressDialog(progress: progress, title: title),
     ),
   );
 
@@ -194,15 +204,81 @@ Future<bool> _runImport(
   }
   if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
   progress.dispose();
-  if (!context.mounted) return result != null && result.added > 0;
+  if (!context.mounted) return result;
 
   if (error != null || result == null) {
     _snack(context, friendlyError(error ?? 'error'));
-    return false;
+    return null;
   }
   // A report of what happened (instead of a one-line note).
   await showDialog<void>(context: context, builder: (_) => ImportReportDialog(result: result!));
-  return result.added > 0;
+  return result;
+}
+
+/// One tap: goes through every folder that was added before, adds what is new, follows what
+/// was moved, and says what is missing. Returns true if anything was added.
+Future<bool> rescanMusicFolders(BuildContext context, WidgetRef ref) async {
+  final service = await ref.read(importServiceProvider.future);
+  final folders = await service.musicFolders();
+  if (!context.mounted) return false;
+  if (folders.isEmpty) {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('No music folders yet'),
+        content: const Text(
+          'Add your music folder once (Library > + > Add folder). From then on, one tap on '
+          '"Rescan music folders" checks it for new songs.',
+        ),
+        actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+      ),
+    );
+    return false;
+  }
+  final permissions = ref.read(permissionsProvider);
+  final access = await permissions.ensureMusicAccess();
+  if (!context.mounted) return false;
+  if (access != PermissionOutcome.granted) {
+    await _explainPermission(context, permissions,
+        permanent: access == PermissionOutcome.permanentlyDenied);
+    return false;
+  }
+
+  final RescanPlan plan;
+  try {
+    plan = await service.planRescan();
+  } catch (e) {
+    if (context.mounted) _snack(context, friendlyError(e));
+    return false;
+  }
+  if (!context.mounted) return false;
+
+  // A folder that was not there before is worth a question; everything else just happens.
+  var leaveOut = <String>{};
+  if (plan.newFolders.isNotEmpty) {
+    final answer = await showNewFolders(context, plan.newFolders);
+    if (answer == null || !context.mounted) return false;
+    leaveOut = answer;
+  }
+
+  final result = await _runJob(
+    context,
+    (onProgress) => service.rescan(plan, leaveOut: leaveOut, onProgress: onProgress),
+    title: 'Rescanning',
+  );
+  if (result == null || !context.mounted) return false;
+
+  if (result.missing.isNotEmpty) {
+    final remove = await showMissingSongs(context, result);
+    if (remove == true) {
+      await service.removeSongs(result.missing.map((m) => m.id));
+      if (context.mounted) {
+        _snack(context,
+            'Removed ${result.missing.length} song${result.missing.length == 1 ? '' : 's'} from the library');
+      }
+    }
+  }
+  return result.added > 0 || result.relinked > 0;
 }
 
 class _ProgressDialog extends StatelessWidget {

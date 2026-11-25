@@ -37,6 +37,23 @@ class ImportResult {
   /// Files and folders looked at (every supported song found).
   int found = 0;
 
+  /// How many remembered folders a rescan went through.
+  int foldersScanned = 0;
+
+  /// Remembered folders that could not be read (storage not connected?): their songs are
+  /// not called missing.
+  final List<String> unreachable = [];
+
+  /// Songs of the library whose file is not there (after moved files were followed).
+  final List<MissingSong> missing = [];
+
+  /// How many songs of the scanned folders were checked for a missing file.
+  int checked = 0;
+
+  /// More than half of the checked songs are missing: probably the storage is not there, not
+  /// the songs deleted.
+  bool get mostMissing => checked >= 10 && missing.length * 2 > checked;
+
   final List<ImportFailure> failures = [];
 
   int get failed => failures.length;
@@ -53,6 +70,88 @@ class ImportResult {
     ];
     return parts.isEmpty ? 'No songs found' : parts.join(' · ');
   }
+}
+
+/// A song of the library whose file is gone.
+class MissingSong {
+  const MissingSong({required this.id, required this.title, required this.artist, required this.path});
+
+  final int id;
+  final String title;
+  final String artist;
+  final String path;
+}
+
+/// A folder that was added to the library, remembered so it can be rescanned in one tap.
+class MusicFolder {
+  const MusicFolder({
+    required this.path,
+    this.lastScan,
+    this.knownDirs = const {},
+    this.songCount = 0,
+  });
+
+  final String path;
+  final DateTime? lastScan;
+
+  /// The folders (relative to [path], '' for the folder itself) that were seen holding songs the
+  /// last time, so a folder that appears later can be asked about.
+  final Set<String> knownDirs;
+  final int songCount;
+
+  Map<String, dynamic> toJson() => {
+        'path': path,
+        if (lastScan != null) 'last': lastScan!.millisecondsSinceEpoch ~/ 1000,
+        'dirs': knownDirs.toList()..sort(),
+        'count': songCount,
+      };
+
+  static MusicFolder? fromJson(Object? j) {
+    if (j is! Map || j['path'] is! String || (j['path'] as String).isEmpty) return null;
+    final last = j['last'];
+    return MusicFolder(
+      path: j['path'] as String,
+      lastScan: last is num ? DateTime.fromMillisecondsSinceEpoch(last.toInt() * 1000) : null,
+      knownDirs: j['dirs'] is List ? {for (final d in j['dirs'] as List) if (d is String) d} : {},
+      songCount: j['count'] is num ? (j['count'] as num).toInt() : 0,
+    );
+  }
+}
+
+/// Where the remembered folders are kept between runs.
+abstract class MusicFoldersStore {
+  Future<List<MusicFolder>> load();
+  Future<void> save(List<MusicFolder> folders);
+}
+
+/// Keeps them in memory only (tests).
+class MemoryMusicFoldersStore implements MusicFoldersStore {
+  List<MusicFolder> folders = [];
+
+  @override
+  Future<List<MusicFolder>> load() async => [...folders];
+
+  @override
+  Future<void> save(List<MusicFolder> value) async => folders = [...value];
+}
+
+/// A folder that is new since the last scan (and not left out).
+class NewFolder {
+  const NewFolder(this.path, this.name, this.songCount);
+
+  final String path;
+  final String name;
+  final int songCount;
+}
+
+/// What a rescan is about to do: which folders it will go through, which it cannot reach, and
+/// which new folders it would like to ask about first.
+class RescanPlan {
+  const RescanPlan({required this.folders, required this.unreachable, required this.newFolders});
+
+  final List<MusicFolder> folders;
+  final List<String> unreachable;
+  final List<NewFolder> newFolders;
 }
 
 class ImportProgress {
@@ -120,14 +219,17 @@ class LibraryImportService {
     required Directory libraryDir,
     required Directory artDir,
     ExclusionStore? exclusions,
+    MusicFoldersStore? folders,
   })  : _library = library,
         _exclusions = exclusions ?? MemoryExclusionStore(),
+        _folders = folders ?? MemoryMusicFoldersStore(),
         _extractor = extractor,
         _libraryDir = libraryDir,
         _artDir = artDir;
 
   final LibraryRepository _library;
   final ExclusionStore _exclusions;
+  final MusicFoldersStore _folders;
 
   /// The left-out list (for the backup).
   ExclusionStore get exclusions => _exclusions;
@@ -250,7 +352,139 @@ class LibraryImportService {
       await _importOne(files[i], copy: false, result: result);
     }
     onProgress?.call(ImportProgress(files.length, files.length, null));
+    await _remember(dir.path, all);
     return result;
+  }
+
+  // ------------------------------------------------------------- music folders
+
+  /// The folders that were added, for the one-tap rescan.
+  Future<List<MusicFolder>> musicFolders() async =>
+      (await _folders.load())..sort((a, b) => a.path.compareTo(b.path));
+
+  /// Stops remembering a folder (the songs already in the library stay).
+  Future<void> forgetFolder(String path) async {
+    final all = await _folders.load();
+    all.removeWhere((f) => f.path == path);
+    await _folders.save(all);
+  }
+
+  /// The folders (relative to [root], '' for the root itself) that hold [files].
+  static Set<String> _dirsOf(String root, Iterable<String> files) {
+    final dirs = <String>{''};
+    for (final f in files) {
+      var parent = p.dirname(f);
+      while (parent != root && p.isWithin(root, parent)) {
+        dirs.add(p.relative(parent, from: root));
+        parent = p.dirname(parent);
+      }
+    }
+    return dirs;
+  }
+
+  /// Remembers [root] (and what it held), so it can be rescanned later.
+  Future<void> _remember(String root, List<String> files) async {
+    final all = await _folders.load();
+    // Already inside a remembered folder: that one covers it.
+    if (all.any((f) => f.path != root && p.isWithin(f.path, root))) return;
+    // It holds folders that were remembered on their own: it covers them now.
+    all.removeWhere((f) => f.path != root && p.isWithin(root, f.path));
+    all.removeWhere((f) => f.path == root);
+    all.add(MusicFolder(
+      path: root,
+      lastScan: DateTime.now(),
+      knownDirs: _dirsOf(root, files),
+      songCount: files.length,
+    ));
+    await _folders.save(all);
+  }
+
+  /// Looks through the remembered folders without changing anything: which can be reached, and
+  /// which folders are new since the last scan (so they can be asked about).
+  Future<RescanPlan> planRescan() async {
+    final stored = await _exclusions.load();
+    final reachable = <MusicFolder>[];
+    final unreachable = <String>[];
+    final fresh = <NewFolder>[];
+    for (final f in await musicFolders()) {
+      final dir = Directory(f.path);
+      if (!await dir.exists()) {
+        unreachable.add(f.path);
+        continue;
+      }
+      reachable.add(f);
+      final List<String> files;
+      try {
+        files = await _scan(dir);
+      } on ImportException {
+        unreachable.add(f.path);
+        reachable.remove(f);
+        continue;
+      }
+      // Folders seen before were asked about already; the rest are new (unless left out).
+      if (f.knownDirs.isEmpty) continue;
+      final counts = <String, int>{};
+      for (final file in files) {
+        if (_isExcluded(file, stored)) continue;
+        final rel = p.relative(p.dirname(file), from: f.path);
+        counts[rel == '.' ? '' : rel] = (counts[rel == '.' ? '' : rel] ?? 0) + 1;
+      }
+      for (final e in counts.entries) {
+        if (e.key.isEmpty || f.knownDirs.contains(e.key)) continue;
+        // A new folder inside another new folder is asked about as the outer one.
+        final parent = p.dirname(e.key);
+        if (parent != '.' && counts.containsKey(parent) && !f.knownDirs.contains(parent)) continue;
+        fresh.add(NewFolder(p.join(f.path, e.key), p.basename(e.key), e.value));
+      }
+    }
+    fresh.sort((a, b) => a.path.compareTo(b.path));
+    return RescanPlan(folders: reachable, unreachable: unreachable, newFolders: fresh);
+  }
+
+  /// Rescans every folder of [plan]: new songs are added, moved songs followed, the left-out list
+  /// respected. [leaveOut] are new folders the user did not want: they are left out (and
+  /// remembered as such). The result lists the songs whose file is gone.
+  Future<ImportResult> rescan(
+    RescanPlan plan, {
+    Set<String> leaveOut = const {},
+    ProgressCallback? onProgress,
+  }) async {
+    if (leaveOut.isNotEmpty) {
+      final all = await _exclusions.load();
+      all.addAll(leaveOut);
+      await _exclusions.save(all);
+    }
+    final total = ImportResult();
+    total.unreachable.addAll(plan.unreachable);
+    for (final f in plan.folders) {
+      final r = await importFolder(f.path, onProgress: onProgress);
+      total
+        ..added += r.added
+        ..duplicates += r.duplicates
+        ..relinked += r.relinked
+        ..excluded += r.excluded
+        ..removed += r.removed
+        ..found += r.found
+        ..foldersScanned += 1;
+      total.failures.addAll(r.failures);
+    }
+    // Songs of these folders whose file is not there (moved ones were followed above).
+    final roots = [for (final f in plan.folders) f.path];
+    for (final s in await _library.localSongsDetail()) {
+      if (!roots.any((r) => p.isWithin(r, s.path))) continue;
+      total.checked++;
+      if (!await File(s.path).exists()) {
+        total.missing.add(MissingSong(id: s.id, title: s.title, artist: s.artist, path: s.path));
+      }
+    }
+    return total;
+  }
+
+  /// Takes songs out of the library (their files were gone). They are not put on the left-out list.
+  Future<void> removeSongs(Iterable<int> ids) async {
+    for (final id in ids) {
+      await removeSong(id, remember: false);
+    }
   }
 
   /// Audio files under [dir], skipping hidden folders and unreadable subfolders.

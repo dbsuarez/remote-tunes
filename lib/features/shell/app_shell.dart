@@ -218,10 +218,12 @@ class _AppShellState extends ConsumerState<AppShell> {
               onSelected: (v) {
                 if (v == 'files') pickAndImportFiles(context, ref);
                 if (v == 'folder') pickAndImportFolder(context, ref);
+                if (v == 'rescan') rescanMusicFolders(context, ref);
               },
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'files', child: Text('Add songs')),
+                PopupMenuItem(value: 'rescan', child: Text('Rescan music folders')),
                 PopupMenuItem(value: 'folder', child: Text('Add folder')),
+                PopupMenuItem(value: 'files', child: Text('Add songs')),
               ],
             ),
           if (!remote)

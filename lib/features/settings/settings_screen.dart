@@ -1,4 +1,5 @@
 // ignore_for_file: unused_local_variable
+import '../library/music_folders_screen.dart';
 import '../backup/backup_screen.dart';
 import '../../providers/library_providers.dart';
 import '../library/folder_choice.dart';
@@ -333,8 +334,28 @@ final List<_Group> _groups = [
     id: 'library',
     title: 'Library',
     icon: Icons.library_music_outlined,
-    summary: (s) => 'Album art, tags, left-out folders, counts',
+    summary: (s) => 'Music folders and rescan, album art, tags, left-out folders, counts',
     entries: [
+      _Entry(
+        id: 'musicfolders',
+        title: 'Music folders and rescan',
+        keywords: 'music folders rescan scan new songs library add folder refresh update',
+        build: (c) {
+          final context = c.context;
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.folder_copy_outlined),
+            title: const Text('Music folders and rescan'),
+            subtitle: const Text(
+              'The folders you added, and one tap to look for new songs in all of them.',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const MusicFoldersScreen()),
+            ),
+          );
+        },
+      ),
       _Entry(
         id: 'artfinder',
         title: 'Find missing album art',

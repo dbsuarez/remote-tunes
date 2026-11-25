@@ -239,6 +239,147 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
   }
 }
 
+/// Asks about the folders that appeared since the last scan: all ticked; unticked ones are left
+/// out (and can be let back in from Settings). Returns the folders to leave out, or null if
+/// cancelled.
+Future<Set<String>?> showNewFolders(BuildContext context, List<NewFolder> folders) {
+  return showDialog<Set<String>>(
+    context: context,
+    builder: (_) => NewFoldersDialog(folders: folders),
+  );
+}
+
+class NewFoldersDialog extends StatefulWidget {
+  const NewFoldersDialog({super.key, required this.folders});
+
+  final List<NewFolder> folders;
+
+  @override
+  State<NewFoldersDialog> createState() => _NewFoldersDialogState();
+}
+
+class _NewFoldersDialogState extends State<NewFoldersDialog> {
+  late final Set<String> _add = {for (final f in widget.folders) f.path};
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final songs = widget.folders.where((f) => _add.contains(f.path)).fold<int>(0, (a, f) => a + f.songCount);
+    return AlertDialog(
+      title: Text(widget.folders.length == 1 ? 'A new folder' : 'New folders'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'These folders were not there the last time. Untick the ones you do not want in the '
+              'library: they are left out (you can let them back in from Settings).',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final f in widget.folders)
+                    CheckboxListTile(
+                      key: ValueKey(f.path),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: _add.contains(f.path),
+                      onChanged: (v) => setState(() => v == true ? _add.add(f.path) : _add.remove(f.path)),
+                      title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('${f.songCount} song${f.songCount == 1 ? '' : 's'}'),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, {
+            for (final f in widget.folders)
+              if (!_add.contains(f.path)) f.path,
+          }),
+          child: Text(songs == 0 ? 'Leave them out' : 'Add $songs song${songs == 1 ? '' : 's'}'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Songs whose file is gone. Returns true to take them out of the library; false to keep them
+/// (they show as unavailable until the file comes back).
+Future<bool?> showMissingSongs(BuildContext context, ImportResult result) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      final n = result.missing.length;
+      return AlertDialog(
+        title: Text('$n song${n == 1 ? '' : 's'} not found'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (result.mostMissing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Most of the songs in these folders are missing. Is the storage (an SD card, '
+                      'a drive) connected? Keep them, and rescan when it is.',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  )
+                else
+                  Text(
+                    'Their files are no longer in the folders. A moved song is followed by itself; '
+                    'these were deleted, renamed with new tags, or are somewhere else.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                const SizedBox(height: 8),
+                for (final m in result.missing.take(12))
+                  Text(m.artist.isEmpty ? m.title : '${m.title} · ${m.artist}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (n > 12) Text('…and ${n - 12} more.'),
+                const SizedBox(height: 8),
+                Text(
+                  'Removing takes them out of the library and their playlists. Keeping leaves them '
+                  'as they are.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            key: const Key('missing-remove'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(result.mostMissing ? 'Remove anyway' : 'Remove $n from the library'),
+          ),
+          FilledButton(
+            key: const Key('missing-keep'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep them'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 /// The result of adding music: what was added and what was not, and why.
 class ImportReportDialog extends StatelessWidget {
   const ImportReportDialog({super.key, required this.result, this.title = 'Finished'});
@@ -274,15 +415,28 @@ class ImportReportDialog extends StatelessWidget {
               row(Icons.add_circle_outline_rounded, 'Added', r.added, color: theme.colorScheme.primary),
               if (r.duplicates > 0)
                 row(Icons.library_music_outlined, 'Already in your library', r.duplicates),
+              if (r.foldersScanned > 0) row(Icons.folder_open_rounded, 'Folders scanned', r.foldersScanned),
               if (r.relinked > 0)
                 row(Icons.drive_file_move_outline, 'Moved (found again at the new place)', r.relinked,
                     color: theme.colorScheme.primary),
               if (r.excluded > 0) row(Icons.block_rounded, 'Left out (excluded)', r.excluded),
               if (r.removed > 0) row(Icons.remove_circle_outline_rounded, 'Removed from the library', r.removed),
+              if (r.missing.isNotEmpty)
+                row(Icons.link_off_rounded, 'Missing (file not found)', r.missing.length,
+                    color: theme.colorScheme.error),
               if (r.failed > 0)
                 row(Icons.error_outline_rounded, 'Skipped (problems)', r.failed,
                     color: theme.colorScheme.error),
-              if (r.found == 0 && r.added == 0 && r.failed == 0)
+              if (r.unreachable.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Could not be reached (is the storage connected?): '
+                    '${r.unreachable.join(', ')}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                  ),
+                ),
+              if (r.found == 0 && r.added == 0 && r.failed == 0 && r.foldersScanned == 0)
                 const Padding(padding: EdgeInsets.only(top: 8), child: Text('No songs found.')),
               if (r.failures.isNotEmpty) ...[
                 const Divider(),

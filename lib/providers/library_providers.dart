@@ -40,6 +40,7 @@ final importServiceProvider = FutureProvider<LibraryImportService>((ref) async {
     libraryDir: Directory(p.join(docs.path, 'library')),
     artDir: Directory(p.join(docs.path, 'art')),
     exclusions: SettingsExclusionStore(ref.watch(settingsRepositoryProvider)),
+    folders: SettingsMusicFoldersStore(ref.watch(settingsRepositoryProvider)),
   );
 });
 

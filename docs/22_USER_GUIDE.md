@@ -47,6 +47,15 @@ Removing a song from the library (its menu) also puts it on that list, so it doe
 ### The report
 Every add ends with a report: songs **found**, **added**, **already in your library**, **left out**, **removed**, and **skipped** with the reason for each. The screen stays on while it works, so a big folder is safe to leave.
 
+### Rescanning (when you put new songs in your music folder)
+The app **remembers the folders you add**. After you put songs in the right folder, use **Library > + > Rescan music folders** (or Settings > Library > *Music folders and rescan*). One tap goes through all your folders:
+- new songs are added;
+- songs you **moved** to another folder are found again and keep their playlists, hearts and counts;
+- a **new folder** is asked about first (untick it to leave it out; it is remembered as left out);
+- songs whose file is **gone** are listed: *Keep them* or *Remove* them from the library;
+- the report says how many folders were scanned. If a folder cannot be reached (an SD card that is not in), it says so and does not call its songs missing.
+The first time, add your music folder once with **Add folder**; it is remembered from then on.
+
 ### After adding
 - **Settings > Update tags from files** reads genre, year, album artist, composer and Replay Gain from the files, so Genres, Years, Album Artists and Composers fill in. Run it once after adding a lot. It changes nothing in the files.
 - **Settings > Find missing album art** looks up covers (needs internet; only names are sent).

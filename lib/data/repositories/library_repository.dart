@@ -61,6 +61,23 @@ class LibraryRepository {
         );
   }
 
+  /// Local songs with what is needed to name them and find their file (for the rescan).
+  Future<List<({int id, String title, String artist, String path})>> localSongsDetail() async {
+    final rows = await _db
+        .customSelect(
+            'SELECT id, title, artist, file_path FROM songs WHERE file_path IS NOT NULL ORDER BY id')
+        .get();
+    return [
+      for (final r in rows)
+        (
+          id: r.read<int>('id'),
+          title: r.read<String>('title'),
+          artist: r.readNullable<String>('artist') ?? '',
+          path: r.read<String>('file_path'),
+        ),
+    ];
+  }
+
   /// Local songs with the file they play (to read their tags again).
   Future<List<({int id, String path})>> localSongFiles() async {
     final rows = await _db

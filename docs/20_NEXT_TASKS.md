@@ -94,13 +94,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **9. Settings, grouped: built (not tried on a phone yet), see Done.**
 
-**10. One-tap rescan of the music folders** (the owner puts new songs in the right folder and rescans)
-- **Moved songs are now followed** (built after `v1.0.7`): when a file was moved to another folder and the folder is added again, the app recognises it (same tags, length and size as a song whose file is gone) and points that song at the new place, so playlists, hearts and counts stay; the report says *Moved (found again at the new place)*. Before this, a moved song was skipped as "already in your library" and stayed missing. A song retagged while being moved is not recognised (it is added as new and the old one stays missing: see *Missing files* below).
-- Today: Library > + > Add folder, pick the folder again, go through *Choose what to add*, wait for the report. Every time.
-- Plan: the app **remembers the folders that were added** (a list in Settings > Library, each with how many songs and when it was last scanned). A **Rescan music folders** button (in the + menu and in Settings) checks all of them in one go: new files are added, the left-out list is respected (no question asked unless there is a new subfolder, which is shown as *new folder: add it?*), files already in the library are skipped, and the report says *added / already there / left out / missing*.
-- **Missing files:** songs whose file is gone (moved, renamed, deleted) are listed in the report with *Remove them from the library*, *Keep them* (they show as unavailable) or *Look for them* (a moved song is found again by its tags, so its playlists, hearts and counts stay).
-- Optional: a switch *Rescan when the app opens* (quiet, a few seconds, only when the folder changed).
-- [ ] remember folders · [ ] Rescan button and report · [ ] new-subfolder question · [ ] missing-file handling · [ ] optional automatic rescan
+**10. One-tap rescan of the music folders: built (not tried on a phone yet), see Done.** Left over: a switch *Rescan when the app opens* (quiet, a few seconds); folders added before this version are not remembered until they are added once more; a song retagged while being moved is added as a new song and the old one is offered for removal (it is not matched by tags yet).
 
 **11. Edit info: look the song up (metadata, lyrics and cover in one go)** (the owner's idea)
 - In a song's menu > Edit info, a button **Look up this song**: one query for the one song, with a result sheet to choose from.
@@ -178,6 +172,12 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Lyrics
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
+
+### One-tap rescan (built after `v1.0.10`; not tried on a phone yet)
+- [x] The app **remembers the folders you add** (Settings > Library > *Music folders and rescan* lists them with how many songs and when they were scanned; the cross forgets one, the songs stay). **Rescan music folders** (in the Library + menu, first item, and on that screen) goes through all of them in one tap: new songs are added, songs whose file you **moved** are followed (playlists, hearts and counts kept), the left-out list is respected, and the report says how many folders were scanned.
+- [x] **A folder that was not there last time** is asked about first (*A new folder*: the new folders, with how many songs, all ticked; the unticked are left out and remembered as left out, and are not asked about again). Everything else just happens.
+- [x] **Missing songs** (their file is gone and was not found moved) are listed after the report: *Keep them* (the main button) or *Remove N from the library* (not put on the left-out list, so they come back if the file does). If **most** songs of a folder are missing, it asks whether the storage (an SD card, a drive) is connected, and a folder that cannot be reached is named in the report and its songs are not called missing.
+- [x] A folder inside a remembered one is covered by it; adding a folder that holds remembered ones replaces them.
 
 ### Queue, cover buttons, backup and write-to-file (built after `v1.0.9`; not tried on a phone yet)
 - [x] **Queue rows:** swipe **left** to remove (a message with **Undo** puts it back where it was; a link from the Online Library is removed without Undo), swipe **right** to add the song to a playlist (the row stays). The cross and the add-to-playlist buttons are gone from the rows. **Long-press** a row to pick several (tap picks more, *Select all*, *Cancel*): then **Add selected to a playlist** (links are left out of the list) or **Remove selected from the queue**. Swiping and dragging are off while picking.
