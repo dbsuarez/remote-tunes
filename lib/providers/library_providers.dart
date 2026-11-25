@@ -25,7 +25,7 @@ final lyricsServiceProvider = Provider<LyricsService>((ref) {
 });
 
 /// Looks up one song (details, cover, lyrics) from Edit info, on request.
-final songLookupProvider = Provider<SongLookup>((ref) {
+final songLookupProvider = Provider<SongLookupService>((ref) {
   return SongLookup(
     db: ref.watch(databaseProvider),
     lyrics: ref.watch(lyricsServiceProvider),

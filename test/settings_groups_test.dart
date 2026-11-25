@@ -161,6 +161,8 @@ void main() {
       'Update tags from files',
       'Excluded from library',
       'Rescan when the app opens',
+      'Tag cleanup',
+      'Audiobooks',
       'Reset play and skip counts',
       'All files access',
       'Skins',

@@ -1,6 +1,7 @@
 // ignore_for_file: unused_local_variable
 import '../library/music_folders_screen.dart';
 import '../backup/backup_screen.dart';
+import '../tagging/tag_cleanup_screen.dart';
 import '../../providers/library_providers.dart';
 import '../library/folder_choice.dart';
 import '../player/visualizer.dart';
@@ -364,6 +365,26 @@ final List<_Group> _groups = [
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const MusicFoldersScreen()),
+            ),
+          );
+        },
+      ),
+      _Entry(
+        id: 'tagcleanup',
+        title: 'Tag cleanup',
+        keywords: 'tag cleanup clean fix missing artist album year auto tagging musicbrainz file names undo',
+        build: (c) {
+          final context = c.context;
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.auto_fix_high_rounded),
+            title: const Text('Tag cleanup'),
+            subtitle: const Text(
+              'Finds missing artists, albums and years, and fills them in from file names or MusicBrainz. You approve every change.',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const TagCleanupScreen()),
             ),
           );
         },

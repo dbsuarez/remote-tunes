@@ -119,6 +119,19 @@ extension PlayEventsTable on AppDatabase {
       'position_seconds INTEGER NOT NULL DEFAULT 0, '
       'updated_at INTEGER NOT NULL DEFAULT 0)',
     );
+    // Tag cleanup: what MusicBrainz suggested for a song (waiting for a decision), and the old values
+    // of every change that was applied, so the last batch can be undone.
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS tag_suggestions ('
+      'song_id INTEGER PRIMARY KEY, artist TEXT, album TEXT, year INTEGER, track INTEGER, '
+      'score INTEGER NOT NULL DEFAULT 0, high INTEGER NOT NULL DEFAULT 0, '
+      "status TEXT NOT NULL DEFAULT 'new')",
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS tag_changes ('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, batch INTEGER NOT NULL, song_id INTEGER NOT NULL, '
+      'old_json TEXT NOT NULL, wrote_file INTEGER NOT NULL DEFAULT 0, applied_at INTEGER NOT NULL DEFAULT 0)',
+    );
     // Which song an audiobook list was left at (so Play carries on from there).
     await customStatement(
       'CREATE TABLE IF NOT EXISTS list_positions ('
