@@ -39,6 +39,7 @@ class RestoreReport {
   int artRestored = 0;
   int artSkipped = 0;
   int historyAdded = 0;
+  int booksRestored = 0;
 
   int get found => byPath + byTags + looseMatches + picked;
 }
@@ -166,6 +167,12 @@ class BackupService {
           }
         : const <int>{};
 
+    // The audiobooks (with where each was left): they travel with the activity.
+    final bookRows = activity
+        ? await db.customSelect('SELECT song_id, position_seconds, finished, speed FROM audiobooks').get()
+        : const <QueryRow>[];
+    final bookIds = {for (final r in bookRows) r.read<int>('song_id')};
+
     // Only songs that have something worth keeping: a playlist, a heart, plays or skips.
     final chosen = <QueryRow>[];
     final withActivity = <int>{};
@@ -179,7 +186,7 @@ class BackupService {
               r.read<bool>('info_edited') ||
               r.readNullable<DateTime>('last_played_at') != null);
       if (hit) withActivity.add(id);
-      if (hit || inHistory.contains(id)) chosen.add(r);
+      if (hit || inHistory.contains(id) || bookIds.contains(id)) chosen.add(r);
     }
 
     // The music root: the folder every referenced file is in (copies are not).
@@ -215,6 +222,17 @@ class BackupService {
         trackNumber: r.readNullable<int>('track_number'),
       ));
     }
+
+    final books = <BackupBook>[
+      for (final r in bookRows)
+        if (indexOfDbId[r.read<int>('song_id')] != null)
+          BackupBook(
+            indexOfDbId[r.read<int>('song_id')]!,
+            r.read<int>('position_seconds'),
+            finished: r.read<int>('finished') == 1,
+            speed: r.readNullable<double>('speed'),
+          ),
+    ];
 
     final playLog = <BackupPlay>[];
     if (history) {
@@ -315,6 +333,7 @@ class BackupService {
       settings: values,
       art: covers,
       playLog: playLog,
+      books: books,
     );
   }
 
@@ -634,6 +653,23 @@ class BackupService {
           report.artSkipped++;
         }
       }
+    }
+
+    // Audiobooks: marked again, with their place and speed (a place already kept here stays).
+    for (final b in data.books) {
+      final id = idOf[b.songIndex];
+      if (id == null) continue;
+      await db.customUpdate('INSERT OR IGNORE INTO audiobooks (song_id, position_seconds, updated_at) VALUES (?, 0, ?)',
+          variables: [Variable<int>(id), Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000)]);
+      await db.customUpdate(
+        'UPDATE audiobooks SET position_seconds = ?, finished = ? WHERE song_id = ? AND position_seconds = 0 AND finished = 0',
+        variables: [Variable<int>(b.positionSeconds), Variable<int>(b.finished ? 1 : 0), Variable<int>(id)],
+      );
+      if (b.speed != null) {
+        await db.customUpdate('UPDATE audiobooks SET speed = ? WHERE song_id = ? AND speed IS NULL',
+            variables: [Variable<double>(b.speed!), Variable<int>(id)]);
+      }
+      report.booksRestored++;
     }
 
     if (includeHistory) {

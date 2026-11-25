@@ -143,6 +143,16 @@ extension PlayEventsTable on AppDatabase {
       'id INTEGER PRIMARY KEY AUTOINCREMENT, batch INTEGER NOT NULL, song_id INTEGER NOT NULL, '
       'old_json TEXT NOT NULL, wrote_file INTEGER NOT NULL DEFAULT 0, applied_at INTEGER NOT NULL DEFAULT 0)',
     );
+    // Columns added later to audiobooks: finished (played to its end) and a speed kept for the book.
+    final haveBook = {
+      for (final r in await customSelect('PRAGMA table_info(audiobooks)').get()) r.read<String>('name'),
+    };
+    if (!haveBook.contains('finished')) {
+      await customStatement('ALTER TABLE audiobooks ADD COLUMN finished INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!haveBook.contains('speed')) {
+      await customStatement('ALTER TABLE audiobooks ADD COLUMN speed REAL');
+    }
     // Which song an audiobook list was left at (so Play carries on from there).
     await customStatement(
       'CREATE TABLE IF NOT EXISTS list_positions ('

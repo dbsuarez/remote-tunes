@@ -115,6 +115,7 @@ class TagCleanupReport {
     this.pendingSuggestions = 0,
     this.noMatch = 0,
     this.lastBatch,
+    this.batches = const [],
   });
 
   final int songs;
@@ -136,4 +137,7 @@ class TagCleanupReport {
 
   /// The newest change that can be undone, and how many songs it holds.
   final ({int id, int songs, DateTime at})? lastBatch;
+
+  /// The batches that can be undone, the newest first.
+  final List<({int id, int songs, DateTime at})> batches;
 }

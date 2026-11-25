@@ -258,6 +258,27 @@ void main() {
       expect(find.text('Nothing to undo.'), findsOneWidget);
     });
 
+    testWidgets('every batch is listed with its own Undo; an older one can be undone', (tester) async {
+      final a = await add('01 - Ann - A', '/m/01 - Ann - A.mp3');
+      final b = await add('02 - Bob - B', '/m/02 - Bob - B.mp3');
+      final all = await service.fileNameChanges();
+      await service.apply([all.firstWhere((c) => c.songId == a)]);
+      await service.apply([all.firstWhere((c) => c.songId == b)]);
+      await open(tester);
+      expect(find.byKey(const Key('batch-1')), findsOneWidget);
+      expect(find.byKey(const Key('batch-2')), findsOneWidget);
+      expect(find.byKey(const Key('undo-last')), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('undo-batch-1')));
+      await tester.tap(find.byKey(const Key('undo-batch-1')));
+      await tester.pumpAndSettle();
+      expect(find.text('Undo this change?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Undo'));
+      await settle(tester);
+      expect((await db.customSelect('SELECT artist FROM songs WHERE id = $a').getSingle()).read<String>('artist'), 'Unknown artist');
+      expect((await db.customSelect('SELECT artist FROM songs WHERE id = $b').getSingle()).read<String>('artist'), 'Bob');
+      expect(find.byKey(const Key('batch-1')), findsNothing);
+    });
+
     testWidgets('searching online finds suggestions to review', (tester) async {
       await add('Hello', '/m/hello.mp3');
       await open(tester);

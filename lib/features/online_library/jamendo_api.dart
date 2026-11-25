@@ -209,6 +209,7 @@ class JamendoApi {
     required String clientId,
     required JamendoShelf shelf,
     int limit = 15,
+    String? genre,
   }) async {
     final tracks = await _fetch(clientId, {
       'format': 'json',
@@ -217,6 +218,8 @@ class JamendoApi {
       'imagesize': '200',
       'audioformat': 'mp32',
       'order': shelf.order,
+      // A genre (Jamendo "tags"): the shelf then is the best of that genre.
+      if (genre != null) 'tags': genre.toLowerCase().replaceAll(RegExp(r'\s+'), ''),
     });
     return JamendoPage(tracks: tracks, hasMore: false);
   }

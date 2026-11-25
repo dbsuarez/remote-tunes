@@ -704,6 +704,48 @@ class LibraryImportService {
     return filled;
   }
 
+  /// Finds songs whose title, artist, album or track number were changed in the library only
+  /// (before changes were flagged, `v1.0.7`): they differ from the tags still in their file. They are
+  /// flagged as edited, so the next backup carries them. Songs whose file has no such tag, or
+  /// cannot be read, are left alone. Returns how many songs were flagged.
+  Future<int> findEditedSongs({ProgressCallback? onProgress}) async {
+    String norm(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    bool known(String? s) {
+      final t = (s ?? '').trim().toLowerCase();
+      return t.isNotEmpty && !t.startsWith('unknown');
+    }
+
+    // The library says something the file does not (a different value, or none in the file).
+    bool differs(String? inLibrary, String? inFile) {
+      if (!known(inLibrary)) return false;
+      if (inFile == null || inFile.trim().isEmpty) return true;
+      return norm(inLibrary!) != norm(inFile);
+    }
+
+    final rows = await _library.songsToCheckForEdits();
+    final edited = <int>[];
+    for (var i = 0; i < rows.length; i++) {
+      final r = rows[i];
+      onProgress?.call(ImportProgress(i, rows.length, p.basename(r.path)));
+      try {
+        if (!await File(r.path).exists()) continue;
+        final meta = await _extractor.extract(r.path);
+        // A title the file does not have is the file name (the import's fallback): not an edit.
+        final titleEdited = meta.title != null && norm(meta.title!) != norm(r.title) ||
+            meta.title == null && norm(r.title) != norm(p.basenameWithoutExtension(r.path));
+        final trackEdited = r.track != null && meta.trackNumber != r.track;
+        if (titleEdited || differs(r.artist, meta.artist) || differs(r.album, meta.album) || trackEdited) {
+          edited.add(r.id);
+        }
+      } catch (_) {
+        // One unreadable file does not stop the rest.
+      }
+    }
+    await _library.markInfoEdited(edited);
+    onProgress?.call(ImportProgress(rows.length, rows.length, null));
+    return edited.length;
+  }
+
   /// Removes a song from the library, and deletes its copied file and its art
   /// if nothing else uses them. Files the user referenced in place are never
   /// deleted.

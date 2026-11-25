@@ -775,7 +775,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
         minTileHeight: 64,
         leading: CircleAvatar(child: Icon(icon)),
         title: Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text('${g.songCount} song${g.songCount == 1 ? '' : 's'}'),
+        subtitle: Text('${g.songCount} ${kind == GroupKind.audiobook ? 'chapter' : 'song'}${g.songCount == 1 ? '' : 's'}'
+            '${g.percent >= 100 ? ' · finished' : g.percent > 0 ? ' · ${g.percent}%' : ''}'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1635,10 +1636,27 @@ class _SongTile extends StatelessWidget {
           )),
       subtitle: look.titlesOnly || oneLine
           ? null
-          : Text(subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 14 * k)),
+          : song.audiobook && song.progress > 0
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$subtitle · ${song.progress >= 100 ? 'finished' : '${song.progress}%'}',
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14 * k)),
+                    const SizedBox(height: 3),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        key: const Key('book-progress'),
+                        value: song.progress / 100,
+                        minHeight: 3,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 14 * k)),
       onLongPress: () {
         Haptics.medium(); // starting a selection feels like picking something up
         onSelect();

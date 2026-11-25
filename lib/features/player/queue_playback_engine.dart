@@ -84,7 +84,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     if (id == null || tracker == null || !tracker.isAudiobook(id)) return;
     final seconds = finished ? 0 : (_lastPositionMs / 1000).round();
     _bookSavedMs = _lastPositionMs;
-    unawaited(tracker.save(id, seconds).catchError((Object _) {}));
+    unawaited(tracker.save(id, seconds, finished: finished).catchError((Object _) {}));
   }
 
   DateTime _trackedStart = DateTime.fromMillisecondsSinceEpoch(0);
@@ -173,6 +173,9 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   int _durationSeconds = 0;
   double _volume;
   double _speed = 1.0;
+
+  /// The speed music had before an audiobook changed it (null: not in a book).
+  double? _speedBeforeBook;
   bool _disposed = false;
 
   ReplayGainMode _replayGain = ReplayGainMode.off;
@@ -672,7 +675,19 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
               song.durationSeconds > 0 ? song.durationSeconds : (duration?.inSeconds ?? 0);
           _error = '';
           _loading = false;
-          if (_speed != 1.0) await _backend.setSpeed(_speed);
+          // An audiobook keeps its own speed (per book); music gets its speed back afterwards.
+          final speedBefore = _speed;
+          final speedId = song.libraryId;
+          if (speedId != null && (audiobooks?.isAudiobook(speedId) ?? false)) {
+            final saved = await audiobooks!.speedOf(speedId);
+            _speedBeforeBook ??= _speed;
+            // A book with no speed of its own plays at the speed music had.
+            _speed = saved ?? _speedBeforeBook!;
+          } else if (_speedBeforeBook != null) {
+            _speed = _speedBeforeBook!;
+            _speedBeforeBook = null;
+          }
+          if (_speed != 1.0 || _speed != speedBefore) await _backend.setSpeed(_speed);
           // First play after a restart: carry on from the saved spot (a little
           // before the end at most, so it does not finish at once).
           if (_resumeEntryId == current.id && _resumeSeconds > 0) {
@@ -854,6 +869,11 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         }
         _speed = speed;
         await _backend.setSpeed(speed);
+        // In an audiobook the speed is kept for that book.
+        final bookId = _queue.current?.song.libraryId;
+        if (bookId != null && _loadedEntryId != null && (audiobooks?.isAudiobook(bookId) ?? false)) {
+          unawaited(audiobooks!.saveSpeed(bookId, speed).catchError((Object _) {}));
+        }
         _emit();
       });
 

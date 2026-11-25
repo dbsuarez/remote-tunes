@@ -73,6 +73,53 @@ void main() {
     });
   });
 
+  group('a genre shelf', () {
+    test('asks for the genre as Jamendo spells it, sorted by the week', () async {
+      final log = <Uri>[];
+      final api = _api(log, _byOrder);
+      await api.browse(clientId: 'abc', shelf: JamendoShelf.week, genre: 'Hip Hop');
+      expect(log.single.queryParameters['tags'], 'hiphop');
+      expect(log.single.queryParameters['order'], 'popularity_week');
+    });
+
+    test('is fetched when first asked for, kept, and fetched again when old or refreshed', () async {
+      final log = <Uri>[];
+      final api = _api(log, _byOrder);
+      var now = DateTime(2026, 1, 1);
+      final home = JamendoHome(now: () => now);
+      expect(home.genreShelf('rock').loaded, isFalse);
+      await home.loadGenre(api, 'abc', 'rock');
+      expect(home.genreShelf('rock').tracks.single.title, 'Genre 90');
+      await home.loadGenre(api, 'abc', 'rock');
+      expect(log, hasLength(1), reason: 'fresh');
+      await home.loadGenre(api, 'abc', 'jazz');
+      expect(log, hasLength(2), reason: 'each genre on its own');
+      now = now.add(const Duration(minutes: 20));
+      await home.loadGenre(api, 'abc', 'rock');
+      expect(log, hasLength(3), reason: 'old');
+      await home.loadGenre(api, 'abc', 'rock', refresh: true);
+      expect(log, hasLength(4));
+    });
+
+    test('a failure keeps what was there; a new client ID or clear forgets it', () async {
+      final log = <Uri>[];
+      var fail = false;
+      final api = _api(log, (u) => fail ? http.Response('x', 500) : _byOrder(u));
+      final home = JamendoHome();
+      await home.loadGenre(api, 'abc', 'rock');
+      fail = true;
+      await home.loadGenre(api, 'abc', 'rock', refresh: true);
+      expect(home.genreShelf('rock').tracks, hasLength(1));
+      expect(home.genreShelf('rock').error, isNotNull);
+      home.clear();
+      expect(home.genreShelf('rock').loaded, isFalse);
+      fail = false;
+      await home.loadGenre(api, 'abc', 'rock');
+      await home.loadGenre(api, 'other', 'rock');
+      expect(log.length, greaterThanOrEqualTo(4), reason: 'another client ID asks again');
+    });
+  });
+
   group('the shelves', () {
     test('load one after another and are kept', () async {
       final log = <Uri>[];
@@ -200,6 +247,55 @@ void main() {
       final last = log.last.queryParameters;
       expect(last['tags'], 'jazz');
       expect(last['order'], 'popularity_total');
+    });
+
+    testWidgets('a Top this week shelf for one genre, with chips to pick the genre', (tester) async {
+      await open(tester);
+      expect(find.text('Top this week by genre'), findsOneWidget);
+      expect(find.text('Popular this week · pop'), findsOneWidget);
+      expect(find.text('Genre 90'), findsOneWidget);
+      final first = log.last.queryParameters;
+      expect((first['tags'], first['order']), ('pop', 'popularity_week'));
+      await tester.ensureVisible(find.byKey(const ValueKey('week-jazz')));
+      await tester.tap(find.byKey(const ValueKey('week-jazz')));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Popular this week · jazz'), findsOneWidget);
+      final jazz = log.last.queryParameters;
+      expect((jazz['tags'], jazz['order']), ('jazz', 'popularity_week'));
+    });
+
+    testWidgets('the shelves refresh by themselves when they are old', (tester) async {
+      var now = DateTime(2026, 1, 1);
+      tester.view.physicalSize = const Size(600, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          jamendoKeyStoreProvider.overrideWithValue(_Keys('abc')),
+          jamendoApiProvider.overrideWithValue(_api(log, (u) => respond(u))),
+          jamendoHomeProvider.overrideWithValue(JamendoHome(now: () => now)),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: OnlineLibraryView(suggestions: true, onTrack: (t, {required queue}) async {})),
+        ),
+      ));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 100));
+      final first = log.length;
+      expect(first, 4, reason: 'three shelves and the genre shelf');
+      // Five minutes pass: still fresh, nothing new.
+      now = now.add(const Duration(minutes: 5));
+      await tester.pump(const Duration(minutes: 5));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      expect(log, hasLength(first));
+      // Twenty minutes: old, so the next check fetches again, with no pull down.
+      now = now.add(const Duration(minutes: 15));
+      await tester.pump(const Duration(minutes: 5));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(log.length, 2 * first);
+      await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets('switched off, it stays blank until a search', (tester) async {

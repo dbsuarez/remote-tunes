@@ -64,9 +64,21 @@ class AudiobookTracker implements ListMemory {
   }
 
   /// Remembers the place in an audiobook. [seconds] 0 means "finished; next time from the start".
-  Future<void> save(int songId, int seconds) async {
+  Future<void> save(int songId, int seconds, {bool finished = false}) async {
     if (!enabled || !_ids.contains(songId)) return;
-    await _library.saveAudiobookPosition(songId, seconds);
+    await _library.saveAudiobookPosition(songId, seconds, finished: finished);
+  }
+
+  /// The speed kept for this book (null: none; the speed stays as it is).
+  Future<double?> speedOf(int songId) async {
+    if (!enabled || !_ids.contains(songId)) return null;
+    return _library.bookSpeed(songId);
+  }
+
+  /// Keeps the speed for the whole book.
+  Future<void> saveSpeed(int songId, double speed) async {
+    if (!enabled || !_ids.contains(songId)) return;
+    await _library.setBookSpeed(songId, speed);
   }
 
   /// A song of the active list started playing: remember it, if it is an audiobook.

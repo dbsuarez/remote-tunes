@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../core/widgets/default_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -46,7 +48,7 @@ class OnlineLibraryView extends ConsumerStatefulWidget {
   ConsumerState<OnlineLibraryView> createState() => _OnlineLibraryViewState();
 }
 
-class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
+class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> with WidgetsBindingObserver {
   final _search = TextEditingController();
   final _keyField = TextEditingController();
   JamendoSearchMode _mode = JamendoSearchMode.keyword;
@@ -64,14 +66,32 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
   String _lastText = '';
   int _generation = 0;
 
+  /// The genre whose "popular this week" shelf is shown on the home screen.
+  String _weekGenre = jamendoGenres.first;
+
+  /// While the tab is open the shelves refresh by themselves when they are old (and when the app
+  /// comes back to the front), not only on a pull down.
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (mounted && !_searched) _loadHome();
+    });
     _loadKey();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted && !_searched) _loadHome();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
     _search.dispose();
     _keyField.dispose();
     super.dispose();
@@ -91,7 +111,20 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
   void _loadHome({bool refresh = false}) {
     final id = _clientId;
     if (!widget.suggestions || id == null) return;
-    ref.read(jamendoHomeProvider).load(ref.read(jamendoApiProvider), id, refresh: refresh);
+    final home = ref.read(jamendoHomeProvider);
+    final api = ref.read(jamendoApiProvider);
+    // The ordinary shelves first, then the genre shelf (requests go one after another).
+    home.load(api, id, refresh: refresh).then((_) {
+      if (mounted) home.loadGenre(api, id, _weekGenre, refresh: refresh);
+    });
+  }
+
+  void _pickWeekGenre(String genre) {
+    final id = _clientId;
+    setState(() => _weekGenre = genre);
+    if (id != null) {
+      ref.read(jamendoHomeProvider).loadGenre(ref.read(jamendoApiProvider), id, genre);
+    }
   }
 
   Future<void> _saveKey() async {
@@ -458,6 +491,37 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
                     onPlayAll: () => _playAll(home.shelf(shelf).tracks),
                     onQueueAll: () => _queueAll(home.shelf(shelf).tracks),
                   ),
+                // The best of the week in one genre; pick the genre.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Text('Top this week by genre', style: theme.textTheme.titleMedium),
+                ),
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final g in jamendoGenres) ...[
+                        ChoiceChip(
+                          key: ValueKey('week-$g'),
+                          label: Text(g),
+                          selected: _weekGenre == g,
+                          onSelected: (_) => _pickWeekGenre(g),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                ),
+                _Shelf(
+                  title: 'Popular this week · $_weekGenre',
+                  state: home.genreShelf(_weekGenre),
+                  onPlay: (t) => _act(t, queue: false),
+                  onQueue: (t) => _act(t, queue: true),
+                  onPlayAll: () => _playAll(home.genreShelf(_weekGenre).tracks),
+                  onQueueAll: () => _queueAll(home.genreShelf(_weekGenre).tracks),
+                ),
               ],
               Padding(
                 padding: const EdgeInsets.all(16),

@@ -248,6 +248,44 @@ void main() {
         expect((await service.report()).lastBatch!.id, 1, reason: 'the first batch is still there');
       });
 
+      test('any batch can be undone, not only the last', () async {
+        final a = await add('01 - Ann - A', '/m/01 - Ann - A.mp3');
+        final b = await add('02 - Bob - B', '/m/02 - Bob - B.mp3');
+        await service.apply([(await service.fileNameChanges()).firstWhere((c) => c.songId == a)]);
+        await service.apply([(await service.fileNameChanges()).firstWhere((c) => c.songId == b)]);
+        final list = await service.batches();
+        expect(list.map((x) => x.id), [2, 1], reason: 'newest first');
+        expect(list.map((x) => x.songs), [1, 1]);
+        final undone = await service.undoBatch(1);
+        expect(undone!.applied, 1);
+        expect((await row(a))['artist'], 'Unknown artist');
+        expect((await row(b))['artist'], 'Bob', reason: 'the newer batch is untouched');
+        expect((await service.batches()).map((x) => x.id), [2]);
+        expect(await service.undoBatch(1), isNull, reason: 'it is gone');
+        expect(await service.undoBatch(99), isNull);
+      });
+
+      test('a song changed again later: undoing the older batch keeps the newer one consistent', () async {
+        final id = await add('Song', '/m/s.mp3', artist: 'Ann');
+        await service.apply([TagChange(songId: id, label: 'S', source: 'musicbrainz', year: 1999)]);
+        await service.apply([TagChange(songId: id, label: 'S', source: 'musicbrainz', genre: 'Rock')]);
+        await service.undoBatch(1);
+        expect((await row(id))['year'], isNull, reason: 'back to before the first batch');
+        // Undoing the newer batch now must not bring the year back.
+        await service.undoBatch(2);
+        final r = await row(id);
+        expect(r['year'], isNull);
+        expect((await db.customSelect('SELECT genre FROM songs WHERE id = $id').getSingle()).readNullable<String>('genre'), isNull);
+      });
+
+      test('the report lists the batches', () async {
+        await add('01 - Ann - A', '/m/01 - Ann - A.mp3');
+        await service.apply(await service.fileNameChanges());
+        final r = await service.report();
+        expect(r.batches, hasLength(1));
+        expect(r.lastBatch!.id, r.batches.first.id);
+      });
+
       test('a year is applied and undone', () async {
         final id = await add('Song', '/m/s.mp3', artist: 'Ann');
         await service.apply([TagChange(songId: id, label: 'Song', source: 'musicbrainz', year: 1999)]);

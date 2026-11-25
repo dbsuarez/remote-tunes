@@ -64,7 +64,11 @@ class RemoteSong {
     this.plays = 0,
     this.skips = 0,
     this.audiobook = false,
+    this.progress = 0,
   });
+
+  /// For an audiobook: how much is listened to, in percent (100: finished; 0: not started).
+  final int progress;
 
   /// An audiobook: it remembers where it was left (see Settings > Audiobooks).
   final bool audiobook;
@@ -96,6 +100,7 @@ class RemoteSong {
         'available': available,
         if (favorite) 'favorite': true,
         if (audiobook) 'audiobook': true,
+        if (progress > 0) 'progress': progress,
         if (plays > 0) 'plays': plays,
         if (skips > 0) 'skips': skips,
       };
@@ -110,6 +115,7 @@ class RemoteSong {
         available: j['available'] != false,
         favorite: j['favorite'] == true,
         audiobook: j['audiobook'] == true,
+        progress: _int(j['progress']),
         plays: _int(j['plays']),
         skips: _int(j['skips']),
       );
@@ -151,16 +157,19 @@ class GroupKind {
 
 /// A genre, a year or an album artist, with how many songs it holds.
 class RemoteGroup {
-  const RemoteGroup({required this.name, required this.songCount});
+  const RemoteGroup({required this.name, required this.songCount, this.percent = 0});
 
   /// The genre, the year (as text) or the artist.
   final String name;
   final int songCount;
 
-  Map<String, dynamic> toJson() => {'name': name, 'songCount': songCount};
+  /// For a book: how much of it is listened to, in percent (0: not started).
+  final int percent;
+
+  Map<String, dynamic> toJson() => {'name': name, 'songCount': songCount, if (percent > 0) 'percent': percent};
 
   factory RemoteGroup.fromJson(Map<String, dynamic> j) =>
-      RemoteGroup(name: _str(j['name']), songCount: _int(j['songCount']));
+      RemoteGroup(name: _str(j['name']), songCount: _int(j['songCount']), percent: _int(j['percent']));
 }
 
 /// Lyrics for one song, as the Player found them.

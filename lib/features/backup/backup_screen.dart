@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/library_providers.dart';
+import '../library/import_actions.dart';
 import '../../providers/providers.dart';
 import 'backup_models.dart';
 import 'backup_service.dart';
@@ -252,6 +253,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       if (d.art.isNotEmpty) n(d.art.length, 'cover'),
       if (d.edited > 0) n(d.edited, 'edited song info', 'edited song infos'),
       if (d.playLog.isNotEmpty) n(d.playLog.length, 'play in the history', 'plays in the history'),
+      if (d.books.isNotEmpty) n(d.books.length, 'audiobook file', 'audiobook files'),
     ].join(' · ');
   }
 
@@ -277,7 +279,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               contentPadding: EdgeInsets.zero,
               title: const Text('Playlists, favorites and counts'),
               subtitle: const Text(
-                  'Also play and skip counts, edited song info and the left-out list'),
+                  'Also play and skip counts, edited song info, audiobooks (and where you stopped) and the left-out list'),
               value: _activity,
               onChanged: (v) => setState(() => _activity = v),
             ),
@@ -313,6 +315,21 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               value: _settings,
               onChanged: (v) => setState(() => _settings = v),
             ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const Key('find-edited'),
+                onPressed: _busy ? null : () => findEditedSongsAction(context, ref),
+                child: const Text('Find songs I edited before'),
+              ),
+            ),
+            Text(
+              'Info you changed with Edit info before version 1.0.7 was not flagged, so a backup would miss it. '
+              'This compares each song with the tags in its file and flags the ones that differ, so the backup '
+              'carries them. It only reads; it changes nothing but that flag.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
             FilledButton.icon(
               onPressed: _busy ? null : _makeBackup,
               icon: const Icon(Icons.save_alt_rounded),
@@ -508,6 +525,7 @@ class RestoreReportDialog extends StatelessWidget {
               row('Left-out folders and files', r.leftOutAdded),
               row('Lyrics added', r.lyricsAdded),
               row('Plays added to the history', r.historyAdded),
+              row('Audiobooks marked (with their place)', r.booksRestored),
               row('Album covers added', r.artRestored),
               row('Song info changed (edited by hand)', r.infoRestored),
               row('Settings applied', r.settingsApplied),

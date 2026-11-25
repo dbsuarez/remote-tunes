@@ -86,6 +86,32 @@ class LibraryRepository {
     return [for (final r in rows) (id: r.read<int>('id'), path: r.read<String>('file_path'))];
   }
 
+  /// Songs with a file whose edits are not flagged yet: what the library says now, to be compared
+  /// with the file's own tags.
+  Future<List<({int id, String title, String artist, String album, int? track, String path})>> songsToCheckForEdits() async {
+    final rows = await _db
+        .customSelect('SELECT id, title, artist, album, track_number, file_path FROM songs '
+            'WHERE file_path IS NOT NULL AND info_edited = 0 ORDER BY id')
+        .get();
+    return [
+      for (final r in rows)
+        (
+          id: r.read<int>('id'),
+          title: r.read<String>('title'),
+          artist: r.readNullable<String>('artist') ?? '',
+          album: r.readNullable<String>('album') ?? '',
+          track: r.readNullable<int>('track_number'),
+          path: r.read<String>('file_path'),
+        ),
+    ];
+  }
+
+  /// Flags songs as edited by hand (so a backup carries their info).
+  Future<int> markInfoEdited(List<int> ids) async {
+    if (ids.isEmpty) return 0;
+    return _db.customUpdate('UPDATE songs SET info_edited = 1 WHERE id IN (${ids.join(',')})', updates: {_db.songs});
+  }
+
   /// Saves the album artist, genre and year read from a file's tags. A tag the
   /// file does not have leaves what is saved as it is.
   Future<void> updateSongTags(
@@ -144,10 +170,17 @@ class LibraryRepository {
       'GROUP BY $col $order LIMIT ? OFFSET ?',
       variables: [...vars, Variable<int>(limit), Variable<int>(offset)],
     ).get();
+    final progress = kind == GroupKind.audiobook
+        ? await bookProgress([for (final r in rows) r.read<String>('name')])
+        : const <String, int>{};
     return LibraryPage(
       items: [
         for (final r in rows)
-          RemoteGroup(name: r.read<String>('name'), songCount: r.read<int>('song_count')),
+          RemoteGroup(
+            name: r.read<String>('name'),
+            songCount: r.read<int>('song_count'),
+            percent: progress[r.read<String>('name')] ?? 0,
+          ),
       ],
       total: total,
       offset: offset,
@@ -329,14 +362,77 @@ class LibraryRepository {
     return r?.read<int>('p') ?? 0;
   }
 
-  /// Remembers where an audiobook was left (a song that is not an audiobook is not touched).
-  Future<void> saveAudiobookPosition(int songId, int seconds) => _db.customUpdate(
-        'UPDATE audiobooks SET position_seconds = ?, updated_at = ? WHERE song_id = ?',
+  /// Remembers where an audiobook was left (a song that is not an audiobook is not touched). A
+  /// place after the start means it is not finished; [finished] marks it played to its end (and
+  /// the next play starts from the beginning).
+  Future<void> saveAudiobookPosition(int songId, int seconds, {bool finished = false}) => _db.customUpdate(
+        'UPDATE audiobooks SET position_seconds = ?, finished = ?, updated_at = ? WHERE song_id = ?',
         variables: [
           Variable<int>(seconds < 0 ? 0 : seconds),
+          Variable<int>(finished ? 1 : 0),
           Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
           Variable<int>(songId),
         ],
+      );
+
+  /// How far each of [ids] is listened to, in percent (100: finished). Only audiobooks that were
+  /// started appear.
+  Future<Map<int, int>> audiobookProgress(Iterable<int> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return {};
+    final rows = await _db
+        .customSelect('SELECT a.song_id AS id, a.position_seconds AS p, a.finished AS f, s.duration_seconds AS d '
+            'FROM audiobooks a JOIN songs s ON s.id = a.song_id WHERE a.song_id IN (${list.join(',')})')
+        .get();
+    final out = <int, int>{};
+    for (final r in rows) {
+      final d = r.readNullable<int>('d') ?? 0;
+      final pct = r.read<int>('f') == 1 ? 100 : (d > 0 ? (100 * r.read<int>('p') / d).round().clamp(0, 99) : 0);
+      if (pct > 0) out[r.read<int>('id')] = pct;
+    }
+    return out;
+  }
+
+  /// How far each book (an album of audiobooks) is listened to, in percent, by book name.
+  Future<Map<String, int>> bookProgress(Iterable<String> names) async {
+    final list = names.toList();
+    if (list.isEmpty) return {};
+    final marks = List.filled(list.length, '?').join(',');
+    final rows = await _db
+        .customSelect(
+          'SELECT s.album AS name, SUM(CASE WHEN a.finished = 1 THEN IFNULL(s.duration_seconds, 0) ELSE a.position_seconds END) AS done, '
+          'SUM(IFNULL(s.duration_seconds, 0)) AS total FROM audiobooks a JOIN songs s ON s.id = a.song_id '
+          'WHERE s.album IN ($marks) GROUP BY s.album',
+          variables: [for (final n in list) Variable<String>(n)],
+        )
+        .get();
+    return {
+      for (final r in rows)
+        if (r.read<int>('total') > 0)
+          r.read<String>('name'): (100 * r.read<int>('done') / r.read<int>('total')).round().clamp(0, 100),
+    };
+  }
+
+  /// The playback speed kept for the book this song belongs to (null: none was set).
+  Future<double?> bookSpeed(int songId) async {
+    final r = await _db
+        .customSelect(
+          'SELECT a.speed AS v FROM audiobooks a WHERE a.song_id IN (SELECT id FROM songs WHERE '
+          "lower(IFNULL(artist, '')) = (SELECT lower(IFNULL(artist, '')) FROM songs WHERE id = ?) AND "
+          "lower(IFNULL(album, '')) = (SELECT lower(IFNULL(album, '')) FROM songs WHERE id = ?)) "
+          'AND a.speed IS NOT NULL ORDER BY a.updated_at DESC LIMIT 1',
+          variables: [Variable<int>(songId), Variable<int>(songId)],
+        )
+        .getSingleOrNull();
+    return r?.read<double>('v');
+  }
+
+  /// Keeps a playback speed for the whole book (every chapter with the same artist and album).
+  Future<void> setBookSpeed(int songId, double speed) => _db.customUpdate(
+        'UPDATE audiobooks SET speed = ? WHERE song_id IN (SELECT id FROM songs WHERE '
+        "lower(IFNULL(artist, '')) = (SELECT lower(IFNULL(artist, '')) FROM songs WHERE id = ?) AND "
+        "lower(IFNULL(album, '')) = (SELECT lower(IFNULL(album, '')) FROM songs WHERE id = ?))",
+        variables: [Variable<double>(speed), Variable<int>(songId), Variable<int>(songId)],
       );
 
   /// Remembers which song of a list was playing last.
@@ -995,8 +1091,9 @@ extension SongMapping on Song {
     );
   }
 
-  RemoteSong toRemote({required bool available, bool audiobook = false}) => RemoteSong(
+  RemoteSong toRemote({required bool available, bool audiobook = false, int progress = 0}) => RemoteSong(
         audiobook: audiobook,
+        progress: progress,
         id: id,
         title: title,
         artist: artist ?? unknownArtist,

@@ -82,6 +82,7 @@ class TagCleanupService {
       fromFileNames: (await fileNameChanges()).length,
       pendingSuggestions: (await suggestionChanges()).length,
       noMatch: await _count("status = 'nomatch'", 'tag_suggestions'),
+      batches: await batches(),
       lastBatch: batch == null
           ? null
           : (
@@ -244,12 +245,37 @@ class TagCleanupService {
         batchId: applied == 0 ? 0 : batch, applied: applied, written: written, notAllowed: notAllowed, failed: failed, covers: covers);
   }
 
+  /// The batches that can be undone, the newest first.
+  Future<List<({int id, int songs, DateTime at})>> batches({int limit = 20}) async {
+    final rows = await db
+        .customSelect('SELECT batch, COUNT(*) AS n, MAX(applied_at) AS at FROM tag_changes '
+            'GROUP BY batch ORDER BY batch DESC LIMIT $limit')
+        .get();
+    return [
+      for (final r in rows)
+        (
+          id: r.read<int>('batch'),
+          songs: r.read<int>('n'),
+          at: DateTime.fromMillisecondsSinceEpoch(r.read<int>('at') * 1000),
+        ),
+    ];
+  }
+
   /// Puts the newest batch back as it was (in the library, and in the files that were changed).
   /// Null when there is nothing to undo.
   Future<ApplyResult?> undoLast() async {
     final b = await db.customSelect('SELECT MAX(batch) AS b FROM tag_changes').getSingle();
     final batch = b.readNullable<int>('b');
     if (batch == null) return null;
+    return undoBatch(batch);
+  }
+
+  /// Puts any batch back as it was. A song that a newer batch changed again goes back to how this
+  /// batch found it, and the newer batch then remembers that as its "before" (so undoing it later
+  /// does not bring the undone change back). Null if there is no such batch.
+  Future<ApplyResult?> undoBatch(int batch) async {
+    final exists = await _count('batch = $batch', 'tag_changes');
+    if (exists == 0) return null;
     final rows = await db
         .customSelect('SELECT song_id, old_json, wrote_file FROM tag_changes WHERE batch = ? ORDER BY id DESC',
             variables: [Variable<int>(batch)])
@@ -288,6 +314,9 @@ class TagCleanupService {
           }
         }
       }
+      // A newer batch that changed this song again now starts from what was put back.
+      await db.customUpdate('UPDATE tag_changes SET old_json = ? WHERE song_id = ? AND batch > ?',
+          variables: [Variable<String>(r.read<String>('old_json')), Variable<int>(id), Variable<int>(batch)]);
       // A suggestion that was applied can be offered again.
       await db.customUpdate("UPDATE tag_suggestions SET status = 'new' WHERE song_id = ? AND status = 'applied'",
           variables: [Variable<int>(id)]);

@@ -30,7 +30,45 @@ class JamendoHome extends ChangeNotifier {
   String? _forClient;
   bool _running = false;
 
+  /// The best of the week in a genre, kept by genre (each fetched when first asked for).
+  final Map<String, ShelfState> _genreShelves = {};
+  final Map<String, DateTime> _genreLoadedAt = {};
+  bool _genreRunning = false;
+
   ShelfState shelf(JamendoShelf s) => _shelves[s]!;
+
+  ShelfState genreShelf(String genre) => _genreShelves[genre] ?? const ShelfState();
+
+  bool _genreFresh(String g) => _genreLoadedAt[g] != null && _now().difference(_genreLoadedAt[g]!) < keepFor;
+
+  /// Fills the "popular this week" shelf of [genre] (when it is empty or old, or [refresh]).
+  Future<void> loadGenre(JamendoApi api, String clientId, String genre, {bool refresh = false}) async {
+    if (_genreRunning) return;
+    if (_forClient != clientId) {
+      _genreShelves.clear();
+      _genreLoadedAt.clear();
+    }
+    _forClient = clientId;
+    final have = _genreShelves[genre];
+    if (!refresh && have != null && have.loaded && _genreFresh(genre)) return;
+    _genreRunning = true;
+    _genreShelves[genre] = ShelfState(tracks: have?.tracks ?? const [], loading: true);
+    notifyListeners();
+    try {
+      final page = await api.browse(clientId: clientId, shelf: JamendoShelf.week, genre: genre);
+      _genreShelves[genre] = ShelfState(tracks: page.tracks);
+      _genreLoadedAt[genre] = _now();
+    } on JamendoException catch (e) {
+      _genreShelves[genre] = ShelfState(tracks: have?.tracks ?? const [], error: e);
+    } catch (_) {
+      _genreShelves[genre] = ShelfState(
+          tracks: have?.tracks ?? const [],
+          error: JamendoException('Something went wrong. Please try again.'));
+    } finally {
+      _genreRunning = false;
+      notifyListeners();
+    }
+  }
 
   bool get anyLoaded => _shelves.values.any((s) => s.loaded);
 
@@ -83,6 +121,8 @@ class JamendoHome extends ChangeNotifier {
     for (final s in JamendoShelf.values) {
       _shelves[s] = const ShelfState();
     }
+    _genreShelves.clear();
+    _genreLoadedAt.clear();
     _loadedAt = null;
     _forClient = null;
     notifyListeners();

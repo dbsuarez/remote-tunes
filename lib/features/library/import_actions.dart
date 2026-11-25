@@ -135,6 +135,40 @@ Future<void> _explainPermission(
   );
 }
 
+/// Looks for songs whose info was edited in the library before edits were flagged (it differs from the
+/// tags in the file) and flags them, so the next backup carries them. Shows the progress card.
+Future<void> findEditedSongsAction(BuildContext context, WidgetRef ref) async {
+  final service = await ref.read(importServiceProvider.future);
+  if (!context.mounted) return;
+  final progress = ValueNotifier<ImportProgress?>(null);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PopScope(
+      canPop: false,
+      child: _ProgressDialog(progress: progress, title: 'Looking for edited songs'),
+    ),
+  );
+  int? found;
+  Object? error;
+  try {
+    found = await ScreenAwake.during(() => service.findEditedSongs(onProgress: (p) => progress.value = p));
+  } catch (e) {
+    error = e;
+  }
+  if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+  progress.dispose();
+  if (!context.mounted) return;
+  _snack(
+    context,
+    error != null
+        ? friendlyError(error)
+        : found == 0
+            ? 'No songs found whose info differs from their file.'
+            : 'Flagged $found song${found == 1 ? '' : 's'} as edited: the next backup carries them.',
+  );
+}
+
 /// Reads the tags of every song again to fill in genres, years and album
 /// artists (songs added before those were kept have none). Shows the same
 /// fixed-size progress card as adding music.

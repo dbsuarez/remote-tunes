@@ -132,6 +132,17 @@ class BackupPlay {
   final String outcome;
 }
 
+/// An audiobook of the backup: which song (a position in [BackupData.songs]), where it was left,
+/// whether it was played to its end, and the speed kept for its book.
+class BackupBook {
+  const BackupBook(this.songIndex, this.positionSeconds, {this.finished = false, this.speed});
+
+  final int songIndex;
+  final int positionSeconds;
+  final bool finished;
+  final double? speed;
+}
+
 /// A cover picture: one per album, found again by artist and album.
 class BackupArt {
   const BackupArt({required this.artist, required this.album, required this.bytes, this.ext = 'jpg'});
@@ -159,6 +170,7 @@ class BackupData {
     this.settings = const {},
     this.art = const [],
     this.playLog = const [],
+    this.books = const [],
   });
 
   static const format = 2;
@@ -182,6 +194,9 @@ class BackupData {
 
   /// The play history (when the backup was made with it).
   final List<BackupPlay> playLog;
+
+  /// The songs that are audiobooks, and where each was left.
+  final List<BackupBook> books;
 
   int get edited => songs.where((s) => s.edited).length;
   int get favorites => songs.where((s) => s.favorite).length;
@@ -210,6 +225,10 @@ class BackupData {
             },
         ],
         'settings': settings,
+        if (books.isNotEmpty)
+          'books': [
+            for (final b in books) [b.songIndex, b.positionSeconds, b.finished ? 1 : 0, if (b.speed != null) b.speed],
+          ],
         if (playLog.isNotEmpty)
           'plays': [
             for (final e in playLog) [e.songIndex, e.startedAt, e.heardSeconds, e.outcome],
@@ -348,6 +367,21 @@ class BackupData {
         ));
       }
     }
+    final books = <BackupBook>[];
+    final rawBooks = j['books'];
+    if (rawBooks is List) {
+      for (final e in rawBooks) {
+        if (e is! List || e.length < 3 || e[0] is! num || e[1] is! num) continue;
+        final idx = indexMap[(e[0] as num).toInt()];
+        if (idx == null) continue;
+        books.add(BackupBook(
+          idx,
+          (e[1] as num).toInt().clamp(0, 86400 * 7),
+          finished: e[2] == 1,
+          speed: e.length > 3 && e[3] is num ? ((e[3] as num).toDouble()).clamp(0.5, 2.0) : null,
+        ));
+      }
+    }
     final art = <BackupArt>[];
     final rawArt = j['art'];
     if (rawArt is List) {
@@ -381,6 +415,7 @@ class BackupData {
       settings: settings,
       art: art,
       playLog: playLog,
+      books: books,
     );
   }
 }

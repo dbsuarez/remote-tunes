@@ -116,15 +116,15 @@ class _TagCleanupScreenState extends ConsumerState<TagCleanupScreen> {
     if (problem != null) _say(problem);
   }
 
-  Future<void> _undo() async {
-    final b = _report?.lastBatch;
-    if (b == null) return;
+  Future<void> _undo(({int id, int songs, DateTime at}) b) async {
+    final newest = _report?.batches.isNotEmpty == true && _report!.batches.first.id == b.id;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Undo the last change?'),
-        content: Text('This puts ${b.songs} song${b.songs == 1 ? '' : 's'} back as they were before the last '
-            'batch you applied (in the library, and in the music files that were changed).'),
+        title: Text(newest ? 'Undo the last change?' : 'Undo this change?'),
+        content: Text('This puts ${b.songs} song${b.songs == 1 ? '' : 's'} back as they were before this '
+            'batch (in the library, and in the music files that were changed).'
+            '${newest ? '' : ' Changes made to the same songs afterwards are undone for those songs too.'}'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Undo')),
@@ -132,9 +132,14 @@ class _TagCleanupScreenState extends ConsumerState<TagCleanupScreen> {
       ),
     );
     if (ok != true) return;
-    final r = await _service.undoLast();
+    final r = await _service.undoBatch(b.id);
     await _load();
     if (r != null) _say('Put ${r.applied} song${r.applied == 1 ? '' : 's'} back.');
+  }
+
+  static String _when(DateTime d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
   }
 
   Widget _row(String label, int n) => Padding(
@@ -249,18 +254,22 @@ class _TagCleanupScreenState extends ConsumerState<TagCleanupScreen> {
                   Text('Undo', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    r.lastBatch == null
+                    r.batches.isEmpty
                         ? 'Nothing to undo.'
-                        : 'The last batch changed ${r.lastBatch!.songs} song${r.lastBatch!.songs == 1 ? '' : 's'}.',
+                        : 'Every batch you applied can be put back, newest first.',
                     style: muted,
                   ),
-                  if (r.lastBatch != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        key: const Key('undo-last'),
-                        onPressed: _searching ? null : _undo,
-                        child: const Text('Undo the last batch'),
+                  for (var i = 0; i < r.batches.length && i < 10; i++)
+                    ListTile(
+                      key: ValueKey('batch-${r.batches[i].id}'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: Text('${r.batches[i].songs} song${r.batches[i].songs == 1 ? '' : 's'}'),
+                      subtitle: Text(_when(r.batches[i].at)),
+                      trailing: TextButton(
+                        key: Key(i == 0 ? 'undo-last' : 'undo-batch-${r.batches[i].id}'),
+                        onPressed: _searching ? null : () => _undo(r.batches[i]),
+                        child: const Text('Undo'),
                       ),
                     ),
                 ],

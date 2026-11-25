@@ -288,12 +288,14 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       limit: limit,
     );
     final books = await _repo.audiobookIdsAmong([for (final s in page.items) s.id]);
+    final progress = books.isEmpty ? const <int, int>{} : await _repo.audiobookProgress(books);
     return LibraryPage(
       items: [
         for (final s in page.items)
           s.toRemote(
             available: s.filePath != null && _fileExists(s.filePath!),
             audiobook: books.contains(s.id),
+            progress: progress[s.id] ?? 0,
           ),
       ],
       total: page.total,
