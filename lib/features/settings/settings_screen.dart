@@ -1,3 +1,4 @@
+import '../library/folder_choice.dart';
 import '../player/visualizer.dart';
 import 'file_access_tile.dart';
 import 'package:flutter/material.dart';
@@ -318,6 +319,15 @@ class SettingsScreen extends ConsumerWidget {
                     'Reads the genre, year and album artist of every song again, so the '
                     'Genres, Years and Album Artists lists fill in. Nothing is changed in the files.'),
                 onTap: () => refreshLibraryTags(context, ref),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.folder_off_outlined),
+                title: const Text('Left out of the library'),
+                subtitle: const Text(
+                    'Folders you unticked when adding music, and songs you removed. They are not added again.'),
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute<void>(builder: (_) => const LeftOutScreen())),
               ),
               const FileAccessTile(),
               const SizedBox(height: 16),

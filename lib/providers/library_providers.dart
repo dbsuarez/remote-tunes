@@ -1,3 +1,4 @@
+import '../features/library/settings_exclusion_store.dart';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +39,7 @@ final importServiceProvider = FutureProvider<LibraryImportService>((ref) async {
     extractor: AudioMetadataExtractor(),
     libraryDir: Directory(p.join(docs.path, 'library')),
     artDir: Directory(p.join(docs.path, 'art')),
+    exclusions: SettingsExclusionStore(ref.watch(settingsRepositoryProvider)),
   );
 });
 

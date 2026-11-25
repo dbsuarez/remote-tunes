@@ -22,6 +22,17 @@ class ImportFailure {
 class ImportResult {
   int added = 0;
   int duplicates = 0;
+
+  /// Songs left out because their folder (or file) is on the excluded list.
+  int excluded = 0;
+
+  /// Songs that were already in the library and were taken out because their
+  /// folder was excluded.
+  int removed = 0;
+
+  /// Files and folders looked at (every supported song found).
+  int found = 0;
+
   final List<ImportFailure> failures = [];
 
   int get failed => failures.length;
@@ -31,6 +42,8 @@ class ImportResult {
     final parts = <String>[
       if (added > 0) 'Added $added song${added == 1 ? '' : 's'}',
       if (duplicates > 0) '$duplicates already in your library',
+      if (excluded > 0) '$excluded excluded',
+      if (removed > 0) '$removed removed',
       if (failed > 0) '$failed skipped',
     ];
     return parts.isEmpty ? 'No songs found' : parts.join(' · ');
@@ -47,6 +60,47 @@ class ImportProgress {
 
 typedef ProgressCallback = void Function(ImportProgress progress);
 
+/// A folder found under the one being added, with how many songs it holds
+/// (counting the folders inside it).
+class FolderNode {
+  const FolderNode(this.path, this.name, this.depth, this.songCount);
+
+  final String path;
+  final String name;
+
+  /// 1 for a folder directly inside the one chosen.
+  final int depth;
+  final int songCount;
+}
+
+/// What is inside a folder about to be added.
+class FolderScan {
+  const FolderScan(this.root, this.files, this.folders);
+
+  final String root;
+  final List<String> files;
+
+  /// Every folder below [root], parents before their children.
+  final List<FolderNode> folders;
+}
+
+/// Where the list of left-out folders and files is kept between runs.
+abstract class ExclusionStore {
+  Future<Set<String>> load();
+  Future<void> save(Set<String> paths);
+}
+
+/// Keeps the list in memory only (tests).
+class MemoryExclusionStore implements ExclusionStore {
+  Set<String> paths = {};
+
+  @override
+  Future<Set<String>> load() async => {...paths};
+
+  @override
+  Future<void> save(Set<String> value) async => paths = {...value};
+}
+
 /// Imports audio into the library.
 ///
 ///  * [importFiles]: files chosen with the file picker are **copied** into
@@ -60,12 +114,15 @@ class LibraryImportService {
     required MetadataExtractor extractor,
     required Directory libraryDir,
     required Directory artDir,
+    ExclusionStore? exclusions,
   })  : _library = library,
+        _exclusions = exclusions ?? MemoryExclusionStore(),
         _extractor = extractor,
         _libraryDir = libraryDir,
         _artDir = artDir;
 
   final LibraryRepository _library;
+  final ExclusionStore _exclusions;
   final MetadataExtractor _extractor;
   final Directory _libraryDir;
   final Directory _artDir;
@@ -91,16 +148,89 @@ class LibraryImportService {
     return result;
   }
 
+  /// What is inside [folderPath]: its songs and the folders below it (for the
+  /// "choose what to add" step). Reads no tags, so it is quick.
+  Future<FolderScan> scanFolder(String folderPath) async {
+    final dir = Directory(folderPath);
+    if (!await dir.exists()) {
+      throw ImportException("That folder couldn't be found.");
+    }
+    final files = await _scan(dir);
+    final counts = <String, int>{};
+    for (final f in files) {
+      var parent = p.dirname(f);
+      while (parent != dir.path && p.isWithin(dir.path, parent)) {
+        counts[parent] = (counts[parent] ?? 0) + 1;
+        parent = p.dirname(parent);
+      }
+    }
+    final paths = counts.keys.toList()..sort();
+    return FolderScan(dir.path, files, [
+      for (final path in paths)
+        FolderNode(path, p.basename(path), p.split(p.relative(path, from: dir.path)).length,
+            counts[path]!),
+    ]);
+  }
+
+  /// The folders and files that are left out of the library.
+  Future<Set<String>> excludedPaths() => _exclusions.load();
+
+  /// Takes a folder or file off the left-out list (it is added the next time
+  /// its folder is added).
+  Future<void> includeAgain(String path) async {
+    final all = await _exclusions.load();
+    if (all.remove(path)) await _exclusions.save(all);
+  }
+
+  static bool _isExcluded(String path, Set<String> excluded) =>
+      excluded.any((e) => path == e || p.isWithin(e, path));
+
+  /// Adds the songs in [folderPath] (referenced in place).
+  ///
+  /// [exclude] is the folders the user unticked under [folderPath]; it replaces
+  /// what was left out under that folder before, and is remembered, so adding
+  /// the folder again skips them too. With [removeExcluded], songs already in
+  /// the library that sit in a left-out folder are taken out.
   Future<ImportResult> importFolder(
     String folderPath, {
+    Set<String>? exclude,
+    bool removeExcluded = false,
     ProgressCallback? onProgress,
   }) async {
     final dir = Directory(folderPath);
     if (!await dir.exists()) {
       throw ImportException("That folder couldn't be found.");
     }
-    final files = await _scan(dir);
-    final result = ImportResult();
+    final stored = await _exclusions.load();
+    var excluded = stored;
+    if (exclude != null) {
+      excluded = {
+        for (final e in stored)
+          if (e != dir.path && !p.isWithin(dir.path, e)) e,
+        ...exclude,
+      };
+      if (excluded.length != stored.length || !excluded.containsAll(stored)) {
+        await _exclusions.save(excluded);
+      }
+    }
+    final all = await _scan(dir);
+    final result = ImportResult()..found = all.length;
+    final files = <String>[];
+    for (final f in all) {
+      if (_isExcluded(f, excluded)) {
+        result.excluded++;
+      } else {
+        files.add(f);
+      }
+    }
+    if (removeExcluded && excluded.isNotEmpty) {
+      for (final song in await _library.localSongFiles()) {
+        if (p.isWithin(dir.path, song.path) && _isExcluded(song.path, excluded)) {
+          await removeSong(song.id, remember: false);
+          result.removed++;
+        }
+      }
+    }
     for (var i = 0; i < files.length; i++) {
       onProgress?.call(ImportProgress(i, files.length, p.basename(files[i])));
       await _importOne(files[i], copy: false, result: result);
@@ -292,11 +422,18 @@ class LibraryImportService {
   /// Removes a song from the library, and deletes its copied file and its art
   /// if nothing else uses them. Files the user referenced in place are never
   /// deleted.
-  Future<void> removeSong(int id) async {
+  ///
+  /// A file referenced in place is also put on the left-out list, so adding its
+  /// folder again does not bring it back ([remember] false: not now).
+  Future<void> removeSong(int id, {bool remember = true}) async {
     final song = await _library.removeSong(id);
     if (song == null) return;
 
     final path = song.filePath;
+    if (remember && path != null && !p.isWithin(_libraryDir.path, path)) {
+      final all = await _exclusions.load();
+      if (all.add(path)) await _exclusions.save(all);
+    }
     if (path != null && p.isWithin(_libraryDir.path, path)) {
       await _tryDelete(path);
     }

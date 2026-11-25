@@ -53,6 +53,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] **EQ screen** with sliders, presets, per-output memory, a response curve, Preamp, Tone (Bass / Treble knobs) and Limit. Preamp up uses the phone's loudness enhancer, down lowers the volume. Not done: a true 10-band EQ.
 - [x] **10-band EQ view** (EQ screen switch *N bands (phone)* / *10 bands*): ten sliders (31 Hz to 16 kHz) blended onto the phone's real bands, with a note saying so. Presets fill the ten sliders too; the choice is remembered per output. It is not a true 10-band filter: Android's equalizer has about 5 bands, so neighbouring sliders work together.
 - [x] **Visualizer** (Settings > Visualizer, off by default): 24 moving bars under the cover while music plays, following whichever player is audible (also during crossfade). Uses Android's Visualizer on the app's own sound, which asks for the microphone permission (nothing is recorded). Only on this phone's own playback, not while controlling another phone or another music app.
+- [x] **Add folder: leave folders out + report.** After choosing a folder, a *Choose what to add* step lists its subfolders (with song counts, all ticked); untick to leave one (and what is inside) out, optionally also removing its songs already in the library. The choice is remembered (Settings > *Left out of the library* lists them and lets them back in), and removing a song from the library keeps it from coming back when its folder is added again. Every add (files or folder) ends with a report: found, added, already in the library, left out, removed, skipped with reasons.
 - [ ] **Bottom bar** (Library, EQ, Search, Queue) with a persistent mini player and progress line on every screen. A big navigation change: it would replace the top tabs.
 - [x] **Menu with shortcuts** (the button at the top left): Now Playing, Lyrics (opens the lyrics), Library, Playlists (opens the playlists), Search, Queue, Equalizer, Remote playback, Settings, What's new (release notes from GitHub) and Help. Skin settings are added with the skins.
 - [x] **Skins** (Menu > Skins): 7 built-in looks plus your own from pasted JSON (copy any skin to share it); dark-only guardrails; the album-art accent still tints the player.
@@ -62,7 +63,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [x] A **favorite button** on the lock screen / notification (heart; shows only for library songs; may not appear on phones whose system hides notification buttons).
 
 ### Lyrics
-- [ ] Megalobiz fallback (scraping a site that asks for attribution; skipped unless LRCLIB misses a lot).
+- [x] Megalobiz fallback: time-synced lyrics when LRCLIB has none (credited on screen).
 - [x] Privacy page: [docs/21_PRIVACY.md](21_PRIVACY.md) lists everything that leaves the phone (lyrics, album art, Online Library, updates, links) and how to switch it off.
 
 ### Direction: a music player first, the Controller as a mode (built, not yet tried on phones)

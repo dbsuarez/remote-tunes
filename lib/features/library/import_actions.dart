@@ -2,10 +2,12 @@ import 'package:file_picker/file_picker.dart';
 import '../../core/screen_awake.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/permissions.dart';
 import '../../providers/library_providers.dart';
 import '../music/music_source.dart';
+import 'folder_choice.dart';
 import 'import_service.dart';
 
 /// Picks audio files with the system picker and imports (copies) them.
@@ -58,8 +60,35 @@ Future<bool> pickAndImportFolder(BuildContext context, WidgetRef ref) async {
 
   final service = await ref.read(importServiceProvider.future);
   if (!context.mounted) return false;
+
+  // Look inside first, so folders can be left out.
+  final FolderScan scan;
+  try {
+    scan = await service.scanFolder(folder);
+  } catch (e) {
+    if (context.mounted) _snack(context, friendlyError(e));
+    return false;
+  }
+  if (!context.mounted) return false;
+  final stored = await service.excludedPaths();
+  Set<String>? exclude;
+  var removeExisting = false;
+  if (scan.folders.isNotEmpty || stored.isNotEmpty) {
+    final existing = (await ref.read(libraryRepositoryProvider).localSongFiles())
+        .where((s) => p.isWithin(folder!, s.path))
+        .length;
+    if (!context.mounted) return false;
+    final choice = await showFolderChoice(context,
+        scan: scan, alreadyExcluded: stored, alreadyInLibrary: existing);
+    if (choice == null || !context.mounted) return false;
+    exclude = choice.excluded;
+    removeExisting = choice.removeExisting;
+  }
+  if (!context.mounted) return false;
   return _runImport(
-      context, (onProgress) => service.importFolder(folder!, onProgress: onProgress));
+      context,
+      (onProgress) => service.importFolder(folder!,
+          exclude: exclude, removeExcluded: removeExisting, onProgress: onProgress));
 }
 
 void _snack(BuildContext context, String message) {
@@ -159,7 +188,7 @@ Future<bool> _runImport(
   Object? error;
   try {
     // The screen stays on, so the phone does not lock and stall the import.
-    result = await ScreenAwake.during(() => job((p) => progress.value = p));
+    result = await ScreenAwake.during(() => job((step) => progress.value = step));
   } catch (e) {
     error = e;
   }
@@ -171,35 +200,8 @@ Future<bool> _runImport(
     _snack(context, friendlyError(error ?? 'error'));
     return false;
   }
-  _snack(context, result.summary);
-  if (result.failures.isNotEmpty) {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${result!.failed} file${result.failed == 1 ? ' was' : 's were'} skipped'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final f in result.failures.take(15))
-                ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(f.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(f.reason),
-                ),
-              if (result.failures.length > 15)
-                Text('…and ${result.failures.length - 15} more.'),
-            ],
-          ),
-        ),
-        actions: [
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
-        ],
-      ),
-    );
-  }
+  // A report of what happened (instead of a one-line note).
+  await showDialog<void>(context: context, builder: (_) => ImportReportDialog(result: result!));
   return result.added > 0;
 }
 

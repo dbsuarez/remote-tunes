@@ -181,6 +181,8 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Crossfade (again):** with crossfade on, the first change of a session fades once and the next song does not start over.
 - [ ] **10-band EQ:** on the EQ screen switch to *10 bands*. Ten sliders appear (31 to 16k) with a note about the phone's real bands. Moving the bass sliders changes the sound as you would expect; a preset fills all ten; switching back to the phone's bands works; it is still there after closing the app.
 - [ ] **Visualizer:** Settings > Visualizer on; allow the microphone permission. Under the cover, bars move with the music, stop when paused, and keep moving after a song change and during a crossfade. If you refuse the permission, it says so. Report if the bars stay flat on any phone or output (speaker / Bluetooth).
+- [ ] **Leave folders out:** Add a folder that has subfolders: a *Choose what to add* list appears. Untick one, add: the report shows Added and Left out counts. Add the same folder again: the unticked one is still left out. Settings > *Left out of the library* lists it; the undo arrow lets it back in. With a folder already added, untick one and tick *Also remove their songs*: the report shows Removed. Remove one song from the library, add its folder again: it does not return.
+- [ ] **Report:** adding files or a folder ends with a report (found, added, already in library, left out, removed, skipped with reasons).
 
 ---
 

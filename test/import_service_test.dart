@@ -261,4 +261,102 @@ void main() {
       expect(await repo.count(), 0);
     });
   });
+
+  group('leaving folders out', () {
+    Future<void> tree() async {
+      await makeFile('keep.mp3');
+      await makeFile('Rock/a.mp3');
+      await makeFile('Rock/Live/b.mp3');
+      await makeFile('Podcasts/talk1.mp3');
+      await makeFile('Podcasts/talk2.mp3');
+    }
+
+    test('scanning lists the folders below with how many songs each holds', () async {
+      await tree();
+      final scan = await service.scanFolder(source.path);
+      expect(scan.files, hasLength(5));
+      expect([for (final f in scan.folders) '${f.name}:${f.depth}:${f.songCount}'],
+          ['Podcasts:1:2', 'Rock:1:2', 'Live:2:1']);
+      expect(await repo.count(), 0, reason: 'scanning adds nothing');
+    });
+
+    test('an unticked folder, and everything inside it, is not added; the report counts it',
+        () async {
+      await tree();
+      final r = await service.importFolder(source.path,
+          exclude: {p.join(source.path, 'Podcasts'), p.join(source.path, 'Rock', 'Live')});
+      expect(r.added, 2);
+      expect(r.excluded, 3);
+      expect(r.found, 5);
+      expect(r.summary, contains('3 excluded'));
+      final titles = (await repo.songs()).items.map((s) => p.basename(s.filePath!)).toSet();
+      expect(titles, {'keep.mp3', 'a.mp3'});
+    });
+
+    test('the choice is remembered: adding the folder again still leaves them out', () async {
+      await tree();
+      await service.importFolder(source.path, exclude: {p.join(source.path, 'Podcasts')});
+      final again = await service.importFolder(source.path);
+      expect(again.excluded, 2);
+      expect(again.added, 0);
+      expect(await repo.count(), 3);
+      expect(await service.excludedPaths(), {p.join(source.path, 'Podcasts')});
+    });
+
+    test('ticking it again later (an empty list) brings it back', () async {
+      await tree();
+      await service.importFolder(source.path, exclude: {p.join(source.path, 'Podcasts')});
+      final r = await service.importFolder(source.path, exclude: <String>{});
+      expect(r.added, 2);
+      expect(r.excluded, 0);
+      expect(await service.excludedPaths(), isEmpty);
+    });
+
+    test('exclusions under other folders are not touched by this one', () async {
+      await tree();
+      final other = p.join(root.path, 'elsewhere', 'Junk');
+      final store = MemoryExclusionStore()..paths = {other};
+      final s2 = LibraryImportService(
+          library: repo, extractor: extractor, libraryDir: libraryDir, artDir: artDir,
+          exclusions: store);
+      await s2.importFolder(source.path, exclude: {p.join(source.path, 'Rock')});
+      expect(store.paths, {other, p.join(source.path, 'Rock')});
+    });
+
+    test('songs already in the library can be taken out with it, and are counted', () async {
+      await tree();
+      await service.importFolder(source.path);
+      expect(await repo.count(), 5);
+      final r = await service.importFolder(source.path,
+          exclude: {p.join(source.path, 'Podcasts')}, removeExcluded: true);
+      expect(r.removed, 2);
+      expect(r.excluded, 2);
+      expect(r.summary, contains('2 removed'));
+      expect(await repo.count(), 3);
+    });
+
+    test('without that choice, songs already added stay', () async {
+      await tree();
+      await service.importFolder(source.path);
+      final r = await service.importFolder(source.path, exclude: {p.join(source.path, 'Podcasts')});
+      expect(r.removed, 0);
+      expect(await repo.count(), 5);
+    });
+
+    test('removing a song from the library keeps it from coming back when its folder is added again',
+        () async {
+      await tree();
+      await service.importFolder(source.path);
+      final gone = (await repo.songs()).items.firstWhere((s) => s.filePath!.endsWith('keep.mp3'));
+      await service.removeSong(gone.id);
+      final again = await service.importFolder(source.path);
+      expect(again.added, 0);
+      expect(again.excluded, 1);
+      expect(await repo.count(), 4);
+      // ...until it is let back in.
+      await service.includeAgain(gone.filePath!);
+      final back = await service.importFolder(source.path);
+      expect(back.added, 1);
+    });
+  });
 }
