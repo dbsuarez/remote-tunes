@@ -1,3 +1,5 @@
+import '../cloud/cloud_library_view.dart';
+import '../cloud/cloud_settings_screen.dart';
 import '../../core/visualizer_position.dart';
 import '../music/group_info_dialog.dart';
 import '../../core/widgets/haptic_button.dart';
@@ -439,6 +441,26 @@ class _Active {
             onPlay: (url, title) => client.playUrl(url, title: title),
           ),
         ),
+        LibraryExtra(
+          title: 'Cloud Library',
+          icon: Icons.cloud_rounded,
+          color: const Color(0xFF64B5F6),
+          builder: (ctx) => CloudLibraryView(
+            enabled: enabled,
+            onOpenSettings: () => Navigator.of(ctx).push(
+              MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
+            ),
+            // The Player streams the song itself: only its link and details go to it.
+            onTrack: (s, url, image, {required queue}) => client.playUrl(
+              url,
+              title: s.title,
+              artist: s.artist,
+              album: s.album,
+              imageUrl: image,
+              queue: queue,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -532,6 +554,23 @@ class _Active {
             target: 'this phone',
             initialUrl: AppConstants.sampleAudioUrl,
             onPlay: (url, title) => core.engine.playUrl(url, title: title),
+          ),
+        ),
+        LibraryExtra(
+          title: 'Cloud Library',
+          icon: Icons.cloud_rounded,
+          color: const Color(0xFF64B5F6),
+          builder: (ctx) => CloudLibraryView(
+            onOpenSettings: () => Navigator.of(ctx).push(
+              MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
+            ),
+            onTrack: (s, url, image, {required queue}) async {
+              if (queue) {
+                await core.engine.enqueueUrl(url, title: s.title, artist: s.artist, album: s.album, imageUrl: image);
+              } else {
+                await core.engine.playUrl(url, title: s.title, artist: s.artist, album: s.album, imageUrl: image);
+              }
+            },
           ),
         ),
       ],
