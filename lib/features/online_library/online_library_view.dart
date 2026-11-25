@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/playback_widgets.dart';
 import '../music/music_source.dart' show friendlyError;
 import 'jamendo_api.dart';
+import 'jamendo_home.dart';
 import 'jamendo_key_store.dart';
 import 'online_history_source.dart';
 import 'online_history_view.dart';
@@ -26,7 +27,11 @@ class OnlineLibraryView extends ConsumerStatefulWidget {
     required this.onTrack,
     this.history,
     this.enabled = true,
+    this.suggestions = false,
   });
+
+  /// Shelves (popular, newest) are shown before anything is searched.
+  final bool suggestions;
 
   final TrackAction onTrack;
 
@@ -78,6 +83,14 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
       _clientId = id;
       _keyLoaded = true;
     });
+    _loadHome();
+  }
+
+  /// Fills the shelves on the home screen (when they are switched on).
+  void _loadHome({bool refresh = false}) {
+    final id = _clientId;
+    if (!widget.suggestions || id == null) return;
+    ref.read(jamendoHomeProvider).load(ref.read(jamendoApiProvider), id, refresh: refresh);
   }
 
   Future<void> _saveKey() async {
@@ -95,10 +108,12 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
       _keyField.clear();
       _error = null;
     });
+    _loadHome();
   }
 
   Future<void> _removeKey() async {
     await ref.read(jamendoKeyStoreProvider).clear();
+    ref.read(jamendoHomeProvider).clear();
     if (!mounted) return;
     setState(() {
       _clientId = null;
@@ -161,6 +176,36 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Plays the first track and queues the rest.
+  Future<void> _playAll(List<JamendoTrack> tracks) async {
+    try {
+      for (var i = 0; i < tracks.length; i++) {
+        await widget.onTrack(tracks[i], queue: i > 0);
+      }
+      _snack('Playing ${tracks.length} tracks on the Player');
+    } catch (e) {
+      _snack(friendlyError(e));
+    }
+  }
+
+  Future<void> _queueAll(List<JamendoTrack> tracks) async {
+    try {
+      for (final t in tracks) {
+        await widget.onTrack(t, queue: true);
+      }
+      _snack('Added ${tracks.length} tracks to the Player\'s queue');
+    } catch (e) {
+      _snack(friendlyError(e));
+    }
+  }
+
+  /// Top tracks of a genre (what the genre search already does, sorted by popularity).
+  void _openGenre(String genre) {
+    setState(() => _mode = JamendoSearchMode.genre);
+    _search.text = genre;
+    _runSearch(text: genre);
   }
 
   Future<void> _act(JamendoTrack t, {required bool queue}) async {
@@ -341,6 +386,92 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
     );
   }
 
+  Widget _home(ThemeData theme) {
+    final home = ref.watch(jamendoHomeProvider);
+    return ListenableBuilder(
+      listenable: home,
+      builder: (context, _) {
+        final firstError = JamendoShelf.values
+            .map((s) => home.shelf(s).error)
+            .whereType<JamendoException>()
+            .firstOrNull;
+        return RefreshIndicator(
+          onRefresh: () async => _loadHome(refresh: true),
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text(
+                  'Free Creative Commons music from Jamendo. Tap a cover to play it on the '
+                  'Player, press and hold to add it to the queue.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+              // Top tracks of a genre.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Text('Top tracks by genre', style: theme.textTheme.titleMedium),
+              ),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    for (final g in jamendoGenres) ...[
+                      ActionChip(label: Text(g), onPressed: () => _openGenre(g)),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+              if (firstError != null && !home.anyLoaded)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(firstError.offline ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
+                          size: 32, color: theme.colorScheme.error),
+                      const SizedBox(height: 8),
+                      Text(firstError.message, textAlign: TextAlign.center),
+                      const SizedBox(height: 8),
+                      if (firstError.badKey)
+                        OutlinedButton(
+                            onPressed: _removeKey, child: const Text('Change client ID'))
+                      else
+                        OutlinedButton(
+                            onPressed: () => _loadHome(refresh: true),
+                            child: const Text('Try again')),
+                    ],
+                  ),
+                )
+              else ...[
+                for (final shelf in JamendoShelf.values)
+                  _Shelf(
+                    title: shelf.title,
+                    state: home.shelf(shelf),
+                    onPlay: (t) => _act(t, queue: false),
+                    onQueue: (t) => _act(t, queue: true),
+                    onPlayAll: () => _playAll(home.shelf(shelf).tracks),
+                    onQueueAll: () => _queueAll(home.shelf(shelf).tracks),
+                  ),
+              ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Music from Jamendo',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showAbout() {
     showDialog<void>(
       context: context,
@@ -365,6 +496,8 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> {
     if (_tracks.isEmpty) {
       if (_loading) return const Center(child: CircularProgressIndicator());
       final e = _error;
+      // Nothing searched yet: the ready-made shelves, when they are switched on.
+      if (widget.suggestions && e == null && !_searched) return _home(theme);
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -520,6 +653,138 @@ class _TrackTile extends StatelessWidget {
             onPressed: onQueue,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One row of covers on the home screen.
+class _Shelf extends StatelessWidget {
+  const _Shelf({
+    required this.title,
+    required this.state,
+    required this.onPlay,
+    required this.onQueue,
+    required this.onPlayAll,
+    required this.onQueueAll,
+  });
+
+  final String title;
+  final ShelfState state;
+  final void Function(JamendoTrack) onPlay;
+  final void Function(JamendoTrack) onQueue;
+  final VoidCallback onPlayAll;
+  final VoidCallback onQueueAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tracks = state.tracks;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 4, 0),
+          child: Row(
+            children: [
+              Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
+              if (tracks.isNotEmpty) ...[
+                IconButton(
+                  tooltip: 'Play all of "$title"',
+                  icon: const Icon(Icons.play_circle_outline_rounded),
+                  onPressed: onPlayAll,
+                ),
+                IconButton(
+                  tooltip: 'Add all of "$title" to the queue',
+                  icon: const Icon(Icons.playlist_add_rounded),
+                  onPressed: onQueueAll,
+                ),
+              ],
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 178,
+          child: tracks.isEmpty
+              ? Center(
+                  child: state.error != null
+                      ? Text(state.error!.message, textAlign: TextAlign.center)
+                      : const CircularProgressIndicator(strokeWidth: 2),
+                )
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: tracks.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) => _Cover(
+                    track: tracks[i],
+                    onTap: () => onPlay(tracks[i]),
+                    onLongPress: () => onQueue(tracks[i]),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Cover extends StatelessWidget {
+  const _Cover({required this.track, required this.onTap, required this.onLongPress});
+
+  final JamendoTrack track;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final art = track.imageUrl;
+    final placeholder = Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(Icons.music_note_rounded, color: theme.colorScheme.primary, size: 36),
+    );
+    return Semantics(
+      label: '${track.title} by ${track.artist}',
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: SizedBox(
+          width: 120,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              art == null
+                  ? placeholder
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        art,
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                        cacheWidth: 240,
+                        errorBuilder: (_, __, ___) => placeholder,
+                        loadingBuilder: (c, child, p) => p == null ? child : placeholder,
+                      ),
+                    ),
+              const SizedBox(height: 6),
+              Text(track.title,
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium),
+              Text(track.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
       ),
     );
   }

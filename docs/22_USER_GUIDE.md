@@ -132,7 +132,7 @@ https://dbsuarez.github.io/remote-tunes/ : on the playing phone use remote playb
 
 ## 10. Other things
 
-- **Online Library:** free music from Jamendo (search by keyword, genre, artist, album; licence shown). Needs internet and your Jamendo ID once.
+- **Online Library:** free music from Jamendo (search by keyword, genre, artist, album; licence shown). Needs internet and your Jamendo ID once. Before you search it shows **Popular this week**, **Popular this month** and **Newest releases** as rows of covers: tap one to play it, press and hold to queue it, or use *Play all* / *Add all* on a row. The genre chips open the top tracks of that genre. Pull down to refresh. Switch it off in Settings > *Suggestions in the Online Library*.
 - **Other music apps:** Settings > *External app control* lets RemoteTunes steer Spotify or YouTube Music on the phone (needs *Notification access*, off by default).
 - **Play a link:** play an audio link from the internet.
 - **Sleep timer:** under the title on Now Playing.
@@ -145,6 +145,7 @@ https://dbsuarez.github.io/remote-tunes/ : on the playing phone use remote playb
 
 - **Queue opens at the song playing**: The Queue tab scrolls to what is playing.
 - **Visualizer**: Moving bars under the cover (microphone permission).
+- **Suggestions in the Online Library**: Popular and newest Jamendo tracks before you search.
 - **Skins (menu)**: Colors and card roundness.
 - **Crossfade**: 0 to 12 seconds between songs.
 - **Even out loudness**: Replay Gain: Off / By song / By album.

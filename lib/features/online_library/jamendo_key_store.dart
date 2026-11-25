@@ -1,3 +1,4 @@
+import 'jamendo_home.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -60,6 +61,13 @@ class PrefsJamendoKeyStore implements JamendoKeyStore {
 
 final jamendoKeyStoreProvider =
     Provider<JamendoKeyStore>((ref) => PrefsJamendoKeyStore());
+
+/// The home screen's shelves, kept while the app runs.
+final jamendoHomeProvider = Provider<JamendoHome>((ref) {
+  final home = JamendoHome();
+  ref.onDispose(home.dispose);
+  return home;
+});
 
 final jamendoApiProvider = Provider<JamendoApi>((ref) {
   final api = JamendoApi();

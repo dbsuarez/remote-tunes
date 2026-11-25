@@ -50,11 +50,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
   - [ ] **5. Playback insights:** first record each play (song, time, how long it was heard); then most played, plays over time, listening time and plays by genre. Plays would stay on the phone.
 - Privacy: everything is computed on the phone from its own library; nothing is sent anywhere.
 
-**5. Online Library home screen (Jamendo) with something to see before you search**
-- Today the Online Library is blank until you search. Jamendo's `tracks` request (the one the app already uses) can also be sorted, which should give ready-made shelves with no search: **Popular this week**, **Popular this month**, **Newest releases**, and **Top in a genre** (the genre chips, sorted by popularity). The app already sends `order=popularity_total`; the other orders (`popularity_week`, `popularity_month`, `releasedate_desc`, `listens_*`) are to be checked against the API when this is built.
-- Shape: shelves of covers you can scroll sideways (each tap plays, each has *Play all* / *Add all to queue*), genre chips that open the top tracks of that genre, and the search box stays on top. Shelves are fetched when the tab opens (a few requests, one at a time, the existing gap between requests applies) and kept for the session; offline it says so and still shows the history.
-- Needs the Jamendo client ID as before; nothing new is sent beyond the same requests. Add a switch (*Show suggestions in the Online Library*) so the tab can stay quiet.
-- [ ] shelves (week, month, newest) · [ ] top by genre · [ ] play / queue all · [ ] a switch · [ ] tests with the fake Jamendo
+**5. Online Library home screen (Jamendo): built (not tried on a phone yet), see Done.** Left over: a *Top this week* shelf per genre, and a refresh of the shelves in the background.
 
 **What to listen for in your own library: most played, most skipped** (changes item 4)
 - The owner's question: is a chart dashboard needed, when what he wants to know is *which song is played most, skipped most*? Decision: **lists first, charts second.** A ranked, tappable list does that better than any chart: tap a song to play it, long-press to queue it.
@@ -63,6 +59,12 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - **Insights screen, first version (lists, no new package needed):** Most played · Most skipped · Recently played · Never played · Played this week · and by artist / genre. Each row shows the number (plays, skips, minutes). A small header of totals (songs, hours of music, size).
 - Charts (FL Chart, item 4 above) then become an optional second step: a genre doughnut and a songs-added line are the only two worth having at first.
 - [ ] play events recorded (with a switch and *Clear*) · [ ] the lists · [ ] header totals · [ ] charts later
+
+**6. A better audio Visualizer** (the owner: "the audio visualizer sucks")
+- No third-party package is needed: a package would only be another way of *drawing* the same bars, and the weak points are ours. (1) **Few, jumpy frames:** Android's Visualizer delivers about 20 readings a second; the bars jump between them. Fix: animate the bars toward each new reading at 60 frames a second (quick rise, slow fall, falling "peak caps"). (2) **Flat sound reading:** the 24 bars are plain log-spaced bins, so the bass bars are always high and the treble bars barely move. Fix: weight the bins (a tilt that evens the music's natural slope), a noise floor, and an automatic gain that follows the loudness of the song. (3) **Plain looks:** flat gradient bars only. Fix: a few styles, each a few dozen lines of drawing code.
+- Styles to offer (Settings > Visualizer style): **Bars** (rounded, with peak caps and a soft glow), **Mirror** (bars growing up and down from the middle), **Circle** (bars around the cover), **Wave** (a smooth line), and **Off**. Colors from the skin and the cover's accent.
+- Limits to say honestly: Android gives only the app's own sound, 20 readings a second, and needs the microphone permission; some phones and outputs return nothing. Real "beat detection" and 3D effects are not worth it.
+- [ ] smoothing at 60 fps and peak caps · [ ] frequency weighting and auto gain · [ ] four styles and a picker · [ ] tests
 
 Suggested order: **1** first (the owner's choice, and it stands alone), then **5** (the Online Library home: small and visible), then the **most played / most skipped lists** and **4 (phases 1 to 2)**, then **2 (phases 1 to 2)**, which prepares **3** and feeds the Insights tag-cleanup charts.
 
@@ -123,6 +125,9 @@ Suggested order: **1** first (the owner's choice, and it stands alone), then **5
 ### Lyrics
 - [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
 - [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
+
+### Online Library home (built after `v1.0.1`)
+- [x] Before any search the Online Library shows shelves of covers: **Popular this week**, **Popular this month**, **Newest releases** (Jamendo sorts them: `popularity_week`, `popularity_month`, `releasedate_desc`), and genre chips (*Top tracks by genre*). Tap a cover to play on the Player, press and hold to queue it, *Play all* / *Add all* on each shelf. Shelves load one after another (Jamendo wants spaced requests), are kept for 15 minutes, pull down to refresh; no internet shows the usual message and *Try again*. Settings > *Suggestions in the Online Library* (on by default) switches it off; then the tab stays blank until a search.
 
 ### Remote playback, group play, web
 - [x] Pairing with QR / nearby / code, trusted devices, reconnect; the web Controller on GitHub Pages; External App Control; the Online Library (Jamendo).

@@ -35,6 +35,7 @@ class SettingKeys {
   static const skinId = 'skin_id';
   static const queueScrollToCurrent = 'queue_scroll_to_current';
   static const visualizer = 'visualizer';
+  static const onlineSuggestions = 'online_suggestions';
   static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
   static const searchHistory = 'search_history';
@@ -96,6 +97,7 @@ class AppSettings {
     this.skinId = Skin.defaultId,
     this.queueScrollToCurrent = true,
     this.visualizerEnabled = false,
+    this.onlineSuggestions = true,
     this.customSkins = const [],
     this.remoteAutoStart = false,
     this.searchHistory = const [],
@@ -153,6 +155,9 @@ class AppSettings {
   /// Moving bars under the cover while music plays.
   final bool visualizerEnabled;
 
+  /// Popular and newest tracks on the Online Library home screen.
+  final bool onlineSuggestions;
+
   /// Skins added by pasting their JSON.
   final List<Skin> customSkins;
 
@@ -203,6 +208,7 @@ class AppSettings {
       skinId: m[SettingKeys.skinId] ?? Skin.defaultId,
       queueScrollToCurrent: m[SettingKeys.queueScrollToCurrent] != 'false',
       visualizerEnabled: m[SettingKeys.visualizer] == 'true',
+      onlineSuggestions: m[SettingKeys.onlineSuggestions] != 'false',
       customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
@@ -303,6 +309,8 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setOnlineSuggestions(bool v) => _put(SettingKeys.onlineSuggestions, v.toString());
 
   Future<void> setVisualizerEnabled(bool v) => _put(SettingKeys.visualizer, v.toString());
 

@@ -18,6 +18,20 @@ enum JamendoSearchMode {
   final String hint;
 }
 
+/// The ready-made lists on the Online Library home screen (Jamendo sorts them).
+enum JamendoShelf {
+  week('Popular this week', 'popularity_week'),
+  month('Popular this month', 'popularity_month'),
+  newest('Newest releases', 'releasedate_desc');
+
+  const JamendoShelf(this.title, this.order);
+
+  final String title;
+
+  /// Jamendo's `order` value.
+  final String order;
+}
+
 /// Genres offered as quick picks (Jamendo "tags").
 const List<String> jamendoGenres = [
   'pop',
@@ -188,6 +202,23 @@ class JamendoApi {
       return JamendoPage(tracks: kept, hasMore: false);
     }
     return JamendoPage(tracks: first, hasMore: first.length >= pageSize);
+  }
+
+  /// One of the ready-made lists, with no search.
+  Future<JamendoPage> browse({
+    required String clientId,
+    required JamendoShelf shelf,
+    int limit = 15,
+  }) async {
+    final tracks = await _fetch(clientId, {
+      'format': 'json',
+      'limit': '$limit',
+      'offset': '0',
+      'imagesize': '200',
+      'audioformat': 'mp32',
+      'order': shelf.order,
+    });
+    return JamendoPage(tracks: tracks, hasMore: false);
   }
 
   Map<String, String> _params(JamendoSearchMode mode, String q, int offset) => {

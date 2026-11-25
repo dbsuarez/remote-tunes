@@ -145,7 +145,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final _Active? active;
     if (remote) {
       active = _Active.remote(ref, client, conn,
-          goLibrary: () => setState(() => _tab = 1), lyricsRequests: _lyricsRequests);
+          goLibrary: () => setState(() => _tab = 1),
+          lyricsRequests: _lyricsRequests,
+          suggestions: ref.watch(settingsProvider).valueOrNull?.onlineSuggestions ?? true);
     } else {
       final core = ref.watch(playerCoreProvider);
       active = core.valueOrNull == null
@@ -153,7 +155,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           : _Active.local(ref, core.value!,
               goLibrary: () => setState(() => _tab = 1),
               lyricsRequests: _lyricsRequests,
-              visualizer: ref.watch(settingsProvider).valueOrNull?.visualizerEnabled ?? false);
+              visualizer: ref.watch(settingsProvider).valueOrNull?.visualizerEnabled ?? false,
+              suggestions: ref.watch(settingsProvider).valueOrNull?.onlineSuggestions ?? true);
     }
 
     final size = ref.watch(songListSizeProvider);
@@ -325,6 +328,7 @@ class _Active {
     ControllerClientState conn, {
     required VoidCallback goLibrary,
     Listenable? lyricsRequests,
+    bool suggestions = true,
   }) {
     final session = RemoteSession(client: client, connection: conn);
     final enabled = conn.isConnected;
@@ -369,6 +373,7 @@ class _Active {
           icon: Icons.public_rounded,
           color: RtColors.violet,
           builder: (_) => OnlineLibraryView(
+            suggestions: suggestions,
             enabled: enabled,
             history: ClientHistorySource(client),
             // The Player streams the track itself: only the link and the title
@@ -406,7 +411,10 @@ class _Active {
   }
 
   factory _Active.local(WidgetRef ref, PlayerCore core,
-      {required VoidCallback goLibrary, Listenable? lyricsRequests, bool visualizer = false}) {
+      {required VoidCallback goLibrary,
+      Listenable? lyricsRequests,
+      bool visualizer = false,
+      bool suggestions = true}) {
     final playback = ref.watch(playerPlaybackProvider).valueOrNull ?? core.engine.state;
     final source = LocalMusicSource(core.library, core.engine);
     return _Active(
@@ -430,6 +438,7 @@ class _Active {
           icon: Icons.public_rounded,
           color: RtColors.violet,
           builder: (_) => OnlineLibraryView(
+            suggestions: suggestions,
             onTrack: (t, {required queue}) async {
               if (queue) {
                 await core.engine.enqueueUrl(t.audioUrl,

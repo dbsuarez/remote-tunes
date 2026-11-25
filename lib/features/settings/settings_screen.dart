@@ -206,6 +206,15 @@ class SettingsScreen extends ConsumerWidget {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
+                title: const Text('Suggestions in the Online Library'),
+                subtitle: const Text(
+                    'Popular and newest tracks from Jamendo are shown before you search. They are '
+                    'fetched from Jamendo when the tab opens; switch off to keep it blank until you search.'),
+                value: s.onlineSuggestions,
+                onChanged: repo.setOnlineSuggestions,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
                 title: const Text('Visualizer'),
                 subtitle: const Text(
                     'Moving bars under the cover while music plays. Android asks for the microphone '
