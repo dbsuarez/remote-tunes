@@ -249,6 +249,23 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.compare_arrows_rounded),
+                title: Text(s.crossfadeSeconds == 0
+                    ? 'Crossfade: off'
+                    : 'Crossfade: ${s.crossfadeSeconds} seconds'),
+                subtitle: const Text(
+                    'One song fades out while the next fades in. Only for songs on this phone, '
+                    'and only when the next song is also a file here.'),
+              ),
+              Slider(
+                value: s.crossfadeSeconds.toDouble(),
+                max: 12,
+                divisions: 12,
+                label: s.crossfadeSeconds == 0 ? 'Off' : '${s.crossfadeSeconds} s',
+                onChanged: (v) => repo.setCrossfadeSeconds(v.round()),
+              ),
               const AlbumArtTile(),
               ListTile(
                 contentPadding: EdgeInsets.zero,

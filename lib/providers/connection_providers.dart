@@ -26,6 +26,7 @@ import '../features/online/online_transport.dart';
 import '../features/online/supabase_relay.dart';
 import '../features/player/audio/audio_backend.dart';
 import '../features/player/audio/audio_format.dart';
+import '../features/player/audio/crossfade_backend.dart';
 import '../features/player/audio/player_audio_handler.dart';
 import '../features/player/eq/equalizer_controller.dart';
 import '../features/player/eq/settings_eq_store.dart';
@@ -52,7 +53,8 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     history: OnlineHistoryRepository(ref.watch(databaseProvider)),
     lyrics: ref.watch(lyricsServiceProvider),
   );
-  final backend = JustAudioBackend();
+  // Two players, so a song can fade into the next (Settings > Crossfade).
+  final backend = CrossfadeBackend(JustAudioBackend(), JustAudioBackend());
   final localEngine = QueuePlaybackEngine(
     backend: backend,
     initialVolume: settings.defaultVolume,
@@ -62,6 +64,7 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     formatReader: AudioFormatReader().describe,
   );
   unawaited(localEngine.setReplayGainMode(settings.replayGainMode));
+  unawaited(localEngine.setCrossfade(settings.crossfadeSeconds));
   // The queue is kept between runs: pick up where it was, paused.
   try {
     await localEngine.restoreQueue();

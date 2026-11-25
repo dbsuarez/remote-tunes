@@ -30,6 +30,7 @@ class SettingKeys {
   static const pendingUpdate = 'pending_update';
   static const startMode = 'start_mode';
   static const replayGainMode = 'replay_gain_mode';
+  static const crossfadeSeconds = 'crossfade_seconds';
   static const remoteAutoStart = 'remote_auto_start';
   static const searchHistory = 'search_history';
   static const lastUpdateCheck = 'last_update_check';
@@ -66,6 +67,7 @@ class AppSettings {
     this.pendingUpdate = false,
     this.startMode = StartMode.thisPhone,
     this.replayGainMode = ReplayGainMode.off,
+    this.crossfadeSeconds = 0,
     this.remoteAutoStart = false,
     this.searchHistory = const [],
     this.lastUpdateCheck = 0,
@@ -109,6 +111,9 @@ class AppSettings {
   /// songs down, never up).
   final ReplayGainMode replayGainMode;
 
+  /// Seconds one song fades into the next (0: off, up to 12).
+  final int crossfadeSeconds;
+
   /// Start remote playback (let other phones control this one) when the app
   /// opens.
   final bool remoteAutoStart;
@@ -149,6 +154,7 @@ class AppSettings {
       pendingUpdate: m[SettingKeys.pendingUpdate] == 'true',
       startMode: StartModeX.parse(m[SettingKeys.startMode]),
       replayGainMode: ReplayGainModeX.parse(m[SettingKeys.replayGainMode]),
+      crossfadeSeconds: (int.tryParse(m[SettingKeys.crossfadeSeconds] ?? '') ?? 0).clamp(0, 12),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
@@ -248,6 +254,9 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setCrossfadeSeconds(int v) =>
+      _put(SettingKeys.crossfadeSeconds, v.clamp(0, 12).toString());
 
   Future<void> setReplayGainMode(ReplayGainMode v) =>
       _put(SettingKeys.replayGainMode, v.name);

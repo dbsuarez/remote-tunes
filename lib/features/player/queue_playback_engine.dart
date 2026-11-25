@@ -224,14 +224,15 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   void _preloadIfChanged() {
     if (_disposed) return;
     final key = '${_queue.revision}|${_queue.shuffle}|${_queue.repeat}|'
-        '$_loadedEntryId|${_queue.current?.id}';
+        '$_loadedEntryId|${_queue.current?.id}|$_crossfadeActive';
     if (key == _preloadKey) return;
     _preloadKey = key;
     _preloadTail = _preloadTail.then((_) async {
       if (_disposed) return;
       QueueEntry? want;
       final cur = _queue.current;
-      if (_loadedEntryId != null && cur != null && cur.id == _loadedEntryId) {
+      // With crossfade the next song is started by the fade, not lined up.
+      if (!_crossfadeActive && _loadedEntryId != null && cur != null && cur.id == _loadedEntryId) {
         final n = _queue.peekNext();
         final path = n?.song.filePath;
         if (n != null &&
@@ -256,6 +257,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   Future<void> _onAdvanced(String? path) async {
     final expected = _preloadedEntryId;
     _preloadedEntryId = null;
+    _crossfading = false;
     final next = _queue.advance(auto: true);
     if (next == null || next.id != expected || next.song.filePath != path) {
       // Out of step with the queue (it changed just then): load it properly.
@@ -349,7 +351,60 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         _emit();
       });
 
+  // ---------------------------------------------------------------- crossfade
+
+  int _crossfadeSeconds = 0;
+  bool _crossfading = false;
+
+  bool get _crossfadeActive => _crossfadeSeconds > 0 && _backend.supportsCrossfade;
+
+  /// How long one song fades into the next (0: off). Only works when the audio
+  /// backend can run two players; otherwise songs change gaplessly as before.
+  Future<void> setCrossfade(int seconds) => _serial(() async {
+        _crossfadeSeconds = seconds.clamp(0, 12);
+        _preloadKey = null;
+        _preloadIfChanged();
+      });
+
+  /// Near the end of a song, starts fading into the next one.
+  void _maybeCrossfade(Duration position) {
+    if (!_crossfadeActive || _crossfading || !_playing || _loadedEntryId == null) return;
+    final len = _crossfadeSeconds;
+    // Songs too short to fade (twice the fade, plus a little) just change.
+    if (_durationSeconds < 2 * len + 4) return;
+    final remainingMs = _durationSeconds * 1000 - position.inMilliseconds;
+    if (remainingMs > len * 1000 + 300 || remainingMs < 0) return;
+    final cur = _queue.current;
+    if (cur == null || cur.id != _loadedEntryId) return;
+    final next = _queue.peekNext();
+    final path = next?.song.filePath;
+    if (next == null ||
+        next.id == cur.id ||
+        next.song.isUrl ||
+        path == null ||
+        !_fileExists(path)) {
+      return;
+    }
+    _crossfading = true;
+    _preloadedEntryId = next.id;
+    // Not through the command queue: it would hold up pause / next for the whole
+    // fade. The backend ends the fade by itself when a new song is loaded.
+    unawaited(() async {
+      var ok = false;
+      try {
+        ok = await _backend.crossfadeTo(path, Duration(seconds: len));
+      } catch (_) {
+        ok = false;
+      }
+      if (!ok && !_disposed) {
+        _crossfading = false;
+        _preloadedEntryId = null;
+      }
+    }());
+  }
+
   void _onPosition(Duration d) {
+    _maybeCrossfade(d);
     final s = d.inSeconds;
     if (s != _positionSeconds && _loadedEntryId != null) {
       _positionSeconds = s;
@@ -414,6 +469,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
           _loadedEntryId = current.id;
           if (_replayGain != ReplayGainMode.off) await _backend.setVolume(_effectiveVolume());
           // Loading cleared whatever was lined up behind the old track.
+          _crossfading = false;
           _readFormat(current);
           _preloadedEntryId = null;
           _preloadKey = null;

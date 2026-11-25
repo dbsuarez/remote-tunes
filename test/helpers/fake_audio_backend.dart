@@ -142,6 +142,24 @@ class FakeAudioBackend implements AudioBackend {
   @override
   Future<void> setSpeed(double s) async => speed = s;
 
+  /// Whether this fake can crossfade, and what it was asked to fade into.
+  bool canCrossfade = false;
+  final List<({String path, Duration length})> crossfades = [];
+
+  @override
+  bool get supportsCrossfade => canCrossfade;
+
+  @override
+  Future<bool> crossfadeTo(String filePath, Duration length) async {
+    if (!canCrossfade) return false;
+    crossfades.add((path: filePath, length: length));
+    currentPath = filePath;
+    position = Duration.zero;
+    nextPath = null;
+    _advanced.add(filePath);
+    return true;
+  }
+
   /// The equalizer the fake phone has (null: none).
   EqBands? eqBands = const EqBands(
       minDb: -12, maxDb: 12, centersHz: [60, 230, 910, 3600, 14000]);

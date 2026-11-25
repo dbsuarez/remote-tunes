@@ -64,6 +64,14 @@ abstract class AudioBackend {
   /// 0.5–2.0 (1.0 = normal).
   Future<void> setSpeed(double speed);
 
+  /// True when [crossfadeTo] works (two players are available).
+  bool get supportsCrossfade;
+
+  /// Starts [filePath] on a second player and fades into it over [length].
+  /// Completes when the change is done (the new song is then the one playing and
+  /// [advancedStream] has fired), or with false if it could not be done.
+  Future<bool> crossfadeTo(String filePath, Duration length);
+
   /// The bands of the phone's equalizer, or null when it has none (or has not
   /// been set up yet: Android does that when the first song is loaded).
   Future<EqBands?> equalizerBands();
@@ -84,6 +92,12 @@ class JustAudioBackend implements AudioBackend {
 
   final AndroidEqualizer? _eq;
   final AudioPlayer _player;
+
+  @override
+  bool get supportsCrossfade => false;
+
+  @override
+  Future<bool> crossfadeTo(String filePath, Duration length) async => false;
 
   @override
   Future<EqBands?> equalizerBands() async {
