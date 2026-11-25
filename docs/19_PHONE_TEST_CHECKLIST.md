@@ -174,6 +174,9 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Menu:** the button at the top left opens a menu. Lyrics shows the lyrics on Now Playing, Playlists opens the playlist list, What's new lists the release notes, Help explains the basics. A swipe in from the left edge still opens the Library (not the menu).
 - [ ] **Search Select:** in a search, Select (or a long-press on a song) lets you pick several and add them to the queue or a playlist.
 - [ ] **Composers and Folder tree:** Update tags from files, then Library > Composers lists them. Library > Folder tree starts at the top of your music folders; tap folders to go in, the up arrow to come back (the folder you left is tinted); songs in a folder play from the one you tap.
+- [ ] **Skins:** Menu > Skins lists 7 looks; tapping one changes the colors straight away and it is remembered. Add (+) accepts pasted JSON (copy one with the copy button to see the format), explains mistakes, and an added skin can be removed.
+- [ ] **Queue scroll:** opening the Queue tab goes to the song playing; Settings > *Queue opens at the song playing* off keeps the list where it was.
+- [ ] **Up next sheet:** slide it up, then tap the player above it: it slides back down.
 
 ---
 

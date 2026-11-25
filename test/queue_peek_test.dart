@@ -268,6 +268,19 @@ void main() {
       expect(cardBottom, lessThan(sheetTop), reason: 'the sheet does not cover it');
     });
 
+    testWidgets('a tap on the player outside the raised sheet slides it back down',
+        (tester) async {
+      final client = _Client([item(1, 'Song One'), item(2, 'Song Two'), item(3, 'Song Three')]);
+      await screen(tester, client, connected(3));
+      final restTop = tester.getTopLeft(find.text('Up next')).dy;
+      await tester.dragFrom(Offset(180, restTop - 15), const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('Up next')).dy, lessThan(restTop - 100));
+      await tester.tapAt(const Offset(180, 150));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('Up next')).dy, closeTo(restTop, 2));
+    });
+
     testWidgets('with nothing queued there is no sheet, and no gap is left', (tester) async {
       final client = _Client([]);
       await screen(tester, client, connected(0));

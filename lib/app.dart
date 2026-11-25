@@ -11,6 +11,7 @@ import 'features/update/update_controller.dart';
 import 'providers/connection_providers.dart';
 import 'core/song_list_style.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/skin.dart';
 import 'providers/providers.dart';
 
 class RemoteTunesApp extends ConsumerStatefulWidget {
@@ -78,11 +79,13 @@ class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> with WidgetsBin
       if (identical(next, ref.read(searchHistoryProvider.notifier).fromStorage)) return;
       ref.read(settingsRepositoryProvider).setSearchHistory(next).catchError((Object _) {});
     });
+    final skinTheme =
+        AppTheme.dark(skin: ref.watch(settingsProvider).valueOrNull?.skin ?? Skin.remoteTunes);
     return MaterialApp.router(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      darkTheme: AppTheme.dark(),
+      theme: skinTheme,
+      darkTheme: skinTheme,
       themeMode: ThemeMode.dark,
       routerConfig: _router,
     );

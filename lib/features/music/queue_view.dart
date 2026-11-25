@@ -17,7 +17,14 @@ class QueueView extends StatefulWidget {
     required this.shuffle,
     required this.repeat,
     this.enabled = true,
+    this.scrollToCurrent = false,
+    this.scrollToken = 0,
   });
+
+  /// When [scrollToken] changes (the Queue was opened), scroll to the song
+  /// playing, if this is on.
+  final bool scrollToCurrent;
+  final int scrollToken;
 
   final MusicSource source;
 
@@ -35,6 +42,11 @@ class QueueView extends StatefulWidget {
 }
 
 class _QueueViewState extends State<QueueView> {
+  /// Every row is this tall, so the song playing can be found without measuring.
+  static const _rowHeight = 72.0;
+
+  final ScrollController _scroll = ScrollController();
+  bool _scrollPending = false;
   List<RemoteQueueItem> _items = const [];
   bool _loaded = false;
   Object? _error;
@@ -46,8 +58,26 @@ class _QueueViewState extends State<QueueView> {
 
   @override
   void dispose() {
+    _scroll.dispose();
     _search.dispose();
     super.dispose();
+  }
+
+  /// Scrolls so the song playing is in the middle (once the list is there).
+  void _scrollToCurrent({int attempts = 6}) {
+    if (!mounted) return;
+    final index = widget.currentIndex;
+    if (index < 0 || index >= _items.length || _query.trim().isNotEmpty) return;
+    if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
+      if (attempts > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent(attempts: attempts - 1));
+      }
+      return;
+    }
+    final view = _scroll.position.viewportDimension;
+    final target = (index * _rowHeight - view / 2 + _rowHeight / 2)
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    _scroll.animateTo(target, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
   }
 
   bool _matches(RemoteQueueItem item) {
@@ -62,6 +92,7 @@ class _QueueViewState extends State<QueueView> {
   @override
   void initState() {
     super.initState();
+    _scrollPending = widget.scrollToCurrent && widget.scrollToken > 0;
     _load();
   }
 
@@ -70,6 +101,10 @@ class _QueueViewState extends State<QueueView> {
     super.didUpdateWidget(old);
     if (old.revision != widget.revision || (!old.enabled && widget.enabled)) {
       _load();
+    }
+    if (widget.scrollToCurrent && old.scrollToken != widget.scrollToken) {
+      // The Queue was opened: go to the song playing (after the list is drawn).
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
     }
   }
 
@@ -82,6 +117,10 @@ class _QueueViewState extends State<QueueView> {
         _loaded = true;
         _error = null;
       });
+      if (_scrollPending) {
+        _scrollPending = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -347,6 +386,8 @@ class _QueueViewState extends State<QueueView> {
     }
 
     return ReorderableListView.builder(
+      scrollController: _scroll,
+      itemExtent: _rowHeight,
       buildDefaultDragHandles: false,
       itemCount: _items.length,
       onReorder: _onReorder,

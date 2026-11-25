@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'skin.dart';
+
 /// RemoteTunes visual identity: dark charcoal + electric teal, with violet
 /// reserved for Online mode. Deliberately NOT Spotify green (#1DB954).
 /// See docs/15_UX_DESIGN_GUARDRAILS.md.
@@ -23,42 +25,51 @@ class RtColors {
 class AppTheme {
   AppTheme._();
 
-  static ThemeData dark() {
+  /// The dark theme in the colors of [skin] (the RemoteTunes look by default).
+  static ThemeData dark({Skin skin = Skin.remoteTunes}) {
+    final onPrimary = skin.primary.computeLuminance() > 0.4 ? const Color(0xFF101010) : Colors.white;
     final scheme = ColorScheme.fromSeed(
-      seedColor: RtColors.teal,
+      seedColor: skin.primary,
       brightness: Brightness.dark,
     ).copyWith(
-      primary: RtColors.teal,
-      onPrimary: const Color(0xFF00201C),
-      secondary: RtColors.violet,
-      onSecondary: const Color(0xFF1B1240),
-      surface: RtColors.surface,
-      surfaceContainerHighest: RtColors.surfaceHigh,
-      outline: RtColors.outline,
+      primary: skin.primary,
+      onPrimary: onPrimary,
+      secondary: skin.secondary,
+      onSecondary: skin.secondary.computeLuminance() > 0.4 ? const Color(0xFF101010) : Colors.white,
+      surface: skin.surface,
+      surfaceContainerHighest: skin.surfaceHigh,
+      surfaceContainerHigh: skin.surfaceHigh,
+      outline: skin.outline,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
-      scaffoldBackgroundColor: RtColors.background,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: RtColors.background,
+      scaffoldBackgroundColor: skin.background,
+      appBarTheme: AppBarTheme(
+        backgroundColor: skin.background,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: skin.surface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: skin.primary.withValues(alpha: 0.22),
+      ),
+      drawerTheme: DrawerThemeData(backgroundColor: skin.surface),
       cardTheme: CardThemeData(
-        color: RtColors.surface,
+        color: skin.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: RtColors.outline, width: 1),
+          borderRadius: BorderRadius.circular(skin.cardRadius),
+          side: BorderSide(color: skin.outline, width: 1),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: RtColors.surfaceHigh,
+        fillColor: skin.surfaceHigh,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

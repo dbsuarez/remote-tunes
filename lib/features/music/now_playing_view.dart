@@ -63,8 +63,26 @@ class NowPlayingViewState extends State<NowPlayingView> {
     if (!_sheet.isAttached) return;
     final mid = QueuePeekSheet.midSize;
     final target = _sheet.size < mid - 0.03 ? mid : QueuePeekSheet.fullSize;
-    _sheet.animateTo(target,
-        duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    _sheet.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  /// A tap or click outside the queue sheet (on the player behind it) slides it
+  /// back down.
+  void _lowerQueue(Offset local, double height) {
+    if (!_sheet.isAttached) return;
+    // Only a tap above the sheet counts, not one on the sheet itself.
+    if (local.dy >= height * (1 - _sheet.size)) return;
+    final rest = _sheet.pixelsToSize(QueuePeekSheet.handleHeight);
+    if (_sheet.size <= rest + 0.02) return;
+    _sheet.animateTo(
+      rest,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   /// Runs a command; a refusal is shown as a plain message.
@@ -110,20 +128,30 @@ class NowPlayingViewState extends State<NowPlayingView> {
         HapticButton(
           kind: HapticKind.selection,
           tooltip: p.shuffleEnabled ? 'Shuffle is on' : 'Shuffle is off',
-          onPressed: enabled ? () => _run(() => session.setShuffle(!p.shuffleEnabled)) : null,
-          icon: Icon(Icons.shuffle_rounded, color: p.shuffleEnabled ? primary : null),
+          onPressed: enabled
+              ? () => _run(() => session.setShuffle(!p.shuffleEnabled))
+              : null,
+          icon: Icon(
+            Icons.shuffle_rounded,
+            color: p.shuffleEnabled ? primary : null,
+          ),
         ),
         HapticButton(
           kind: HapticKind.selection,
           tooltip: 'Repeat: ${p.repeatMode.label}',
           onPressed: enabled
-              ? () => _run(() => session.setRepeat(switch (p.repeatMode) {
+              ? () => _run(
+                  () => session.setRepeat(switch (p.repeatMode) {
                     RepeatMode.off => RepeatMode.queue,
                     RepeatMode.queue => RepeatMode.one,
                     RepeatMode.one => RepeatMode.off,
-                  }))
+                  }),
+                )
               : null,
-          icon: Icon(repeatIcon, color: p.repeatMode == RepeatMode.off ? null : primary),
+          icon: Icon(
+            repeatIcon,
+            color: p.repeatMode == RepeatMode.off ? null : primary,
+          ),
         ),
         SpeedButton(
           speed: p.speed,
@@ -151,107 +179,120 @@ class NowPlayingViewState extends State<NowPlayingView> {
     final p = session.state;
 
     // The queue peek rests along the bottom; the page scrolls clear of it.
-    return LayoutBuilder(builder: (context, box) {
-      final peekSpace = p.isExternal ? 0.0 : QueuePeekSheet.handleHeight + 12;
-      // The cover is as wide as the page allows, but not taller than about half
-      // the screen so the controls stay in reach on a small phone.
-      final heroSize = [box.maxWidth - 64, box.maxHeight * 0.42, 340.0]
-          .reduce((a, b) => a < b ? a : b)
-          .clamp(120.0, 340.0);
-      return EdgeSwipe(
-        enabled: enabled,
-        onFromLeft: widget.onOpenLibrary,
-        onFromRight: p.isExternal ? null : _raiseQueue,
-        child: Stack(
-          children: [
-            ListView(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
+    return LayoutBuilder(
+      builder: (context, box) {
+        final peekSpace = p.isExternal ? 0.0 : QueuePeekSheet.handleHeight + 12;
+        // The cover is as wide as the page allows, but not taller than about half
+        // the screen so the controls stay in reach on a small phone.
+        final heroSize = [
+          box.maxWidth - 64,
+          box.maxHeight * 0.42,
+          340.0,
+        ].reduce((a, b) => a < b ? a : b).clamp(120.0, 340.0);
+        return EdgeSwipe(
+          enabled: enabled,
+          onFromLeft: widget.onOpenLibrary,
+          onFromRight: p.isExternal ? null : _raiseQueue,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (e) => _lowerQueue(e.localPosition, box.maxHeight),
+            child: Stack(
               children: [
-                if (widget.header != null) ...[
-                  widget.header!,
-                  const SizedBox(height: 12),
-                ],
-                if (p.isExternal)
-                  NowPlayingCard(
-                    state: p,
-                    enabled: enabled,
-                    onSeek: (s) => _run(() => session.seek(s)),
-                    art: session.art(null, size: 64),
-                  )
-                else
-                  NowPlayingCard(
-                    hero: true,
-                    state: p,
-                    enabled: enabled,
-                    onSeek: (s) => _run(() => session.seek(s)),
-                    // The cover, with the lyrics button in its corner.
-                    art: CoverWithLyrics(
-                      cover: session.art((p.songId ?? 0) <= 0 ? null : p.songId,
-                          size: heroSize, radius: 20),
-                      size: heroSize,
-                      radius: 20,
-                      openRequests: widget.lyricsRequests,
-                      songId: p.songId,
-                      title: p.title,
-                      artist: p.artist,
-                      positionSeconds: p.positionSeconds,
+                ListView(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
+                  children: [
+                    if (widget.header != null) ...[
+                      widget.header!,
+                      const SizedBox(height: 12),
+                    ],
+                    if (p.isExternal)
+                      NowPlayingCard(
+                        state: p,
+                        enabled: enabled,
+                        onSeek: (s) => _run(() => session.seek(s)),
+                        art: session.art(null, size: 64),
+                      )
+                    else
+                      NowPlayingCard(
+                        hero: true,
+                        state: p,
+                        enabled: enabled,
+                        onSeek: (s) => _run(() => session.seek(s)),
+                        // The cover, with the lyrics button in its corner.
+                        art: CoverWithLyrics(
+                          cover: session.art(
+                            (p.songId ?? 0) <= 0 ? null : p.songId,
+                            size: heroSize,
+                            radius: 20,
+                          ),
+                          size: heroSize,
+                          radius: 20,
+                          openRequests: widget.lyricsRequests,
+                          songId: p.songId,
+                          title: p.title,
+                          artist: p.artist,
+                          positionSeconds: p.positionSeconds,
+                          isPlaying: p.isPlaying,
+                          enabled: enabled,
+                          fetch: session.lyrics,
+                          onSeek: (s) => _run(() => session.seek(s)),
+                        ),
+                        actions: _quickActions(p, enabled),
+                      ),
+                    const SizedBox(height: 8),
+                    TransportControls(
+                      canSkip: p.canSkip,
                       isPlaying: p.isPlaying,
                       enabled: enabled,
-                      fetch: session.lyrics,
-                      onSeek: (s) => _run(() => session.seek(s)),
+                      onPrevious: () => _run(session.previous),
+                      onToggle: () => _run(session.toggle),
+                      onNext: () => _run(session.next),
+                      onSeekBack: p.isExternal || p.durationSeconds <= 0
+                          ? null
+                          : () => _jump(p, -10),
+                      onSeekForward: p.isExternal || p.durationSeconds <= 0
+                          ? null
+                          : () => _jump(p, 10),
                     ),
-                    actions: _quickActions(p, enabled),
-                  ),
-                const SizedBox(height: 8),
-                TransportControls(
-                  canSkip: p.canSkip,
-                  isPlaying: p.isPlaying,
-                  enabled: enabled,
-                  onPrevious: () => _run(session.previous),
-                  onToggle: () => _run(session.toggle),
-                  onNext: () => _run(session.next),
-                  onSeekBack:
-                      p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, -10),
-                  onSeekForward:
-                      p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, 10),
+                    const SizedBox(height: 8),
+                    // The volume is a button in the row of quick actions (with a small
+                    // vertical slider); when another music app is controlled there is
+                    // no such row, so it keeps the slider.
+                    if (p.isExternal)
+                      VolumeSlider(
+                        volume: p.volume,
+                        enabled: enabled,
+                        onChanged: (v) => _run(() => session.setVolume(v)),
+                      ),
+                    // Speed and the sleep timer are in the row of quick actions under
+                    // the title; when another music app is controlled they keep their
+                    // card.
+                    if (p.isExternal) ...[
+                      const SizedBox(height: 8),
+                      SleepTimerControl(
+                        secondsLeft: p.sleepTimerSeconds,
+                        enabled: enabled,
+                        onSet: (m) => _run(() => session.setSleepTimer(m)),
+                      ),
+                    ],
+                    if (widget.extras != null && !p.isExternal) widget.extras!,
+                  ],
                 ),
-                const SizedBox(height: 8),
-                // The volume is a button in the row of quick actions (with a small
-                // vertical slider); when another music app is controlled there is
-                // no such row, so it keeps the slider.
-                if (p.isExternal)
-                  VolumeSlider(
-                    volume: p.volume,
-                    enabled: enabled,
-                    onChanged: (v) => _run(() => session.setVolume(v)),
+                if (!p.isExternal)
+                  Positioned.fill(
+                    child: QueuePeekSheet(
+                      controller: _sheet,
+                      source: session.source,
+                      revision: p.queueRevision,
+                      currentIndex: p.queueIndex,
+                      enabled: enabled,
+                    ),
                   ),
-                // Speed and the sleep timer are in the row of quick actions under
-                // the title; when another music app is controlled they keep their
-                // card.
-                if (p.isExternal) ...[
-                  const SizedBox(height: 8),
-                  SleepTimerControl(
-                    secondsLeft: p.sleepTimerSeconds,
-                    enabled: enabled,
-                    onSet: (m) => _run(() => session.setSleepTimer(m)),
-                  ),
-                ],
-                if (widget.extras != null && !p.isExternal) widget.extras!,
               ],
             ),
-            if (!p.isExternal)
-              Positioned.fill(
-                child: QueuePeekSheet(
-                  controller: _sheet,
-                  source: session.source,
-                  revision: p.queueRevision,
-                  currentIndex: p.queueIndex,
-                  enabled: enabled,
-                ),
-              ),
-          ],
-        ),
-      );
-    });
+          ),
+        );
+      },
+    );
   }
 }

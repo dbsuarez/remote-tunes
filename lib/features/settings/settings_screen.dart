@@ -193,7 +193,24 @@ class SettingsScreen extends ConsumerWidget {
                 onChanged: repo.setRemoteAutoStart,
               ),
               const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Queue opens at the song playing'),
+                subtitle: const Text(
+                    'Going to the Queue scrolls to the song that is playing now. Switch off to keep the list where you left it.'),
+                value: s.queueScrollToCurrent,
+                onChanged: repo.setQueueScrollToCurrent,
+              ),
+              const SizedBox(height: 8),
               const _SectionHeader('Look and feel'),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.palette_outlined),
+                title: const Text('Skins'),
+                subtitle: Text('Now: ${s.skin.name}'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.push(AppRoutes.skins),
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Haptic feedback'),

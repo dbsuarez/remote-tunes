@@ -49,6 +49,10 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int _tab = 0;
 
+  /// Changes every time the Queue tab is opened (so it can scroll to the song
+  /// playing).
+  int _queueToken = 0;
+
   /// Asks Now Playing to show the lyrics (the menu's Lyrics shortcut).
   final ValueNotifier<int> _lyricsRequests = ValueNotifier(0);
 
@@ -174,12 +178,16 @@ class _AppShellState extends ConsumerState<AppShell> {
           _libraryNonce++;
         }),
         onSearch: () => setState(() => _tab = 2),
-        onQueue: () => setState(() => _tab = 3),
+        onQueue: () => setState(() {
+          _tab = 3;
+          _queueToken++;
+        }),
         onEqualizer: () => context.push(AppRoutes.equalizer),
         onRemotePlayback: () => context.push(AppRoutes.remotePlayback),
         onSettings: () => context.push(AppRoutes.settings),
         onChangelog: () => context.push(AppRoutes.changelog),
         onHelp: () => context.push(AppRoutes.help),
+        onSkins: () => context.push(AppRoutes.skins),
       ),
       appBar: AppBar(
         titleSpacing: 12,
@@ -243,6 +251,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                           shuffle: active.playback.shuffleEnabled,
                           repeat: active.playback.repeatMode,
                           enabled: active.enabled,
+                          scrollToCurrent:
+                              ref.watch(settingsProvider).valueOrNull?.queueScrollToCurrent ?? true,
+                          scrollToken: _queueToken,
                         ),
                       ],
                     ),
@@ -255,7 +266,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         selectedIndex: _tab,
         onDestinationSelected: (i) {
           Haptics.selection();
-          setState(() => _tab = i);
+          setState(() {
+            _tab = i;
+            if (i == 3) _queueToken++;
+          });
         },
         destinations: const [
           NavigationDestination(

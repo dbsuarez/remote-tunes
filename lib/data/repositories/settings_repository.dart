@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../core/theme/skin.dart';
 import 'package:drift/drift.dart';
 
 import '../../core/constants.dart';
@@ -31,9 +32,32 @@ class SettingKeys {
   static const startMode = 'start_mode';
   static const replayGainMode = 'replay_gain_mode';
   static const crossfadeSeconds = 'crossfade_seconds';
+  static const skinId = 'skin_id';
+  static const queueScrollToCurrent = 'queue_scroll_to_current';
+  static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
   static const searchHistory = 'search_history';
   static const lastUpdateCheck = 'last_update_check';
+}
+
+List<Skin> _decodeSkins(String? raw) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final v = jsonDecode(raw);
+    if (v is! List) return const [];
+    final out = <Skin>[];
+    for (final e in v) {
+      if (e is! String) continue;
+      try {
+        out.add(Skin.parse(e));
+      } on SkinException {
+        // A damaged one is skipped.
+      }
+    }
+    return out;
+  } catch (_) {
+    return const [];
+  }
 }
 
 List<String> _decodeList(String? raw) {
@@ -68,6 +92,9 @@ class AppSettings {
     this.startMode = StartMode.thisPhone,
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
+    this.skinId = Skin.defaultId,
+    this.queueScrollToCurrent = true,
+    this.customSkins = const [],
     this.remoteAutoStart = false,
     this.searchHistory = const [],
     this.lastUpdateCheck = 0,
@@ -114,6 +141,19 @@ class AppSettings {
   /// Seconds one song fades into the next (0: off, up to 12).
   final int crossfadeSeconds;
 
+  /// The skin in use (a built-in one or one that was added).
+  final String skinId;
+
+  /// Going to the Queue scrolls to the song that is playing (on unless switched
+  /// off).
+  final bool queueScrollToCurrent;
+
+  /// Skins added by pasting their JSON.
+  final List<Skin> customSkins;
+
+  /// The look to draw the app with.
+  Skin get skin => Skin.byId(skinId, customSkins);
+
   /// Start remote playback (let other phones control this one) when the app
   /// opens.
   final bool remoteAutoStart;
@@ -155,6 +195,9 @@ class AppSettings {
       startMode: StartModeX.parse(m[SettingKeys.startMode]),
       replayGainMode: ReplayGainModeX.parse(m[SettingKeys.replayGainMode]),
       crossfadeSeconds: (int.tryParse(m[SettingKeys.crossfadeSeconds] ?? '') ?? 0).clamp(0, 12),
+      skinId: m[SettingKeys.skinId] ?? Skin.defaultId,
+      queueScrollToCurrent: m[SettingKeys.queueScrollToCurrent] != 'false',
+      customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
       searchHistory: _decodeList(m[SettingKeys.searchHistory]),
       lastUpdateCheck: int.tryParse(m[SettingKeys.lastUpdateCheck] ?? '') ?? 0,
@@ -254,6 +297,14 @@ class SettingsRepository {
 
   Future<void> setSearchHistory(List<String> items) =>
       _put(SettingKeys.searchHistory, jsonEncode(items));
+
+  Future<void> setQueueScrollToCurrent(bool v) =>
+      _put(SettingKeys.queueScrollToCurrent, v.toString());
+
+  Future<void> setSkinId(String id) => _put(SettingKeys.skinId, id);
+
+  Future<void> setCustomSkins(List<Skin> skins) => _put(
+      SettingKeys.customSkins, jsonEncode([for (final s in skins) s.toJson()]));
 
   Future<void> setCrossfadeSeconds(int v) =>
       _put(SettingKeys.crossfadeSeconds, v.clamp(0, 12).toString());
