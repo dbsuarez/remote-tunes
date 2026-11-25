@@ -1,3 +1,4 @@
+import '../music/group_info_dialog.dart';
 import '../../core/widgets/haptic_button.dart';
 import 'dart:async';
 
@@ -548,6 +549,7 @@ class _LibraryTab extends ConsumerWidget {
             }
           : null,
       canWriteTags: local,
+      onEditSongs: local ? (context, ids) => editSelectedSongs(context, ref, ids) : null,
       onEditSong: local
           ? (song, e) async {
               final library = ref.read(libraryRepositoryProvider);

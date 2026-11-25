@@ -202,6 +202,58 @@ class LibraryRepository {
     return rows > 0;
   }
 
+  /// Changes the fields songs can share on every song of [ids]: the keys of [changes] are
+  /// `artist`, `album`, `albumArtist`, `genre`, `year` (an int) and `composer`; a null value
+  /// clears the field (an artist or album then reads "Unknown ..."). Title and track number are
+  /// not here on purpose. Returns how many songs were changed.
+  Future<int> updateGroupInfo(List<int> ids, Map<String, Object?> changes) async {
+    if (ids.isEmpty || changes.isEmpty) return 0;
+    String clip(String s) {
+      final t = s.trim();
+      return t.length > maxTagLength ? t.substring(0, maxTagLength) : t;
+    }
+
+    final sets = <String>[];
+    final vars = <Variable<Object>>[];
+    void put(String column, Object? v, {String? whenEmpty}) {
+      sets.add('$column = ?');
+      if (v is int) {
+        vars.add(Variable<int>(v));
+      } else if (v is String && clip(v).isNotEmpty) {
+        vars.add(Variable<String>(clip(v)));
+      } else if (whenEmpty != null) {
+        vars.add(Variable<String>(whenEmpty));
+      } else {
+        vars.add(const Variable<String>(null));
+      }
+    }
+
+    for (final e in changes.entries) {
+      switch (e.key) {
+        case 'artist':
+          put('artist', e.value, whenEmpty: 'Unknown artist');
+        case 'album':
+          put('album', e.value, whenEmpty: 'Unknown album');
+        case 'albumArtist':
+          put('album_artist', e.value);
+        case 'genre':
+          put('genre', e.value);
+        case 'composer':
+          put('composer', e.value);
+        case 'year':
+          final y = e.value;
+          put('year', y is int && y > 0 && y < 10000 ? y : null);
+      }
+    }
+    if (sets.isEmpty) return 0;
+    // The ids are integers we read from the database, so they are safe to write in.
+    return _db.customUpdate(
+      'UPDATE songs SET ${sets.join(', ')}, info_edited = 1 WHERE id IN (${ids.join(',')})',
+      variables: vars,
+      updates: {_db.songs},
+    );
+  }
+
   /// Remembers that [songId] just started playing.
   /// Remembers that [songId] was skipped.
   Future<void> markSkipped(int songId) => _db.customUpdate(

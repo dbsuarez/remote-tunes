@@ -102,6 +102,7 @@ class MusicBrowser extends StatefulWidget {
     this.onRemoveSong,
     this.onEditSong,
     this.canWriteTags = false,
+    this.onEditSongs,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
     this.homeList = false,
@@ -147,6 +148,10 @@ class MusicBrowser extends StatefulWidget {
 
   /// Offer to write the tags into the music file too (this phone's own library).
   final bool canWriteTags;
+
+  /// Edit info for the songs picked with Select (null: not offered, e.g. for another phone's
+  /// library). Returns true if anything changed.
+  final Future<bool> Function(BuildContext context, List<int> ids)? onEditSongs;
   final String emptyMessage;
 
   @override
@@ -518,6 +523,22 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 }
               },
             ),
+            // Edit info for all the picked songs (only what they can share).
+            if (widget.onEditSongs != null)
+              IconButton(
+                tooltip: 'Edit info of the selected songs',
+                icon: const Icon(Icons.edit_note_rounded),
+                onPressed: () async {
+                  final ids = _selected.toList();
+                  final done = await widget.onEditSongs!(context, ids);
+                  if (done && mounted) {
+                    setState(() {
+                      _selected.clear();
+                      _generation++;
+                    });
+                  }
+                },
+              ),
             // Inside a playlist: take the picked songs out of it (the songs stay in
             // the library).
             if (drill?.playlistId != null)
