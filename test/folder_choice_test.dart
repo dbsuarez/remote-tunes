@@ -94,6 +94,50 @@ void main() {
     expect(answer, isNull);
   });
 
+  testWidgets('the songs of a folder can be shown and single ones unticked', (tester) async {
+    await open(tester);
+    await tester.tap(find.byTooltip('Show the 2 songs in this folder').first); // Podcasts
+    await tester.pump();
+    expect(find.text('t1.mp3'), findsOneWidget);
+    await tester.tap(find.text('t1.mp3'));
+    await tester.pump();
+    expect(find.text('Add 4 songs'), findsOneWidget);
+    expect(find.text('1 song left out'), findsOneWidget);
+    await tester.tap(find.text('Add 4 songs'));
+    await tester.pumpAndSettle();
+    expect(answer!.excluded, {'/m/Podcasts/t1.mp3'});
+  });
+
+  testWidgets('the own songs of the top folder can be unticked too', (tester) async {
+    await open(tester);
+    await tester.tap(find.byTooltip('Show the 1 song in this folder').first);
+    await tester.pump();
+    await tester.tap(find.text('top.mp3'));
+    await tester.pump();
+    await tester.tap(find.text('Add 4 songs'));
+    await tester.pumpAndSettle();
+    expect(answer!.excluded, {'/m/top.mp3'});
+  });
+
+  testWidgets('a song inside a left-out folder is not listed twice: the folder covers it',
+      (tester) async {
+    await open(tester);
+    await tester.tap(find.byTooltip('Show the 2 songs in this folder').first); // Podcasts
+    await tester.pump();
+    await tester.tap(find.text('t1.mp3')); // single one first
+    await tester.pump();
+    await tester.tap(find.text('Podcasts')); // then the whole folder
+    await tester.pump();
+    await tester.tap(find.text('Add 3 songs'));
+    await tester.pumpAndSettle();
+    expect(answer!.excluded, {'/m/Podcasts'});
+  });
+
+  testWidgets('songs left out before start unticked', (tester) async {
+    await open(tester, stored: {'/m/Rock/a.mp3'});
+    expect(find.text('Add 4 songs'), findsOneWidget);
+  });
+
   testWidgets('the report shows each count, and the problems', (tester) async {
     final r = ImportResult()
       ..found = 20

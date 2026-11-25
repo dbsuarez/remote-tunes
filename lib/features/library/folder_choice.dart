@@ -9,7 +9,8 @@ import 'import_service.dart';
 class FolderChoice {
   const FolderChoice({required this.excluded, required this.removeExisting});
 
-  /// Folders left out (a folder's own subfolders are left out with it).
+  /// Folders left out (a folder's own subfolders are left out with it) and single
+  /// songs left out of folders that stay.
   final Set<String> excluded;
 
   /// Also take out songs of those folders that are already in the library.
@@ -57,6 +58,15 @@ class FolderChoiceDialog extends StatefulWidget {
 class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
   /// Always closed downwards: a folder that is out has everything below it out.
   late final Set<String> _out;
+
+  /// Single songs unticked (inside folders that are still in).
+  late final Set<String> _outFiles;
+
+  /// Folders whose songs are listed.
+  final Set<String> _open = {};
+
+  /// A folder's own songs (not those of the folders inside it).
+  late final Map<String, List<String>> _filesIn;
   bool _removeExisting = false;
 
   @override
@@ -66,6 +76,14 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
       for (final f in widget.scan.folders)
         if (widget.alreadyExcluded.any((e) => f.path == e || p.isWithin(e, f.path))) f.path,
     };
+    _outFiles = {
+      for (final f in widget.scan.files)
+        if (widget.alreadyExcluded.contains(f)) f,
+    };
+    _filesIn = {};
+    for (final f in widget.scan.files) {
+      _filesIn.putIfAbsent(p.dirname(f), () => []).add(f);
+    }
   }
 
   bool _isOut(String path) => _out.contains(path);
@@ -84,7 +102,11 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
     });
   }
 
-  bool _fileOut(String file) => _out.any((o) => p.isWithin(o, file));
+  bool _fileOut(String file) => _outFiles.contains(file) || _out.any((o) => p.isWithin(o, file));
+
+  void _toggleFile(String file) => setState(() {
+        if (!_outFiles.remove(file)) _outFiles.add(file);
+      });
 
   int get _willAdd => widget.scan.files.where((f) => !_fileOut(f)).length;
 
@@ -93,7 +115,38 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
   Set<String> get _minimalOut => {
         for (final o in _out)
           if (!_out.contains(p.dirname(o))) o,
+        // Single songs, unless their folder is out anyway.
+        for (final f in _outFiles)
+          if (!_out.any((o) => p.isWithin(o, f))) f,
       };
+
+  /// Rows of songs under a folder (or the top folder when [dir] is the root).
+  List<Widget> _songRows(String dir, int depth, {required bool folderOut}) {
+    final files = [...?_filesIn[dir]]..sort();
+    return [
+      for (final f in files)
+        CheckboxListTile(
+          key: ValueKey(f),
+          dense: true,
+          contentPadding: EdgeInsets.only(left: 4.0 + 16.0 * depth),
+          controlAffinity: ListTileControlAffinity.leading,
+          // A song in a folder that is out is ticked by ticking the folder.
+          value: !_fileOut(f),
+          onChanged: folderOut ? null : (_) => _toggleFile(f),
+          secondary: const Icon(Icons.music_note_rounded, size: 18),
+          title: Text(p.basename(f), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+    ];
+  }
+
+  Widget _expander(String dir, int count) {
+    final open = _open.contains(dir);
+    return IconButton(
+      tooltip: open ? 'Hide the songs' : 'Show the $count song${count == 1 ? '' : 's'} in this folder',
+      icon: Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded),
+      onPressed: () => setState(() => open ? _open.remove(dir) : _open.add(dir)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,8 +161,8 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Untick the folders you do not want in the library. They are remembered, so '
-              'adding this folder again leaves them out too.',
+              'Untick the folders (or, with the arrow, single songs) you do not want in the library. '
+              'They are remembered, so adding this folder again leaves them out too.',
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
@@ -117,7 +170,20 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
               child: ListView(
                 shrinkWrap: true,
                 children: [
-                  for (final f in widget.scan.folders)
+                  // The songs directly in the chosen folder.
+                  if ((_filesIn[widget.scan.root] ?? const []).isNotEmpty) ...[
+                    ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.only(left: 16),
+                      leading: const Icon(Icons.folder_open_rounded),
+                      title: Text('${p.basename(widget.scan.root)} (its own songs)',
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: _expander(widget.scan.root, _filesIn[widget.scan.root]!.length),
+                    ),
+                    if (_open.contains(widget.scan.root))
+                      ..._songRows(widget.scan.root, 1, folderOut: false),
+                  ],
+                  for (final f in widget.scan.folders) ...[
                     CheckboxListTile(
                       key: ValueKey(f.path),
                       dense: true,
@@ -126,12 +192,22 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
                       value: !_isOut(f.path),
                       onChanged: (_) => _toggle(f),
                       title: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      secondary: Text('${f.songCount}', style: theme.textTheme.bodySmall),
+                      secondary: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('${f.songCount}', style: theme.textTheme.bodySmall),
+                          if ((_filesIn[f.path] ?? const []).isNotEmpty)
+                            _expander(f.path, _filesIn[f.path]!.length),
+                        ],
+                      ),
                     ),
+                    if (_open.contains(f.path))
+                      ..._songRows(f.path, f.depth, folderOut: _isOut(f.path)),
+                  ],
                 ],
               ),
             ),
-            if (widget.alreadyInLibrary > 0 && _out.isNotEmpty)
+            if (widget.alreadyInLibrary > 0 && (_out.isNotEmpty || _outFiles.isNotEmpty))
               CheckboxListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
@@ -154,7 +230,7 @@ class _FolderChoiceDialogState extends State<FolderChoiceDialog> {
         FilledButton(
           onPressed: () => Navigator.pop(
             context,
-            FolderChoice(excluded: _minimalOut, removeExisting: _removeExisting && _out.isNotEmpty),
+            FolderChoice(excluded: _minimalOut, removeExisting: _removeExisting && (_out.isNotEmpty || _outFiles.isNotEmpty)),
           ),
           child: Text(_willAdd == 0 ? 'Nothing to add' : 'Add $_willAdd song${_willAdd == 1 ? '' : 's'}'),
         ),

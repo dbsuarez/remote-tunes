@@ -312,6 +312,18 @@ void main() {
       expect(await service.excludedPaths(), isEmpty);
     });
 
+    test('a single song can be left out, and stays out when the folder is added again', () async {
+      await tree();
+      final one = p.join(source.path, 'Rock', 'a.mp3');
+      final r = await service.importFolder(source.path, exclude: {one});
+      expect(r.added, 4);
+      expect(r.excluded, 1);
+      final again = await service.importFolder(source.path);
+      expect(again.excluded, 1);
+      expect(again.added, 0);
+      expect(await service.excludedPaths(), {one});
+    });
+
     test('exclusions under other folders are not touched by this one', () async {
       await tree();
       final other = p.join(root.path, 'elsewhere', 'Junk');

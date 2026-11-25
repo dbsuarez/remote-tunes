@@ -73,7 +73,7 @@ Future<bool> pickAndImportFolder(BuildContext context, WidgetRef ref) async {
   final stored = await service.excludedPaths();
   Set<String>? exclude;
   var removeExisting = false;
-  if (scan.folders.isNotEmpty || stored.isNotEmpty) {
+  if (scan.folders.isNotEmpty || stored.isNotEmpty || scan.files.length > 1) {
     final existing = (await ref.read(libraryRepositoryProvider).localSongFiles())
         .where((s) => p.isWithin(folder!, s.path))
         .length;
