@@ -27,7 +27,9 @@ import '../features/online/supabase_relay.dart';
 import '../features/player/audio/audio_backend.dart';
 import '../features/player/audio/audio_format.dart';
 import '../features/player/audio/player_audio_handler.dart';
+import '../features/player/player_core.dart';
 import '../features/player/player_host.dart';
+import '../features/player/sleep_timer.dart';
 import '../features/player/queue_playback_engine.dart';
 import '../features/player/server/player_advertiser.dart';
 import '../features/player/server/player_library.dart';
@@ -37,15 +39,11 @@ import 'providers.dart';
 
 // ------------------------------------------------------------------- Player
 
-/// Starts the Player while the Player screen is open and stops it when the
-/// screen closes: the engine, the local server + mDNS advertising (unless the
-/// mode is Online only), and the online room (if the mode and settings allow).
-///
-/// Local mode never depends on Supabase: with default settings nothing online
-/// is created.
-final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
+/// What plays this phone's own music, whether or not other phones are allowed
+/// to control it: the audio engine, the library, the media notification and the
+/// sleep timer. Lives as long as the app does.
+final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   final settings = await ref.watch(settingsRepositoryProvider).load();
-  final plan = PlayerOnlinePlan.forMode(settings.connectionMode, settings);
 
   final library = RepositoryPlayerLibrary(
     ref.watch(libraryRepositoryProvider),
@@ -72,18 +70,52 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
         ? ExternalAppEngine(bridge: ref.watch(externalMediaBridgeProvider))
         : null,
   );
+  // The Android media session (notification, lock screen, headset buttons).
+  // If it can't start, the player still works without a notification.
+  final handler = await PlayerAudioService.ensureStarted();
+  // The RemoteTunes notification mirrors RemoteTunes' own player only; another
+  // app has its own notification.
+  handler?.attach(localEngine);
+  final sleep = SleepTimerService(onFire: engine.pause);
+
+  final core = PlayerCore(
+    engine: engine,
+    localEngine: localEngine,
+    library: library,
+    audioHandler: handler,
+    sleepTimer: sleep,
+  );
+  ref.onDispose(() => core.dispose());
+  return core;
+});
+
+/// Lets other phones control this one: the local server + mDNS advertising
+/// (unless the mode is Online only), and the online room (if the mode and
+/// settings allow). Runs only while something watches it (the "Start remote
+/// playback" switch keeps it watched), on top of [playerCoreProvider], so
+/// stopping it never stops the music.
+///
+/// Local mode never depends on Supabase: with default settings nothing online
+/// is created.
+final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
+  final core = await ref.watch(playerCoreProvider.future);
+  final settings = await ref.watch(settingsRepositoryProvider).load();
+  final plan = PlayerOnlinePlan.forMode(settings.connectionMode, settings);
+
+  final engine = core.engine;
   final server = PlayerServer(
     engine: engine,
     deviceName: settings.deviceName,
     port: settings.lastPlayerPort,
     store: DriftPairedControllersStore(ref.watch(databaseProvider)),
     advertiser: plan.runLocal ? BonsoirPlayerAdvertiser() : null,
-    library: library,
+    library: core.library,
     // Where group play's Auto-align click track is written.
     scratchDir: await getTemporaryDirectory(),
     enableLocal: plan.runLocal,
     // If the local port is busy but online is on, carry on online.
     continueWithoutLocal: plan.runOnline,
+    sleepTimer: core.sleepTimer,
   );
 
   // The room code is kept between runs so trusted Controllers can find this
@@ -106,13 +138,6 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     );
   }
 
-  // The Android media session (notification, lock screen, headset buttons).
-  // If it can't start, the Player still works without a notification.
-  final handler = await PlayerAudioService.ensureStarted();
-  // The RemoteTunes notification mirrors RemoteTunes' own player only; another
-  // app has its own notification.
-  handler?.attach(localEngine);
-
   SupabaseRelayFactory? relayFactory;
   OnlineRelayHost? relay;
   if (roomCode != null) {
@@ -128,13 +153,15 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     );
   }
 
+  // The engine and the media session belong to the core: stopping remote
+  // playback only stops the server and the online room.
   final host = PlayerHost(
     engine: engine,
     server: server,
-    audioHandler: handler,
     relay: relay,
     relayFactory: relayFactory,
     onlineProblem: plan.problem,
+    ownsEngine: false,
   );
   ref.onDispose(() => host.dispose());
   // While a Controller plays along (group play), this Player stays awake with
@@ -168,9 +195,10 @@ final playerServerStateProvider =
 
 final playerPlaybackProvider =
     StreamProvider.autoDispose<PlaybackState>((ref) async* {
-  final host = await ref.watch(playerHostProvider.future);
-  yield host.engine.state;
-  yield* host.engine.states;
+  // This phone's own player, with or without remote playback running.
+  final core = await ref.watch(playerCoreProvider.future);
+  yield core.engine.state;
+  yield* core.engine.states;
 });
 
 /// The link to other music apps on this phone (Android media sessions).

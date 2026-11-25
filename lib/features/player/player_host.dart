@@ -16,8 +16,13 @@ class PlayerHost {
     this.relay,
     this.relayFactory,
     this.onlineProblem,
+    this.ownsEngine = true,
   });
 
+  /// False when the engine and the media session belong to a [PlayerCore] that
+  /// outlives this host (stopping the host must not stop the music).
+
+  final bool ownsEngine;
   final PlaybackEngine engine;
   final PlayerServer server;
   final RemoteTunesAudioHandler? audioHandler;
@@ -43,10 +48,10 @@ class PlayerHost {
   }
 
   Future<void> dispose() async {
-    audioHandler?.detach();
+    if (ownsEngine) audioHandler?.detach();
     await relay?.stop();
     await relayFactory?.dispose();
     await server.stop();
-    await engine.dispose();
+    if (ownsEngine) await engine.dispose();
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../sleep_timer.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -209,8 +210,23 @@ class PlayerServer {
     Random? random,
     MonoClock? clock,
     this.scratchDir,
+    SleepTimerService? sleepTimer,
   })  : _random = random ?? Random.secure(),
-        clock = clock ?? MonoClock.instance;
+        clock = clock ?? MonoClock.instance,
+        _ownsSleepTimer = sleepTimer == null,
+        _sleep = sleepTimer ?? SleepTimerService(onFire: engine.pause) {
+    // Whoever sets or ends the timer, the connected Controller is told.
+    _sleepSub = _sleep.changes.listen((_) {
+      final s = _session;
+      final conn = s?.conn;
+      if (s != null && conn != null) _sendState(conn, s);
+    });
+  }
+
+  /// The sleep timer (shared with this phone's own screens when given).
+  final SleepTimerService _sleep;
+  final bool _ownsSleepTimer;
+  StreamSubscription<int>? _sleepSub;
 
   final PlaybackEngine engine;
   final String deviceName;
@@ -244,8 +260,6 @@ class PlayerServer {
   String? _ticket;
   Timer? _ticketTimer;
   List<TrustedController> _trusted = const [];
-  Timer? _sleepTimer;
-  DateTime? _sleepEndsAt;
 
   HttpServer? _http;
   bool _running = false;
@@ -346,7 +360,9 @@ class PlayerServer {
     _stopRequested = true;
     _staleTimer?.cancel();
     _ticketTimer?.cancel();
-    _sleepTimer?.cancel();
+    if (_ownsSleepTimer) _sleep.set(null);
+    unawaited(_sleepSub?.cancel());
+    _sleepSub = null;
     _groupTimer?.cancel();
     _groupTimer = null;
     await _endCalibration();
@@ -766,35 +782,11 @@ class PlayerServer {
   }
 
   /// Seconds left on the sleep timer (rounded up), 0 when it is off.
-  int get _sleepSecondsLeft {
-    final end = _sleepEndsAt;
-    if (end == null) return 0;
-    final ms = end.difference(DateTime.now()).inMilliseconds;
-    return ms <= 0 ? 0 : (ms / 1000).ceil();
-  }
+  int get _sleepSecondsLeft => _sleep.secondsLeft;
 
   /// Starts (or with null, cancels) the sleep timer. [d] is exposed to tests
   /// through [debugSetSleepTimer].
-  void _setSleepTimer(Duration? d) {
-    _sleepTimer?.cancel();
-    _sleepTimer = null;
-    _sleepEndsAt = d == null ? null : DateTime.now().add(d);
-    if (d != null) {
-      _sleepTimer = Timer(d, () async {
-        _sleepEndsAt = null;
-        _sleepTimer = null;
-        try {
-          await engine.pause();
-        } catch (_) {}
-        final s = _session;
-        final conn = s?.conn;
-        if (s != null && conn != null) _sendState(conn, s);
-      });
-    }
-    final s = _session;
-    final conn = s?.conn;
-    if (s != null && conn != null) _sendState(conn, s);
-  }
+  void _setSleepTimer(Duration? d) => _sleep.set(d);
 
   void debugSetSleepTimer(Duration? d) => _setSleepTimer(d);
 
