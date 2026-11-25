@@ -1021,7 +1021,32 @@ class _MusicBrowserState extends State<MusicBrowser> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                         trailing: _selectedFolders.isEmpty
-                            ? const Icon(Icons.chevron_right_rounded)
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  PopupMenuButton<String>(
+                                    tooltip: 'More for ${f.name}',
+                                    onSelected: (a) async {
+                                      List<int> ids = const [];
+                                      await _run(() async => ids = await _songIdsOfFolders([f.id]));
+                                      if (ids.isEmpty) return;
+                                      if (a == 'play') {
+                                        await _run(() async => widget.source.playSongs(ids));
+                                      } else if (a == 'queue') {
+                                        await _run(() async => widget.source.queueSongs(ids), done: 'Added to queue');
+                                      } else {
+                                        await _addIdsToPlaylist(ids);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(value: 'play', child: Text('Play')),
+                                      PopupMenuItem(value: 'queue', child: Text('Add to queue')),
+                                      PopupMenuItem(value: 'playlist', child: Text('Add to playlist')),
+                                    ],
+                                  ),
+                                  const Icon(Icons.chevron_right_rounded),
+                                ],
+                              )
                             : null,
                         onLongPress: () {
                           Haptics.medium();
@@ -1283,6 +1308,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
             else
               _DrillHeader(
                 title: drill.title,
+                compact: (widget.looks[_kindOf(drill, null)] ?? ListLook.standard).compactHeader,
                 onBack: () {
                   if (widget.initialTarget != null) {
                     Navigator.of(context).maybePop();
@@ -1471,7 +1497,11 @@ class _DrillHeader extends StatelessWidget {
     required this.onPlaylistAll,
     this.onRename,
     this.onDelete,
+    this.compact = false,
   });
+
+  /// A slimmer header: Play all is just an icon, and the spacing is tighter.
+  final bool compact;
 
   final String title;
   final VoidCallback? onRename;
@@ -1484,10 +1514,11 @@ class _DrillHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
+      padding: EdgeInsets.fromLTRB(compact ? 0 : 4, compact ? 0 : 4, compact ? 4 : 8, 0),
       child: Row(
         children: [
           IconButton(
+            visualDensity: compact ? VisualDensity.compact : null,
             tooltip: 'Back',
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: onBack,
@@ -1498,17 +1529,27 @@ class _DrillHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
           ),
-          TextButton.icon(
-            onPressed: onPlayAll,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Play all'),
-          ),
+          if (compact)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Play all',
+              icon: const Icon(Icons.play_arrow_rounded),
+              onPressed: onPlayAll,
+            )
+          else
+            TextButton.icon(
+              onPressed: onPlayAll,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Play all'),
+            ),
           IconButton(
+            visualDensity: compact ? VisualDensity.compact : null,
             tooltip: 'Add all to queue',
             icon: const Icon(Icons.queue_music_rounded),
             onPressed: onQueueAll,
           ),
           IconButton(
+            visualDensity: compact ? VisualDensity.compact : null,
             tooltip: 'Add all to a playlist',
             icon: const Icon(Icons.playlist_add_rounded),
             onPressed: onPlaylistAll,
@@ -1678,8 +1719,20 @@ class _SongTile extends StatelessWidget {
             Icon(Icons.menu_book_rounded,
                 key: const Key('audiobook-icon'), size: 16 * k, color: theme.colorScheme.primary),
           _FavoriteButton(initial: song.favorite, onChanged: onFavorite),
+          _menu(),
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+
+  /// The "more" menu of a song (play next, add to the queue or a playlist, edit...).
+  Widget _menu({double? iconSize, EdgeInsetsGeometry? padding}) {
+    return Builder(builder: (context) =>
           PopupMenuButton<_SongAction>(
             tooltip: 'More',
+            iconSize: iconSize,
+            padding: padding ?? const EdgeInsets.all(8),
             onSelected: (a) => switch (a) {
               _SongAction.playNext => onPlayNext(),
               _SongAction.addToQueue => onAddToQueue(),
@@ -1710,11 +1763,7 @@ class _SongTile extends StatelessWidget {
                 const PopupMenuItem(
                     value: _SongAction.remove, child: Text('Remove from library')),
             ],
-          ),
-        ],
-      ),
-      onTap: onTap,
-    );
+          ));
   }
 
   /// One cell of the grid view: the cover, the title and (unless titles only) the artist. A tap
@@ -1735,7 +1784,9 @@ class _SongTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           color: selected ? theme.colorScheme.primary.withValues(alpha: 0.18) : null,
         ),
-        child: Column(
+        child: Stack(
+          children: [
+            Column(
           children: [
             Expanded(
               child: LayoutBuilder(
@@ -1768,6 +1819,14 @@ class _SongTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 11, color: muted)),
+          ],
+        ),
+            if (!selecting)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: _menu(iconSize: 18, padding: const EdgeInsets.all(4)),
+              ),
           ],
         ),
       ),

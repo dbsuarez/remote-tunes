@@ -34,34 +34,46 @@ SongListView zoomView(SongListView v, {required bool bigger}) {
 
 /// The look chosen for one kind of list (All songs, an album, a playlist...).
 class ListLook {
-  const ListLook({this.view = SongListView.list, this.titlesOnly = false});
+  const ListLook({this.view = SongListView.list, this.titlesOnly = false, this.compactHeader = false});
 
   final SongListView view;
 
   /// Only the song title (no artist / album line).
   final bool titlesOnly;
 
+  /// A slimmer header (just icons) on the page of an album, artist, playlist or folder.
+  final bool compactHeader;
+
   static const standard = ListLook();
 
-  bool get isStandard => view == SongListView.list && !titlesOnly;
+  bool get isStandard => view == SongListView.list && !titlesOnly && !compactHeader;
 
-  ListLook copyWith({SongListView? view, bool? titlesOnly}) =>
-      ListLook(view: view ?? this.view, titlesOnly: titlesOnly ?? this.titlesOnly);
+  ListLook copyWith({SongListView? view, bool? titlesOnly, bool? compactHeader}) => ListLook(
+      view: view ?? this.view,
+      titlesOnly: titlesOnly ?? this.titlesOnly,
+      compactHeader: compactHeader ?? this.compactHeader);
 
-  String encode() => '${view.name}|${titlesOnly ? 1 : 0}';
+  String encode() => '${view.name}|${titlesOnly ? 1 : 0}|${compactHeader ? 1 : 0}';
 
   static ListLook parse(String? s) {
     if (s == null) return standard;
     final p = s.split('|');
-    return ListLook(view: SongListView.parse(p.first), titlesOnly: p.length > 1 && p[1] == '1');
+    return ListLook(
+      view: SongListView.parse(p.first),
+      titlesOnly: p.length > 1 && p[1] == '1',
+      compactHeader: p.length > 2 && p[2] == '1',
+    );
   }
 
   @override
   bool operator ==(Object other) =>
-      other is ListLook && other.view == view && other.titlesOnly == titlesOnly;
+      other is ListLook &&
+      other.view == view &&
+      other.titlesOnly == titlesOnly &&
+      other.compactHeader == compactHeader;
 
   @override
-  int get hashCode => Object.hash(view, titlesOnly);
+  int get hashCode => Object.hash(view, titlesOnly, compactHeader);
 }
 
 /// The names of the kinds of list that remember their own look, and what to call them.

@@ -34,6 +34,9 @@ class ListOptionsSheet extends StatefulWidget {
   State<ListOptionsSheet> createState() => _ListOptionsSheetState();
 }
 
+/// The kinds of list that open on a page with a header (a title and Play all).
+bool _hasHeader(String kind) => const {'album', 'artist', 'playlist', 'folder', 'group'}.contains(kind);
+
 class _ListOptionsSheetState extends State<ListOptionsSheet> {
   late ListLook _look = widget.look;
 
@@ -66,6 +69,16 @@ class _ListOptionsSheetState extends State<ListOptionsSheet> {
               value: _look.titlesOnly,
               onChanged: (v) => _set(_look.copyWith(titlesOnly: v ?? false)),
             ),
+            if (_hasHeader(widget.kind))
+              CheckboxListTile(
+                key: const Key('compact-header'),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Compact header'),
+                subtitle: const Text('A slimmer header on the page of this list'),
+                value: _look.compactHeader,
+                onChanged: (v) => _set(_look.copyWith(compactHeader: v ?? false)),
+              ),
             const SizedBox(height: 4),
             Text('View as', style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary)),
             RadioGroup<SongListView>(
