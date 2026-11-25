@@ -413,6 +413,27 @@ final List<_Group> _groups = [
         },
       ),
       _Entry(
+        id: 'rescanopen',
+        title: 'Rescan when the app opens',
+        keywords: 'rescan scan open start new songs folders automatic',
+        build: (c) {
+          final s = c.s;
+          final repo = c.repo;
+          return SwitchListTile(
+            key: const ValueKey('rescan-on-open'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Rescan when the app opens'),
+            subtitle: const Text(
+              'Checks your music folders for new songs each time RemoteTunes starts, quietly, '
+              'and says so only if it added something. It never removes songs; a new folder is '
+              'left for you to choose in Rescan music folders. Off by default.',
+            ),
+            value: s.rescanOnOpen,
+            onChanged: repo.setRescanOnOpen,
+          );
+        },
+      ),
+      _Entry(
         id: 'leftout',
         title: 'Excluded from library',
         keywords: 'excluded exclude left out ignore folders songs hide',

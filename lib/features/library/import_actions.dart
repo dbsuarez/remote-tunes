@@ -281,6 +281,39 @@ Future<bool> rescanMusicFolders(BuildContext context, WidgetRef ref) async {
   return result.added > 0 || result.relinked > 0;
 }
 
+/// The rescan done quietly when the app opens (Settings > Library > Rescan when the app opens):
+/// no windows, no permission question. It adds new songs and follows moved ones; it never removes
+/// anything, and it leaves a folder that is new since the last scan for the user to decide about
+/// (the one-tap rescan asks). Returns a sentence to show, or null when there is nothing to say.
+Future<String?> quietRescan(WidgetRef ref) async {
+  try {
+    return await quietRescanWith(await ref.read(importServiceProvider.future));
+  } catch (_) {
+    return null;
+  }
+}
+
+/// [quietRescan] on a given import service (so it can be tested).
+Future<String?> quietRescanWith(LibraryImportService service) async {
+  try {
+    if ((await service.musicFolders()).isEmpty) return null;
+    final plan = await service.planRescan();
+    if (plan.folders.isEmpty) return null;
+    if (plan.newFolders.isNotEmpty) {
+      return 'A new folder was found in your music. Use Rescan music folders to choose what to add.';
+    }
+    final result = await service.rescan(plan);
+    final n = result.added;
+    if (n > 0) return 'Rescan: $n new song${n == 1 ? '' : 's'} added';
+    if (result.relinked > 0) {
+      return 'Rescan: ${result.relinked} moved song${result.relinked == 1 ? '' : 's'} followed';
+    }
+  } catch (_) {
+    // A quiet rescan that fails says nothing; the one-tap rescan explains problems.
+  }
+  return null;
+}
+
 class _ProgressDialog extends StatelessWidget {
   const _ProgressDialog({required this.progress, this.title = 'Adding music'});
 

@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:remote_tunes/data/database/app_database.dart';
 import 'package:remote_tunes/data/repositories/library_repository.dart';
 import 'package:remote_tunes/data/repositories/settings_repository.dart';
+import 'package:remote_tunes/features/library/import_actions.dart' show quietRescanWith;
 import 'package:remote_tunes/features/library/import_service.dart';
 import 'package:remote_tunes/features/library/metadata_extractor.dart';
 import 'package:remote_tunes/features/library/settings_exclusion_store.dart';
@@ -321,6 +322,56 @@ void main() {
       final r = await service.rescan(plan);
       expect(r.foldersScanned, 0);
       expect(r.added, 0);
+    });
+  });
+
+  group('the quiet rescan when the app opens', () {
+    test('says nothing with no remembered folders', () async {
+      expect(await quietRescanWith(service), isNull);
+    });
+
+    test('adds new songs without asking, and says how many', () async {
+      await make('Rock/a.mp3');
+      await service.importFolder(music.path);
+      await make('Rock/b.mp3');
+      await make('Rock/c.mp3');
+      expect(await quietRescanWith(service), 'Rescan: 2 new songs added');
+      expect((await repo.songs()).total, 3);
+      await make('Rock/d.mp3');
+      expect(await quietRescanWith(service), 'Rescan: 1 new song added');
+    });
+
+    test('says nothing when nothing is new', () async {
+      await make('a.mp3');
+      await service.importFolder(music.path);
+      expect(await quietRescanWith(service), isNull);
+    });
+
+    test('a new folder is not added; the user is pointed to the one-tap rescan', () async {
+      await make('Rock/a.mp3');
+      await service.importFolder(music.path);
+      await make('Jazz/j.mp3');
+      final msg = await quietRescanWith(service);
+      expect(msg, contains('new folder'));
+      expect((await repo.songs()).total, 1, reason: 'nothing added behind their back');
+      expect(await out.load(), isEmpty, reason: 'and not left out either');
+    });
+
+    test('a missing song is never removed', () async {
+      final a = await make('a.mp3');
+      await make('b.mp3');
+      await service.importFolder(music.path);
+      File(a).deleteSync();
+      await quietRescanWith(service);
+      expect((await repo.songs()).total, 2);
+    });
+
+    test('a folder that cannot be reached says nothing and does no harm', () async {
+      await make('a.mp3');
+      await service.importFolder(music.path);
+      music.deleteSync(recursive: true);
+      expect(await quietRescanWith(service), isNull);
+      expect((await repo.songs()).total, 1);
     });
   });
 }

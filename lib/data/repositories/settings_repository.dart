@@ -39,6 +39,7 @@ class SettingKeys {
   static const visualizerStyle = 'visualizer_style';
   static const visualizerOnCover = 'visualizer_on_cover';
   static const listLooks = 'list_looks';
+  static const rescanOnOpen = 'rescan_on_open';
   static const onlineSuggestions = 'online_suggestions';
   static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
@@ -104,6 +105,7 @@ class AppSettings {
     this.visualizerStyle = 'bars',
     this.visualizerOnCover = false,
     this.listLooks = const {},
+    this.rescanOnOpen = false,
     this.onlineSuggestions = true,
     this.customSkins = const [],
     this.remoteAutoStart = false,
@@ -172,6 +174,9 @@ class AppSettings {
   /// How each kind of song list is drawn (kinds not here use the standard list).
   final Map<String, ListLook> listLooks;
 
+  /// Look through the remembered music folders for new songs each time the app opens.
+  final bool rescanOnOpen;
+
   /// Popular and newest tracks on the Online Library home screen.
   final bool onlineSuggestions;
 
@@ -228,6 +233,7 @@ class AppSettings {
       visualizerStyle: m[SettingKeys.visualizerStyle] ?? 'bars',
       visualizerOnCover: m[SettingKeys.visualizerOnCover] == 'true',
       listLooks: decodeListLooks(m[SettingKeys.listLooks]),
+      rescanOnOpen: m[SettingKeys.rescanOnOpen] == 'true',
       onlineSuggestions: m[SettingKeys.onlineSuggestions] != 'false',
       customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
@@ -333,6 +339,8 @@ class SettingsRepository {
   Future<void> setOnlineSuggestions(bool v) => _put(SettingKeys.onlineSuggestions, v.toString());
 
   Future<void> setVisualizerStyle(String v) => _put(SettingKeys.visualizerStyle, v);
+
+  Future<void> setRescanOnOpen(bool v) => _put(SettingKeys.rescanOnOpen, v.toString());
 
   /// Remembers the look of one kind of list (the standard look is not stored).
   Future<void> setListLook(String kind, ListLook look) async {

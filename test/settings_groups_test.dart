@@ -160,6 +160,7 @@ void main() {
       'Find missing album art',
       'Update tags from files',
       'Excluded from library',
+      'Rescan when the app opens',
       'Reset play and skip counts',
       'All files access',
       'Skins',

@@ -77,12 +77,22 @@ class _AppShellState extends ConsumerState<AppShell> {
         ref.read(remotePlaybackProvider.notifier).state = true;
       }
       if (settings.startMode == StartMode.lastPlayer) unawaited(_reconnectLastPlayer());
+      if (settings.rescanOnOpen && !settings.remoteAutoStart) unawaited(_rescanQuietly());
       // Android 13+ needs permission to show the media notification. Playback
       // works without it, so a "no" is fine.
       try {
         await ref.read(permissionsProvider).ensureNotifications();
       } catch (_) {}
     });
+  }
+
+  /// Looks for new songs in the music folders when the app opens (if the setting is on).
+  Future<void> _rescanQuietly() async {
+    final message = await quietRescan(ref);
+    if (message == null || !mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Opens the connection to the Player used last, without pairing again.

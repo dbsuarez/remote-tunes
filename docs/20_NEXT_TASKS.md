@@ -94,7 +94,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **9. Settings, grouped: built (not tried on a phone yet), see Done.**
 
-**10. One-tap rescan of the music folders: built (not tried on a phone yet), see Done.** Left over: a switch *Rescan when the app opens* (quiet, a few seconds); folders added before this version are not remembered until they are added once more; a song retagged while being moved is added as a new song and the old one is offered for removal (it is not matched by tags yet).
+**10. One-tap rescan of the music folders: built (not tried on a phone yet), see Done.** Built after `v1.0.13`: the switch *Settings > Library > Rescan when the app opens* (off by default; quiet; adds new songs and follows moved ones, never removes, and leaves a new folder for the one-tap rescan to ask about). Left over: folders added before this version are not remembered until they are added once more; a song retagged while being moved is added as a new song and the old one is offered for removal (it is not matched by tags yet).
 
 **11. Edit info: look the song up (metadata, lyrics and cover in one go): built after `v1.0.11`, not tried on a phone yet.** (the owner's idea)
 - In a song's menu > Edit info, a button **Look up this song**: one query for the one song, with a result sheet to choose from.
