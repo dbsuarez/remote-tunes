@@ -2,7 +2,9 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/core/song_list_look.dart';
+import 'package:remote_tunes/core/widgets/playback_widgets.dart' show formatTotalTime;
 import 'package:remote_tunes/data/database/app_database.dart';
+import 'package:remote_tunes/data/repositories/library_repository.dart';
 import 'package:remote_tunes/data/repositories/settings_repository.dart';
 import 'package:remote_tunes/features/music/music_browser.dart';
 
@@ -157,6 +159,17 @@ void main() {
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
     });
 
+    testWidgets('the header says how many songs and how long they play', (tester) async {
+      await open(tester);
+      expect(tester.widget<Text>(find.byKey(const Key('list-count'))).data, '2 songs | 4:10');
+    });
+
+    testWidgets('the header follows the list, not the screen', (tester) async {
+      source = FakeMusicSource(songs: [song(1, 'Only Song')]);
+      await open(tester);
+      expect(tester.widget<Text>(find.byKey(const Key('list-count'))).data, '1 song | 2:05');
+    });
+
     testWidgets('the button shows it is not the standard look', (tester) async {
       looks = {'songs': const ListLook(view: SongListView.listCompact)};
       await open(tester);
@@ -164,5 +177,26 @@ void main() {
           of: find.byKey(const Key('list-options')), matching: find.byType(Icon)));
       expect(icon.color, isNotNull);
     });
+  });
+
+  test('a long time is written as hours, minutes and seconds', () {
+    expect(formatTotalTime(0), '0:00');
+    expect(formatTotalTime(59), '0:59');
+    expect(formatTotalTime(3725), '1:02:05');
+    expect(formatTotalTime(9 * 3600 + 7 * 60 + 26), '9:07:26');
+    expect(formatTotalTime(-5), '0:00');
+  });
+
+  test('the library adds up how long a list plays', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final repo = LibraryRepository(db);
+    await repo.addSong(title: 'A', artist: 'X', album: 'Y', filePath: '/m/a.mp3', durationSeconds: 100);
+    await repo.addSong(title: 'B', artist: 'X', album: 'Y', filePath: '/m/b.mp3', durationSeconds: 250);
+    await repo.addSong(title: 'C', artist: 'Z', album: 'W', filePath: '/m/c.mp3');
+    expect((await repo.songs()).totalSeconds, 350);
+    expect((await repo.songs(artist: 'X')).totalSeconds, 350);
+    expect((await repo.songs(artist: 'Z')).totalSeconds, 0);
+    expect((await repo.songs(limit: 1)).totalSeconds, 350, reason: 'the whole list, not the page');
   });
 }

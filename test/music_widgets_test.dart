@@ -56,6 +56,7 @@ class FakeMusicSource implements MusicSource {
         items: all.skip(offset).take(limit).toList(),
         total: all.length,
         offset: offset,
+        totalSeconds: [for (final x in all) if (x is RemoteSong) x.durationSeconds].fold(0, (a, b) => a + b),
       );
 
   @override

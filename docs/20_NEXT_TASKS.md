@@ -82,7 +82,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 **7. Backup and restore to another phone: built (not tried on a phone yet), see Done.** Left over: a matching report that lets you pick a song by hand for the ones not found; edits made before `v1.0.7` are not remembered (there was no flag), only later ones.
 
-**8. List options, per list: first step built after `v1.0.12` (not tried on a phone yet).** Built: the sheet, *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list. Left: header with count and total time, pinch-to-zoom, list position, per-track progress, the song menu inside the grid (long-press picks a song there). (the owner's idea, from the screenshots `docs/arts/drawer_part_1.jpg` and `drawer_part_2.jpg`; the layout idea is free to follow, we draw our own)
+**8. List options, per list: first step built after `v1.0.12` (not tried on a phone yet).** Built: the sheet, *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list. Also built: the count and total time at the top left of the list (`128 songs | 9:07:26`). Left: pinch-to-zoom, list position, per-track progress, the song menu inside the grid (long-press picks a song there). (the owner's idea, from the screenshots `docs/arts/drawer_part_1.jpg` and `drawer_part_2.jpg`; the layout idea is free to follow, we draw our own)
 - What the screenshots show: a gear / *List options* sheet that opens from a song list, titled for the kind of list (*List Options: Playlist Songs*), with settings **remembered per kind of list**:
   - **List memory:** *List position* (come back to where you were in this list when you start it with Play or move with previous / next) and *Per track progress* (each song remembers how far you listened, handy for long recordings).
   - **Layout:** *Compact header* and *Show titles only*.
@@ -90,7 +90,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
   - A header with the list's cover and name, **how many songs and how long** (`128 | 9:07:26`), and a row of actions (shuffle, play, search, Select, a menu); rows show `3:59 | mp3` under the title.
 - What we already have to build on: *Song list > Text size* (Small, Medium, Large), the Back-returns-to-the-same-spot memory, Select, and the format reader (kHz, kbps, type). What is new: choosing the **view** (list / grid / one line / no images), settings kept **per kind of list** (All Songs, Album, Artist, Playlist, Queue, Most played...), pinch to zoom, the list header with count and total time, and per-track progress.
 - Proposed first step: one *List options* sheet reachable from every song list, with *View as* (List, List small, List compact, List no images, 1 line, Grid) and *Show titles only*, remembered per kind of list; then the header with count and total time; then pinch-to-zoom; per-track progress last (it changes playback).
-- [x] the sheet and the views · [x] per-list memory · [ ] header with count and total time · [ ] pinch-to-zoom · [ ] per-track progress
+- [x] the sheet and the views · [x] per-list memory · [x] header with count and total time · [ ] pinch-to-zoom · [ ] per-track progress
 
 **9. Settings, grouped: built (not tried on a phone yet), see Done.**
 

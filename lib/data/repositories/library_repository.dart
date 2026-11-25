@@ -596,11 +596,11 @@ class LibraryRepository {
         view: view,
         playlistId: playlistId,
         onlyIds: folderId == null ? null : (await _folderSongIds())[folderId] ?? const []);
-    final total = (await _db
-            .customSelect('SELECT COUNT(*) AS c FROM songs ${f.where}',
-                variables: f.vars)
-            .getSingle())
-        .read<int>('c');
+    final totals = await _db
+        .customSelect('SELECT COUNT(*) AS c, IFNULL(SUM(duration_seconds), 0) AS d FROM songs ${f.where}',
+            variables: f.vars)
+        .getSingle();
+    final total = totals.read<int>('c');
     final rows = await _db.customSelect(
       'SELECT * FROM songs ${f.where} ${_songOrder(artist: artist, album: album, view: view, playlistId: playlistId)} '
       'LIMIT ? OFFSET ?',
@@ -610,6 +610,7 @@ class LibraryRepository {
       items: [for (final r in rows) _db.songs.map(r.data)],
       total: total,
       offset: offset,
+      totalSeconds: totals.read<int>('d'),
     );
   }
 

@@ -26,6 +26,16 @@ String formatDuration(int seconds) {
   return '$m:${r.toString().padLeft(2, '0')}';
 }
 
+/// A long time as h:mm:ss (m:ss under an hour), for the total of a list.
+String formatTotalTime(int seconds) {
+  final s = seconds < 0 ? 0 : seconds;
+  final h = s ~/ 3600;
+  final m = (s % 3600) ~/ 60;
+  final r = s % 60;
+  final rr = r.toString().padLeft(2, '0');
+  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$rr' : '$m:$rr';
+}
+
 /// Title, artist and a seek bar. Seek is sent on release, not while dragging
 /// (docs/05_UI_UX_SPEC.md).
 class NowPlayingCard extends StatefulWidget {

@@ -1755,6 +1755,7 @@ class PlayerServer {
       {
         'total': page.total,
         'offset': page.offset,
+        if (page.totalSeconds > 0) 'totalSeconds': page.totalSeconds,
         'items': [for (final e in page.items) toJson(e)],
       };
 

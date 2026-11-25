@@ -315,6 +315,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
   String _query = '';
   int _generation = 0;
 
+  /// How many songs, and how long, each song list holds (by its kind), for the header.
+  final Map<String, (int, int)> _totals = {};
+
   /// Songs picked for a bulk action (long-press a song to start).
   final Set<int> _selected = {};
   String _selectionContext = '';
@@ -772,11 +775,23 @@ class _MusicBrowserState extends State<MusicBrowser> {
     final look = widget.looks[kind] ?? ListLook.standard;
     final list = _songListBody(drill, view, look);
     if (widget.onLook == null) return list;
+    final totals = _totals[kind];
     return Column(
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
+        Row(
+          children: [
+            if (totals != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Text(
+                  key: const Key('list-count'),
+                  '${totals.$1} song${totals.$1 == 1 ? '' : 's'}'
+                  '${totals.$2 > 0 ? ' | ${formatTotalTime(totals.$2)}' : ''}',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            const Spacer(),
+            IconButton(
             key: const Key('list-options'),
             tooltip: 'List options',
             visualDensity: VisualDensity.compact,
@@ -789,6 +804,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
               onChanged: (l) => widget.onLook!(kind, l),
             ),
           ),
+          ],
         ),
         Expanded(child: list),
       ],
@@ -802,6 +818,14 @@ class _MusicBrowserState extends State<MusicBrowser> {
       key: key,
       grid: look.view == SongListView.grid,
       titlesOnly: look.titlesOnly,
+      onTotals: widget.onLook == null
+          ? null
+          : (total, seconds) {
+              final k = _kindOf(drill, view);
+              if (_totals[k] != (total, seconds) && mounted) {
+                setState(() => _totals[k] = (total, seconds));
+              }
+            },
       emptyMessage: _query.isNotEmpty
           ? 'No matches.'
           : switch (view) {
@@ -1700,7 +1724,11 @@ class _PagedList<T> extends StatefulWidget {
     required this.emptyMessage,
     this.grid = false,
     this.titlesOnly = false,
+    this.onTotals,
   });
+
+  /// Told how many items the list has and how long they play (after each page).
+  final void Function(int total, int seconds)? onTotals;
 
   /// Cells side by side instead of rows (the item builder then returns a grid cell).
   final bool grid;
@@ -1755,6 +1783,7 @@ class _PagedListState<T> extends State<_PagedList<T>> {
         _initialDone = true;
         _loading = false;
       });
+      widget.onTotals?.call(page.total, page.totalSeconds);
     } catch (e) {
       if (!mounted) return;
       // A failed *first* page must stay "not loaded" so Try again can retry.

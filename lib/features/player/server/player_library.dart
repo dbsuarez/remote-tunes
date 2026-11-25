@@ -289,6 +289,7 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       ],
       total: page.total,
       offset: page.offset,
+      totalSeconds: page.totalSeconds,
     );
   }
 

@@ -814,6 +814,7 @@ class ControllerClient {
           : <T>[],
       total: p['total'] is num ? (p['total'] as num).toInt() : 0,
       offset: p['offset'] is num ? (p['offset'] as num).toInt() : 0,
+      totalSeconds: p['totalSeconds'] is num ? (p['totalSeconds'] as num).toInt() : 0,
     );
   }
 

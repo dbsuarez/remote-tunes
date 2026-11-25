@@ -334,11 +334,15 @@ class LibraryPage<T> {
     required this.items,
     required this.total,
     required this.offset,
+    this.totalSeconds = 0,
   });
 
   final List<T> items;
   final int total;
   final int offset;
+
+  /// How long all the songs of the list play together (0: not known).
+  final int totalSeconds;
 
   bool get hasMore => offset + items.length < total;
 }
