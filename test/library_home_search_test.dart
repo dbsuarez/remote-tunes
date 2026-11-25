@@ -76,7 +76,8 @@ void main() {
     testWidgets('starts on the list of categories, not on songs', (tester) async {
       await openHome(tester);
       for (final c in [
-        'All Songs', 'Folders', 'Albums', 'Artists', 'Favorites', 'Recent', 'Top', 'New', 'Playlists'
+        'All Songs', 'Folders', 'Albums', 'Artists', 'Favorites', 'Recent', 'Most played', 'Most skipped',
+        'Never played', 'New', 'Playlists'
       ]) {
         expect(find.text(c), findsOneWidget, reason: c);
       }
@@ -97,7 +98,7 @@ void main() {
 
     testWidgets('Folders, Top and New open their own lists', (tester) async {
       await openHome(tester);
-      await tester.tap(find.text('Top'));
+      await tester.tap(find.text('Most played'));
       await settleUi(tester);
       expect(find.text('Nothing played yet. Your most played songs show up here.').evaluate().length +
               find.text('Alpha Song').evaluate().length,

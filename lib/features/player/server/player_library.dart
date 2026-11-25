@@ -65,6 +65,7 @@ abstract class PlayerLibrary {
   Future<void> preloadFavorites();
   Future<void> setFavorite(int songId, bool favorite);
   Future<void> markPlayed(int songId);
+  Future<void> markSkipped(int songId);
 
   /// Returns the new playlist's id. Throws a PlaybackException for bad names.
   Future<int> createPlaylist(String name);
@@ -205,6 +206,9 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
 
   @override
   Future<void> markPlayed(int songId) => _repo.markPlayed(songId);
+
+  @override
+  Future<void> markSkipped(int songId) => _repo.markSkipped(songId);
 
   @override
   Future<LibraryPage<RemotePlaylist>> playlists(

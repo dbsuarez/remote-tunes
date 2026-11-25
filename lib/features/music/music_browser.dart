@@ -18,6 +18,8 @@ enum _Scope {
   recent,
   playlists,
   top,
+  skipped,
+  never,
   newest,
   folders,
   albumArtists,
@@ -214,7 +216,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
         _Scope.folders => 'Folders',
         _Scope.favorites => 'Favorites',
         _Scope.recent => 'Recent',
-        _Scope.top => 'Top',
+        _Scope.top => 'Most played',
+        _Scope.skipped => 'Most skipped',
+        _Scope.never => 'Never played',
         _Scope.newest => 'New',
         _Scope.playlists => 'Playlists',
         _Scope.albumArtists => 'Album Artists',
@@ -623,6 +627,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
               LibraryView.favorites => 'No favorites yet. Tap the heart on a song.',
               LibraryView.recent => 'Nothing played yet.',
               LibraryView.top => 'Nothing played yet. Your most played songs show up here.',
+              LibraryView.skipped =>
+                'No skipped songs yet. A song counts as skipped when you move on or pick another within its first 30 seconds.',
+              LibraryView.never => 'Every song has been played at least once.',
               LibraryView.newest => 'No songs yet.',
               _ => drill?.playlistId != null
                   ? 'This playlist is empty. Use a song\'s menu to add songs.'
@@ -643,6 +650,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
       itemBuilder: (context, song) => _SongTile(
         song: song,
         source: widget.source,
+        showCounts: view == LibraryView.top || view == LibraryView.skipped,
         onTap: () => _selected.isNotEmpty
             ? _toggleSelected(song.id)
             : _run(() async {
@@ -713,6 +721,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 _Scope.favorites => _songList(null, view: LibraryView.favorites),
                 _Scope.recent => _songList(null, view: LibraryView.recent),
                 _Scope.top => _songList(null, view: LibraryView.top),
+                _Scope.skipped => _songList(null, view: LibraryView.skipped),
+                _Scope.never => _songList(null, view: LibraryView.never),
                 _Scope.newest => _songList(null, view: LibraryView.newest),
                 _Scope.albumArtists => _groupList(GroupKind.albumArtist, Icons.mic_rounded),
                 _Scope.genres => _groupList(GroupKind.genre, Icons.piano_rounded),
@@ -856,6 +866,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
             _Scope.favorites => LibraryView.favorites,
             _Scope.recent => LibraryView.recent,
             _Scope.top => LibraryView.top,
+            _Scope.skipped => LibraryView.skipped,
+            _Scope.never => LibraryView.never,
             _Scope.newest => LibraryView.newest,
             _ => null,
           };
@@ -864,6 +876,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
         _scope == _Scope.favorites ||
         _scope == _Scope.recent ||
         _scope == _Scope.top ||
+        _scope == _Scope.skipped ||
+        _scope == _Scope.never ||
         _scope == _Scope.newest;
 
     if (_home) {
@@ -945,7 +959,9 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.albums => 'Albums',
                           _Scope.favorites => 'Favorites',
                           _Scope.recent => 'Recent',
-                          _Scope.top => 'Top',
+                          _Scope.top => 'Most played',
+                          _Scope.skipped => 'Most skipped',
+                          _Scope.never => 'Never played',
                           _Scope.newest => 'New',
                           _Scope.folders => 'Folders',
                           _Scope.playlists => 'Playlists',
@@ -1034,6 +1050,8 @@ class _CategoryList extends StatelessWidget {
     (_Scope.favorites, Icons.favorite_rounded, Color(0xFFFF6B8B)),
     (_Scope.recent, Icons.history_rounded, Color(0xFFFFB74D)),
     (_Scope.top, Icons.trending_up_rounded, Color(0xFFFF8A65)),
+    (_Scope.skipped, Icons.skip_next_rounded, Color(0xFFE57373)),
+    (_Scope.never, Icons.visibility_off_outlined, Color(0xFF90A4AE)),
     (_Scope.newest, Icons.new_releases_rounded, Color(0xFFAED581)),
     (_Scope.playlists, Icons.queue_music_rounded, Color(0xFF4DB6AC)),
   ];
@@ -1197,10 +1215,14 @@ class _SongTile extends StatelessWidget {
     required this.selecting,
     required this.selected,
     required this.onSelect,
+    this.showCounts = false,
     this.onRemoveFromPlaylist,
     this.onEdit,
     this.onRemove,
   });
+
+  /// Add how often it was played and skipped to the second line.
+  final bool showCounts;
 
   final SongListSize size;
 
@@ -1228,7 +1250,9 @@ class _SongTile extends StatelessWidget {
     final dim = !song.available;
     final subtitle = dim
         ? 'File missing from the Player'
-        : '${song.artist} · ${song.album}';
+        : '${song.artist} · ${song.album}'
+            '${showCounts && song.plays > 0 ? ' · ${song.plays} play${song.plays == 1 ? '' : 's'}' : ''}'
+            '${showCounts && song.skips > 0 ? ' · ${song.skips} skip${song.skips == 1 ? '' : 's'}' : ''}';
 
     final k = size.scale;
     return ListTile(

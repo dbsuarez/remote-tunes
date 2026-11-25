@@ -43,6 +43,12 @@ class LibraryView {
 
   /// The songs added most recently.
   static const newest = 'newest';
+
+  /// Skipped most often first (only songs skipped at least once).
+  static const skipped = 'skipped';
+
+  /// Songs that were never played.
+  static const never = 'never';
 }
 
 class RemoteSong {
@@ -55,6 +61,8 @@ class RemoteSong {
     this.trackNumber,
     this.available = true,
     this.favorite = false,
+    this.plays = 0,
+    this.skips = 0,
   });
 
   final int id;
@@ -63,6 +71,10 @@ class RemoteSong {
   final String album;
   final int durationSeconds;
   final int? trackNumber;
+
+  /// How many times it was played and skipped on the Player.
+  final int plays;
+  final int skips;
 
   /// False when the file is missing from the Player's storage.
   final bool available;
@@ -79,6 +91,8 @@ class RemoteSong {
         if (trackNumber != null) 'trackNumber': trackNumber,
         'available': available,
         if (favorite) 'favorite': true,
+        if (plays > 0) 'plays': plays,
+        if (skips > 0) 'skips': skips,
       };
 
   factory RemoteSong.fromJson(Map<String, dynamic> j) => RemoteSong(
@@ -90,6 +104,8 @@ class RemoteSong {
         trackNumber: j['trackNumber'] is num ? _int(j['trackNumber']) : null,
         available: j['available'] != false,
         favorite: j['favorite'] == true,
+        plays: _int(j['plays']),
+        skips: _int(j['skips']),
       );
 }
 

@@ -170,6 +170,7 @@ These were built after `v0.7.0` and have **never been tried on a phone**. Do the
 
 ## 17. Library and search
 - [ ] **Library list:** the Library tab opens on a list of categories (All Songs, Folders, Folder tree, Albums, Artists, Album Artists, Composers, Genres, Years, Favorites, Recent, Top, New, Playlists); each opens with a back arrow to the list.
+- [ ] **Most played / Most skipped / Never played:** Library > *Most skipped*: play a song and press Next within 10 seconds a few times; it appears with "1 skip", "2 skips"... Let a song play for a minute and press Next: no skip is added. *Most played* shows "3 plays"-style counts. *Never played* lists songs you have not started. Settings > *Reset play and skip counts* clears them. (Counts begin from zero with this version.)
 - [ ] **Genres / Years / Album Artists / Composers:** Settings > Update tags from files, then those lists fill in.
 - [ ] **Folder tree:** starts at the top of your music folders; tap folders to go in, the up arrow to come back (the folder you left is tinted); songs in a folder play from the one you tap.
 - [ ] **Folders:** long-press a folder, tap more, add them to a playlist or the queue; open a folder far down the list, press Back: same spot, that folder tinted.

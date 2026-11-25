@@ -28,6 +28,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     bool Function(String path)? fileExists,
     UrlChecker? urlChecker,
     this.onSongStarted,
+    this.onSongSkipped,
     this.onStreamStarted,
     this.queueStore,
     this.formatReader,
@@ -50,6 +51,48 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   }
 
   final AudioBackend _backend;
+
+  // ---------------------------------------------------------- skips
+
+  /// Called with a library song's id when it was skipped: left in the first 30
+  /// seconds (or the first half, for a short song) by moving on or choosing
+  /// another.
+  void Function(int songId)? onSongSkipped;
+
+  int? _trackedId;
+  int _trackedDurationMs = 0;
+  int _listenedMs = 0;
+  int _lastPositionMs = 0;
+
+  void _beginTracking(PlayableSong song) {
+    _trackedId = song.libraryId;
+    _trackedDurationMs = song.durationSeconds * 1000;
+    _listenedMs = 0;
+    _lastPositionMs = 0;
+  }
+
+  /// The song that was tracked has ended: [finished] when it played to its end.
+  void _endTracking({required bool finished}) {
+    final id = _trackedId;
+    _trackedId = null;
+    if (id == null || finished) return;
+    // Short songs count by half their length, long ones by thirty seconds.
+    final limit = _trackedDurationMs > 0 ? math.min(30000, _trackedDurationMs ~/ 2) : 30000;
+    if (_listenedMs < limit) {
+      PlaybackLog.add('engine: skipped (heard $_listenedMs ms)');
+      onSongSkipped?.call(id);
+    }
+  }
+
+  /// Adds the time that really passed while playing (a jump in the position, a
+  /// seek, is not listening).
+  void _trackListening(Duration position) {
+    if (_trackedId == null) return;
+    final ms = position.inMilliseconds;
+    final delta = ms - _lastPositionMs;
+    _lastPositionMs = ms;
+    if (_playing && delta > 0 && delta < 1500) _listenedMs += delta;
+  }
 
   /// Reads what a file is (sample rate, bitrate, type) for the Now Playing
   /// line; null: not shown.
@@ -280,6 +323,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
       return;
     }
     final song = next.song;
+    _endTracking(finished: true);
     _loadedEntryId = next.id;
     if (_replayGain != ReplayGainMode.off) {
       unawaited(_backend.setVolume(_effectiveVolume()));
@@ -291,7 +335,10 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     _loading = false;
     _playing = true;
     final id = song.libraryId;
-    if (id != null) onSongStarted?.call(id);
+    if (id != null) {
+      onSongStarted?.call(id);
+      _beginTracking(song);
+    }
     _emit();
   }
 
@@ -417,6 +464,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   }
 
   void _onPosition(Duration d) {
+    _trackListening(d);
     _maybeCrossfade(d);
     final s = d.inSeconds;
     if (s != _positionSeconds && _loadedEntryId != null) {
@@ -455,6 +503,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   /// Loads [entry] and optionally starts it. If its file is missing or broken
   /// it is skipped and the next entry is tried; throws if none can play.
   Future<void> _startEntry(QueueEntry entry, {required bool autoplay}) async {
+    _endTracking(finished: false);
     var current = entry;
     var attempts = 0;
     PlaybackException? last;
@@ -509,7 +558,10 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
             await _backend.play();
             _playing = true;
             final id = song.libraryId;
-            if (id != null) onSongStarted?.call(id);
+            if (id != null) {
+              onSongStarted?.call(id);
+              _beginTracking(song);
+            }
             if (song.isUrl) onStreamStarted?.call(song);
           }
           _emit();
@@ -658,6 +710,8 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   Future<void> _onCompleted() async {
     PlaybackLog.add('engine: the song ended (loaded $_loadedEntryId, position $_positionSeconds s '
         'of $_durationSeconds s)');
+    // It played to its end.
+    _endTracking(finished: true);
     final next = _queue.advance(auto: true);
     if (next == null) {
       // End of the queue: rewind and stop, staying on the last track.
@@ -671,6 +725,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     try {
       if (next.id == _loadedEntryId) {
         // Repeat-one: replay the loaded track.
+        _beginTracking(next.song);
         await _backend.seek(Duration.zero);
         await _backend.play();
         _positionSeconds = 0;

@@ -244,6 +244,18 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _skipCountMeta = const VerificationMeta(
+    'skipCount',
+  );
+  @override
+  late final GeneratedColumn<int> skipCount = GeneratedColumn<int>(
+    'skip_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -268,6 +280,7 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     replayGainDb,
     albumGainDb,
     playCount,
+    skipCount,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -438,6 +451,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         playCount.isAcceptableOrUnknown(data['play_count']!, _playCountMeta),
       );
     }
+    if (data.containsKey('skip_count')) {
+      context.handle(
+        _skipCountMeta,
+        skipCount.isAcceptableOrUnknown(data['skip_count']!, _skipCountMeta),
+      );
+    }
     return context;
   }
 
@@ -535,6 +554,10 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         DriftSqlType.int,
         data['${effectivePrefix}play_count'],
       )!,
+      skipCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}skip_count'],
+      )!,
     );
   }
 
@@ -584,6 +607,10 @@ class Song extends DataClass implements Insertable<Song> {
 
   /// How many times the song started playing (schema v5; feeds "Top").
   final int playCount;
+
+  /// How many times the song was skipped: left within the first 30 seconds (or the
+  /// first half of a short song) by pressing next or choosing another (schema v10).
+  final int skipCount;
   const Song({
     required this.id,
     required this.title,
@@ -607,6 +634,7 @@ class Song extends DataClass implements Insertable<Song> {
     this.replayGainDb,
     this.albumGainDb,
     required this.playCount,
+    required this.skipCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -665,6 +693,7 @@ class Song extends DataClass implements Insertable<Song> {
       map['album_gain_db'] = Variable<double>(albumGainDb);
     }
     map['play_count'] = Variable<int>(playCount);
+    map['skip_count'] = Variable<int>(skipCount);
     return map;
   }
 
@@ -720,6 +749,7 @@ class Song extends DataClass implements Insertable<Song> {
           ? const Value.absent()
           : Value(albumGainDb),
       playCount: Value(playCount),
+      skipCount: Value(skipCount),
     );
   }
 
@@ -751,6 +781,7 @@ class Song extends DataClass implements Insertable<Song> {
       replayGainDb: serializer.fromJson<double?>(json['replayGainDb']),
       albumGainDb: serializer.fromJson<double?>(json['albumGainDb']),
       playCount: serializer.fromJson<int>(json['playCount']),
+      skipCount: serializer.fromJson<int>(json['skipCount']),
     );
   }
   @override
@@ -779,6 +810,7 @@ class Song extends DataClass implements Insertable<Song> {
       'replayGainDb': serializer.toJson<double?>(replayGainDb),
       'albumGainDb': serializer.toJson<double?>(albumGainDb),
       'playCount': serializer.toJson<int>(playCount),
+      'skipCount': serializer.toJson<int>(skipCount),
     };
   }
 
@@ -805,6 +837,7 @@ class Song extends DataClass implements Insertable<Song> {
     Value<double?> replayGainDb = const Value.absent(),
     Value<double?> albumGainDb = const Value.absent(),
     int? playCount,
+    int? skipCount,
   }) => Song(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -832,6 +865,7 @@ class Song extends DataClass implements Insertable<Song> {
     replayGainDb: replayGainDb.present ? replayGainDb.value : this.replayGainDb,
     albumGainDb: albumGainDb.present ? albumGainDb.value : this.albumGainDb,
     playCount: playCount ?? this.playCount,
+    skipCount: skipCount ?? this.skipCount,
   );
   Song copyWithCompanion(SongsCompanion data) {
     return Song(
@@ -873,6 +907,7 @@ class Song extends DataClass implements Insertable<Song> {
           ? data.albumGainDb.value
           : this.albumGainDb,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
+      skipCount: data.skipCount.present ? data.skipCount.value : this.skipCount,
     );
   }
 
@@ -900,7 +935,8 @@ class Song extends DataClass implements Insertable<Song> {
           ..write('composer: $composer, ')
           ..write('replayGainDb: $replayGainDb, ')
           ..write('albumGainDb: $albumGainDb, ')
-          ..write('playCount: $playCount')
+          ..write('playCount: $playCount, ')
+          ..write('skipCount: $skipCount')
           ..write(')'))
         .toString();
   }
@@ -929,6 +965,7 @@ class Song extends DataClass implements Insertable<Song> {
     replayGainDb,
     albumGainDb,
     playCount,
+    skipCount,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -955,7 +992,8 @@ class Song extends DataClass implements Insertable<Song> {
           other.composer == this.composer &&
           other.replayGainDb == this.replayGainDb &&
           other.albumGainDb == this.albumGainDb &&
-          other.playCount == this.playCount);
+          other.playCount == this.playCount &&
+          other.skipCount == this.skipCount);
 }
 
 class SongsCompanion extends UpdateCompanion<Song> {
@@ -981,6 +1019,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
   final Value<double?> replayGainDb;
   final Value<double?> albumGainDb;
   final Value<int> playCount;
+  final Value<int> skipCount;
   const SongsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -1004,6 +1043,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.replayGainDb = const Value.absent(),
     this.albumGainDb = const Value.absent(),
     this.playCount = const Value.absent(),
+    this.skipCount = const Value.absent(),
   });
   SongsCompanion.insert({
     this.id = const Value.absent(),
@@ -1028,6 +1068,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.replayGainDb = const Value.absent(),
     this.albumGainDb = const Value.absent(),
     this.playCount = const Value.absent(),
+    this.skipCount = const Value.absent(),
   }) : title = Value(title),
        source = Value(source);
   static Insertable<Song> custom({
@@ -1053,6 +1094,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Expression<double>? replayGainDb,
     Expression<double>? albumGainDb,
     Expression<int>? playCount,
+    Expression<int>? skipCount,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1077,6 +1119,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       if (replayGainDb != null) 'replay_gain_db': replayGainDb,
       if (albumGainDb != null) 'album_gain_db': albumGainDb,
       if (playCount != null) 'play_count': playCount,
+      if (skipCount != null) 'skip_count': skipCount,
     });
   }
 
@@ -1103,6 +1146,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Value<double?>? replayGainDb,
     Value<double?>? albumGainDb,
     Value<int>? playCount,
+    Value<int>? skipCount,
   }) {
     return SongsCompanion(
       id: id ?? this.id,
@@ -1127,6 +1171,7 @@ class SongsCompanion extends UpdateCompanion<Song> {
       replayGainDb: replayGainDb ?? this.replayGainDb,
       albumGainDb: albumGainDb ?? this.albumGainDb,
       playCount: playCount ?? this.playCount,
+      skipCount: skipCount ?? this.skipCount,
     );
   }
 
@@ -1199,6 +1244,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     if (playCount.present) {
       map['play_count'] = Variable<int>(playCount.value);
     }
+    if (skipCount.present) {
+      map['skip_count'] = Variable<int>(skipCount.value);
+    }
     return map;
   }
 
@@ -1226,7 +1274,8 @@ class SongsCompanion extends UpdateCompanion<Song> {
           ..write('composer: $composer, ')
           ..write('replayGainDb: $replayGainDb, ')
           ..write('albumGainDb: $albumGainDb, ')
-          ..write('playCount: $playCount')
+          ..write('playCount: $playCount, ')
+          ..write('skipCount: $skipCount')
           ..write(')'))
         .toString();
   }
@@ -4898,6 +4947,7 @@ typedef $$SongsTableCreateCompanionBuilder =
       Value<double?> replayGainDb,
       Value<double?> albumGainDb,
       Value<int> playCount,
+      Value<int> skipCount,
     });
 typedef $$SongsTableUpdateCompanionBuilder =
     SongsCompanion Function({
@@ -4923,6 +4973,7 @@ typedef $$SongsTableUpdateCompanionBuilder =
       Value<double?> replayGainDb,
       Value<double?> albumGainDb,
       Value<int> playCount,
+      Value<int> skipCount,
     });
 
 final class $$SongsTableReferences
@@ -5081,6 +5132,11 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<int> get playCount => $composableBuilder(
     column: $table.playCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get skipCount => $composableBuilder(
+    column: $table.skipCount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5253,6 +5309,11 @@ class $$SongsTableOrderingComposer
     column: $table.playCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get skipCount => $composableBuilder(
+    column: $table.skipCount,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongsTableAnnotationComposer
@@ -5345,6 +5406,9 @@ class $$SongsTableAnnotationComposer
 
   GeneratedColumn<int> get playCount =>
       $composableBuilder(column: $table.playCount, builder: (column) => column);
+
+  GeneratedColumn<int> get skipCount =>
+      $composableBuilder(column: $table.skipCount, builder: (column) => column);
 
   Expression<T> queueItemsRefs<T extends Object>(
     Expression<T> Function($$QueueItemsTableAnnotationComposer a) f,
@@ -5447,6 +5511,7 @@ class $$SongsTableTableManager
                 Value<double?> replayGainDb = const Value.absent(),
                 Value<double?> albumGainDb = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
+                Value<int> skipCount = const Value.absent(),
               }) => SongsCompanion(
                 id: id,
                 title: title,
@@ -5470,6 +5535,7 @@ class $$SongsTableTableManager
                 replayGainDb: replayGainDb,
                 albumGainDb: albumGainDb,
                 playCount: playCount,
+                skipCount: skipCount,
               ),
           createCompanionCallback:
               ({
@@ -5495,6 +5561,7 @@ class $$SongsTableTableManager
                 Value<double?> replayGainDb = const Value.absent(),
                 Value<double?> albumGainDb = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
+                Value<int> skipCount = const Value.absent(),
               }) => SongsCompanion.insert(
                 id: id,
                 title: title,
@@ -5518,6 +5585,7 @@ class $$SongsTableTableManager
                 replayGainDb: replayGainDb,
                 albumGainDb: albumGainDb,
                 playCount: playCount,
+                skipCount: skipCount,
               ),
           withReferenceMapper: (p0) => p0
               .map(

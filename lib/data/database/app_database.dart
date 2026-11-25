@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -76,6 +76,10 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 9) {
             await m.addColumn(songs, songs.composer);
+          }
+          if (from < 10) {
+            // Skips are counted from now on; every song starts at 0.
+            await m.addColumn(songs, songs.skipCount);
           }
         },
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).

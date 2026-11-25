@@ -63,6 +63,7 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     backend: backend,
     initialVolume: settings.defaultVolume,
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
+    onSongSkipped: (id) => unawaited(library.markSkipped(id).catchError((Object _) {})),
     onStreamStarted: (s) => unawaited(library.recordStream(s).catchError((Object _) {})),
     queueStore: DriftQueueStore(ref.watch(databaseProvider)),
     formatReader: AudioFormatReader().describe,

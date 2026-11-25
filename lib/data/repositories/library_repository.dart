@@ -185,6 +185,21 @@ class LibraryRepository {
   }
 
   /// Remembers that [songId] just started playing.
+  /// Remembers that [songId] was skipped.
+  Future<void> markSkipped(int songId) => _db.customUpdate(
+        'UPDATE songs SET skip_count = skip_count + 1 WHERE id = ?',
+        variables: [Variable<int>(songId)],
+        updates: {_db.songs},
+      );
+
+  /// Sets every play and skip count back to zero (and forgets when songs were
+  /// last played). Returns how many songs had something.
+  Future<int> resetListeningStats() => _db.customUpdate(
+        'UPDATE songs SET play_count = 0, skip_count = 0, last_played_at = NULL '
+        'WHERE play_count > 0 OR skip_count > 0 OR last_played_at IS NOT NULL',
+        updates: {_db.songs},
+      );
+
   Future<void> markPlayed(int songId) => _db.customUpdate(
         'UPDATE songs SET last_played_at = ?, play_count = play_count + 1 WHERE id = ?',
         variables: [Variable<DateTime>(DateTime.now()), Variable<int>(songId)],
@@ -385,6 +400,13 @@ class LibraryRepository {
     }
     if (view == LibraryView.favorites) clauses.add('favorite = 1');
     if (view == LibraryView.recent) clauses.add('last_played_at IS NOT NULL');
+    if (view == LibraryView.skipped) {
+      clauses.add('id IN (SELECT id FROM songs WHERE skip_count > 0 '
+          'ORDER BY skip_count DESC, id LIMIT $autoListSize)');
+    }
+    if (view == LibraryView.never) {
+      clauses.add('play_count = 0 AND last_played_at IS NULL');
+    }
     if (view == LibraryView.top) {
       clauses.add('id IN (SELECT id FROM songs WHERE play_count > 0 '
           'ORDER BY play_count DESC, last_played_at DESC, id LIMIT $autoListSize)');
@@ -424,6 +446,7 @@ class LibraryRepository {
   String _songOrder({String? artist, String? album, String? view, int? playlistId}) {
     if (view == LibraryView.recent) return 'ORDER BY last_played_at DESC, id';
     if (view == LibraryView.top) return 'ORDER BY play_count DESC, last_played_at DESC, id';
+    if (view == LibraryView.skipped) return 'ORDER BY skip_count DESC, play_count DESC, id';
     if (view == LibraryView.newest) return 'ORDER BY added_at DESC, id DESC';
     if (playlistId != null) {
       return 'ORDER BY (SELECT position FROM playlist_songs ps '
@@ -752,5 +775,7 @@ extension SongMapping on Song {
         trackNumber: trackNumber,
         available: available,
         favorite: favorite,
+        plays: playCount,
+        skips: skipCount,
       );
 }

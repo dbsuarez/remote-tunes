@@ -58,7 +58,7 @@ Every add ends with a report: songs **found**, **added**, **already in your libr
 - **Tap a song** in a list to play it; the rest of that list becomes the queue.
 - **Long-press a song** (or use *Select* in a search) to pick several, then add them to the queue or a playlist.
 - A song's **menu** (three dots): add to queue, add to playlist, favorite, **Edit info**, remove from library.
-- **Library categories:** All Songs, Folders, **Folder tree** (folders inside folders, arrow to go up), Albums, Artists, Album Artists, Composers, Genres, Years, Favorites, Recent, Top (most played), New, Playlists.
+- **Library categories:** All Songs, Folders, **Folder tree** (folders inside folders, arrow to go up), Albums, Artists, Album Artists, Composers, Genres, Years, Favorites, Recent, **Most played** (with how many plays), **Most skipped** (how many times you moved on before 30 seconds), **Never played**, New, Playlists. Settings > *Reset play and skip counts* starts the counts again.
 - **Back from a folder, album or artist** returns to the same spot in the list, with the one you came from lightly tinted.
 - **Search:** songs, albums, artists, album artists and folders in sections; *See all* narrows to one kind; your recent searches are listed when the box is empty. *Play* and *Shuffle* work on the results.
 

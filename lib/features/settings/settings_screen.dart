@@ -1,3 +1,4 @@
+import '../../providers/library_providers.dart';
 import '../library/folder_choice.dart';
 import '../player/visualizer.dart';
 import 'file_access_tile.dart';
@@ -354,6 +355,36 @@ class SettingsScreen extends ConsumerWidget {
                     'Folders you unticked when adding music, and songs you removed. They are not added again.'),
                 onTap: () => Navigator.of(context)
                     .push(MaterialPageRoute<void>(builder: (_) => const LeftOutScreen())),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.restart_alt_rounded),
+                title: const Text('Reset play and skip counts'),
+                subtitle: const Text(
+                    'Starts Most played, Most skipped, Never played and Recent from zero. Your songs are not touched.'),
+                onTap: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Reset the counts?'),
+                      content: const Text(
+                          'How often each song was played and skipped, and when it was last played, will be forgotten.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                        FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true), child: const Text('Reset')),
+                      ],
+                    ),
+                  );
+                  if (ok != true) return;
+                  final n = await ref.read(libraryRepositoryProvider).resetListeningStats();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(content: Text('Counts reset for $n song${n == 1 ? '' : 's'}')));
+                  }
+                },
               ),
               const FileAccessTile(),
               const SizedBox(height: 16),

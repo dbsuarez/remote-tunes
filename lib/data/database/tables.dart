@@ -46,6 +46,10 @@ class Songs extends Table {
   /// How many times the song started playing (schema v5; feeds "Top").
   IntColumn get playCount => integer().withDefault(const Constant(0))();
 
+  /// How many times the song was skipped: left within the first 30 seconds (or the
+  /// first half of a short song) by pressing next or choosing another (schema v10).
+  IntColumn get skipCount => integer().withDefault(const Constant(0))();
+
   /// A song has file_path or url, never both and never neither.
   @override
   List<String> get customConstraints => [
