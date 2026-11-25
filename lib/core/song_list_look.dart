@@ -15,6 +15,23 @@ enum SongListView {
       values.firstWhere((v) => v.name == name, orElse: () => SongListView.list);
 }
 
+/// The views from the smallest to the biggest: pinching steps along this ladder ("no images" is
+/// not on it; it steps like a compact list).
+const songListZoomLadder = [
+  SongListView.oneLine,
+  SongListView.listCompact,
+  SongListView.listSmall,
+  SongListView.list,
+  SongListView.grid,
+];
+
+/// The view one step bigger (or smaller) than [v]; the same one at either end.
+SongListView zoomView(SongListView v, {required bool bigger}) {
+  final at = v == SongListView.noImages ? 1 : songListZoomLadder.indexOf(v);
+  final to = (at + (bigger ? 1 : -1)).clamp(0, songListZoomLadder.length - 1);
+  return songListZoomLadder[to];
+}
+
 /// The look chosen for one kind of list (All songs, an album, a playlist...).
 class ListLook {
   const ListLook({this.view = SongListView.list, this.titlesOnly = false});

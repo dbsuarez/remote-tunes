@@ -170,6 +170,36 @@ void main() {
       expect(tester.widget<Text>(find.byKey(const Key('list-count'))).data, '1 song | 2:05');
     });
 
+    Future<void> pinch(WidgetTester tester, {required bool apart}) async {
+      final c = tester.getCenter(find.text('Apple Song'));
+      final a = await tester.startGesture(c + const Offset(-40, 0));
+      final b = await tester.startGesture(c + const Offset(40, 0));
+      await a.moveBy(Offset(apart ? -60 : 30, 0));
+      await b.moveBy(Offset(apart ? 60 : -30, 0));
+      await a.up();
+      await b.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('two fingers apart make the view bigger, together smaller, and it is remembered',
+        (tester) async {
+      await open(tester);
+      await pinch(tester, apart: true);
+      expect(saved['songs']!.view, SongListView.grid);
+      expect(find.byType(GridView), findsOneWidget);
+      await pinch(tester, apart: false);
+      expect(saved['songs']!.view, SongListView.list);
+      await pinch(tester, apart: false);
+      expect(saved['songs']!.view, SongListView.listSmall);
+    });
+
+    testWidgets('one finger still scrolls and taps, and nothing changes', (tester) async {
+      await open(tester);
+      await tester.drag(find.text('Apple Song'), const Offset(0, -30));
+      await tester.pumpAndSettle();
+      expect(saved, isEmpty);
+    });
+
     testWidgets('the button shows it is not the standard look', (tester) async {
       looks = {'songs': const ListLook(view: SongListView.listCompact)};
       await open(tester);
@@ -198,5 +228,14 @@ void main() {
     expect((await repo.songs(artist: 'X')).totalSeconds, 350);
     expect((await repo.songs(artist: 'Z')).totalSeconds, 0);
     expect((await repo.songs(limit: 1)).totalSeconds, 350, reason: 'the whole list, not the page');
+  });
+
+  test('the zoom steps along the ladder and stops at the ends', () {
+    expect(zoomView(SongListView.list, bigger: true), SongListView.grid);
+    expect(zoomView(SongListView.grid, bigger: true), SongListView.grid);
+    expect(zoomView(SongListView.list, bigger: false), SongListView.listSmall);
+    expect(zoomView(SongListView.oneLine, bigger: false), SongListView.oneLine);
+    expect(zoomView(SongListView.noImages, bigger: true), SongListView.listSmall);
+    expect(zoomView(SongListView.noImages, bigger: false), SongListView.oneLine);
   });
 }

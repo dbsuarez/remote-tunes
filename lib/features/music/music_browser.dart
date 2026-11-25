@@ -10,6 +10,7 @@ import '../../core/protocol/library_models.dart';
 import '../../core/song_list_look.dart';
 import '../../core/song_list_style.dart';
 import 'list_options_sheet.dart';
+import 'pinch_zoom.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'music_source.dart';
 import 'song_art.dart';
@@ -806,7 +807,17 @@ class _MusicBrowserState extends State<MusicBrowser> {
           ),
           ],
         ),
-        Expanded(child: list),
+        Expanded(
+          // Two fingers apart or together step the view bigger or smaller.
+          child: PinchZoom(
+            onStep: (bigger) {
+              final now = widget.looks[kind] ?? ListLook.standard;
+              final to = zoomView(now.view, bigger: bigger);
+              if (to != now.view) widget.onLook!(kind, now.copyWith(view: to));
+            },
+            child: list,
+          ),
+        ),
       ],
     );
   }
