@@ -170,6 +170,7 @@ Both phones now run the **release build** (faster than debug; same app).
 - [ ] **Pairing:** with Start remote playback on, the other phone connects and the request pops up on whatever screen you are on.
 - [ ] **Screen on:** adding a big folder, Update tags and Find album art do not let the screen lock while they run.
 - [ ] **Lock screen heart:** the notification has a heart button for the song playing (if your phone shows notification buttons).
+- [ ] **Lyrics redesign:** the cover button fades the cover out completely, then the lyrics card fades in at the cover's size; the line being sung is big and bright, the rest dimmer and fading at the top and bottom; the button brings the cover back. *Show fullscreen* opens the big view with the song name; it follows the music; the X closes it. The card's colors follow the cover's accent.
 
 ---
 

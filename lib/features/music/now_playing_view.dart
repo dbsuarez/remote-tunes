@@ -187,6 +187,8 @@ class NowPlayingViewState extends State<NowPlayingView> {
                       size: heroSize,
                       radius: 20,
                       songId: p.songId,
+                      title: p.title,
+                      artist: p.artist,
                       positionSeconds: p.positionSeconds,
                       isPlaying: p.isPlaying,
                       enabled: enabled,

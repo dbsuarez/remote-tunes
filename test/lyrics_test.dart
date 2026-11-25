@@ -266,7 +266,8 @@ void main() {
     Future<void> open(WidgetTester tester) async {
       await tester.tap(find.byTooltip('Show lyrics'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      // The cover fades out, then the lyrics fade in.
+      await tester.pump(const Duration(milliseconds: 600));
     }
 
     testWidgets('closed until asked: nothing is fetched', (tester) async {
