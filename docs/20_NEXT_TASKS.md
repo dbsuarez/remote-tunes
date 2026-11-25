@@ -1,100 +1,77 @@
-# Next tasks
+# What is built and what is not
 
-What is built and what is still to do, from the owner's lists (the UX handoff, the Poweramp-inspired ideas and screenshots, lyrics, releases). Updated after `v0.7.0` (the next batch is built but not yet released).
+Updated after **`v0.13.0`**. This is the owner's list (UX handoff, Poweramp-inspired ideas, lyrics, releases, and later requests), kept honest: *built* means it has automated tests; **most of it has not been tried on a phone yet**, see [docs/19_PHONE_TEST_CHECKLIST.md](19_PHONE_TEST_CHECKLIST.md) (start at section 14).
 
-Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.md). Everything below marked done has automated tests; **none of the audio, gesture and layout items have been tried on a phone yet** (see [docs/19](19_PHONE_TEST_CHECKLIST.md)).
+Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.md). Privacy: [docs/21_PRIVACY.md](21_PRIVACY.md).
+
+---
+
+## Not done
+
+### To check by hand (owner)
+- [ ] Try the phone checklist, sections 14 to 19 (everything since `v0.7.0`: crossfade, tag writing, visualizer, leaving folders out, lock screen, EQ, lyrics, menu, skins...). Group play and Auto-align were verified earlier on two phones.
+- [ ] Lock screen on the **GT 30 Pro** did not show the player (it works on the Note 10 Pro); probably a phone setting, parked.
+- [ ] Free space on the C: drive (it was nearly full).
+- [ ] GitHub Pages: Settings > Pages > Source: GitHub Actions (once), for the web Controller.
+
+### Known limits (built, but not as far as it could go)
+- [ ] **10-band EQ is virtual:** Android's equalizer has about 5 bands, so the ten sliders are blended onto them (the screen says so). A true 10-band filter would need our own audio processing.
+- [ ] **Replay Gain** reads the tags only; *measuring* loudness for files that have none needs decoding every file.
+- [ ] **Writing tags into files** depends on Android: files in shared folders are refused unless *All files access* is on (Settings). It writes title, artist, album and track number only (not genre, year, cover).
+- [ ] **Visualizer** needs the microphone permission (Android's rule for reading the sound; nothing is recorded), works only for this phone's own playback, and some phones or outputs may refuse it.
+- [ ] **Crossfade** works only between songs that are files on this phone (not internet tracks); songs shorter than about twice the fade just change.
+- [ ] **Group play card** shows only while controlling another phone.
+
+### Ideas not started
+- [ ] A **user guide** for friends (built from these docs). Wanted later; for now the app is for personal use only.
+- [ ] A true 10-band equalizer / our own audio effects (see above).
+- [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Left out of the library* screen).
 
 ---
 
 ## Done
 
 ### Releases and updates (`v0.2.0` on)
-- [x] Release APKs on GitHub Releases, one per CPU type, built on a `v*` tag (`.github/workflows/release.yml`, README "Releases and updates"). Signed with the key your phones already use, so updates keep their data.
-- [x] In-app update: Settings > App updates, a card on Home when a newer version exists, checked about once a day. Download is checked (size and SHA-256) and kept until installed; the button says when Android's install screen is open; it carries on by itself after the "allow installs" switch, even if Android restarted the app (`v0.6.0`).
+- [x] Release APKs on GitHub Releases, one per CPU type, built on a `v*` tag (`.github/workflows/release.yml`). Signed with the key your phones already use, so updates keep their data.
+- [x] In-app update (Settings > App updates, checked about once a day): size and SHA-256 are checked, the download is kept until installed, it resumes after the install permission, and **What's new** (in the menu) lists the release notes.
 
-### UX handoff (`docs/handoff.md`, `v0.2.0`)
-- [x] Haptics: `HapticButton`, firm tap on play / pause, light on skip, a click on sliders, hearts and selecting. Settings switch.
-- [x] Colors from album art: the Controller's accent follows the cover (kept readable, never Spotify green). Settings switch.
-- [x] Queue Peek: a draggable sheet on Now Playing with the song playing and the next three, up to the whole queue.
+### The app as a music player first
+- [x] Opens on Now Playing for this phone's songs; bottom bar (Now Playing, Library, Search, Queue), a mini player with a progress line under every other tab, and a source chip (*This phone* / *Control another phone* / remote playback). The old Home / Player / Controller screens are gone.
+- [x] **Controller as a mode:** the same screens show and control another phone's music; Now Playing is one screen (`NowPlayingView`) for both. Pairing requests pop up over whatever is open; *Control my last Player* and *Start remote playback* can run when the app opens.
+- [x] **Menu** (top-left): Now Playing, Lyrics, Library, Playlists, Search, Queue, Equalizer, Skins, Remote playback, Settings, What's new, Help.
+- [x] **Skins:** 7 built-in looks plus your own from pasted JSON (copy any skin to share it); dark-only guardrails; the cover's accent still tints the player.
+- [x] **Queue** opens at the song playing (Settings switch, on by default); the **Up next sheet** rests as a handle, opens with a tap or swipe, and closes when you tap the player outside it.
+- [x] Haptics, colors from album art, Queue peek, edge swipes (queue from the right, Library from the left), volume as a button with a vertical slider, the format line (kHz, kbps, type).
+- [x] Shuffle and repeat are remembered between runs.
 
-### Audio engine
-- [x] Gapless playback for local songs (`v0.2.0`).
-- [x] Lock screen / Android 13+ media controls: cover, length, loading state, shuffle, repeat and speed, and they can be changed from there (`v0.4.0`).
+### Audio
+- [x] Gapless playback for local songs.
+- [x] **Crossfade** (Settings, 0 to 12 s): two players, equal-power fade; the next song is loaded early and the fade starts at the right moment (fixed in `v0.12.1`: the first fade used to restart the next song).
+- [x] **Equalizer:** Android's bands with 9 presets, per-output memory (speaker / wired / Bluetooth), a response curve, Preamp, Bass / Treble and Limit, plus a **10-band view**.
+- [x] **Replay Gain** from tags (Off / By song / By album); it never turns a song up.
+- [x] **Visualizer** (Settings, off by default): 24 moving bars under the cover; follows whichever player is audible.
+- [x] Lock screen / notification: cover, length, shuffle / repeat / speed, a heart for library songs; own channel; rebuilt only when something changes.
 
-### Library and metadata
-- [x] Folders view (flat list by folder name; paths never leave the Player), Top (play counts) and New (newest 100) (`v0.3.0`, schema v5).
-- [x] Album art finder: Settings > Find missing album art (MusicBrainz + Cover Art Archive; on request; names only) (`v0.4.0`).
-- [x] Basic tag editor: Edit info on the Player's library (title, artist, album, track number; changes the listing, not the file) (`v0.4.0`).
-- [x] Library as a list of categories on both phones: All Songs, Folders, Albums, Artists, Favorites, Recent, Top, New, Playlists (`v0.6.0`).
-- [x] Search screen: scope chips (All, Songs, Albums, Artists, Folders), sections with "See all", tap to play or open, and a history kept on the phone (20 entries, a cross on each, Clear) (`v0.6.0`).
+### Library and search
+- [x] Categories: All Songs, Folders, **Folder tree**, Albums, Artists, Album Artists, **Composers**, Genres, Years, Favorites, Recent, Top, New, Playlists.
+- [x] Search: sections, *See all*, history, Album Artists, Play / Shuffle, and **Select** (pick songs for the queue or a playlist).
+- [x] Folders: multi-select to a playlist or the queue; Back returns to the same spot with the folder tinted.
+- [x] **Edit info** (title, artist, album, track number) and **write into the music file** (read back to confirm; **All files access** switch in Settings for Android 11+).
+- [x] **Adding music:** *Choose what to add* lets you untick folders (and single songs) to leave out; remembered; *Left out of the library* (Settings) lists them and lets them back in; a removed song does not return when its folder is added again; an optional *also remove their songs already in the library*; and every add ends with a **report** (found, added, already there, left out, removed, skipped with reasons). The screen stays on while it runs.
+- [x] Album art finder (MusicBrainz + Cover Art Archive, on request); *Update tags from files* (genre, year, album artist, composer, Replay Gain).
 
-### Lyrics (`v0.3.0`, schema v6)
-- [x] LRCLIB (exact, then search) then lyrics.ovh, looked up once per song and kept on the Player (30 days; a miss 1 day). Lyrics button on Now Playing on both phones; synced lines follow the song and can be tapped to seek. Settings switch "Lyrics from the internet".
+### Lyrics
+- [x] LRCLIB, then **Megalobiz** (timed lyrics when LRCLIB has none, credited), then lyrics.ovh; kept on the phone (30 days; a miss 1 day).
+- [x] Redesign: the cover fades out and a lyrics card fades in at its size (gradient in the accent color, the sung line big and bright), tap a line to jump, **Show fullscreen**.
 
-### Now Playing and gestures (Controller)
-- [x] Now Playing v2 (`v0.5.0` / `v0.6.0`): big cover, accent-colored title with "Artist · Album", a quick row (favorite, shuffle, repeat, speed, sleep timer), round play button with previous / next and 10-second back / forward, seek bar with times and the file format line ("48 kHz · 256 kbps · MP3", read by the Player when the song starts).
-- [x] Edge swipes on Now Playing (`v0.3.0`): from the right edge raises the queue (middle, then full), from the left edge opens the Library.
+### Remote playback, group play, web
+- [x] Pairing with QR / nearby / code, trusted devices, reconnect; the web Controller on GitHub Pages; External App Control; the Online Library (Jamendo).
+- [x] Group play and Auto-align (verified on two phones).
+
+### Docs
+- [x] [Privacy page](21_PRIVACY.md): everything that leaves the phone and how to switch it off. README updated.
 
 ---
 
-## Still to do
-
-### Audio engine (Player side)
-- [x] **Crossfade** (Settings > Crossfade, 0 to 12 s): two audio players, one fading out while the next fades in (equal power). Only between songs that are files on this phone; with it on, gapless lining-up is replaced by the fade; short songs, repeat-one, internet tracks and the last song just change. Never tried on a phone: it needs listening tests.
-- [x] **EQ (built-in):** Android's own equalizer (usually 5 bands, differs per phone) with 9 presets, a slider per band, and settings remembered per sound output (speaker / wired / Bluetooth) that come back when that output is in use. Equalizer icon in the top bar and in Settings. Not done: a true 10-band EQ (needs our own audio processing), the response curve, Tone / Limit switches and Bass / Treble knobs.
-- [x] **Replay Gain from tags** (schema v8): Settings > Even out loudness (Off / By song / By album) turns loud songs down to the level in their Replay Gain tags (read by "Update tags from files" and on import). It never turns a song up. Not done: *measuring* loudness for files that have no tags (that needs decoding every file).
-
-### Library and search
-- [x] Album Artists, Genres and Years (schema v7; read from the tags; Settings > "Update tags from files" fills in songs added before). Composers are in too (schema v9; MP3, FLAC, Ogg and APE files that have the tag), and a **Folder tree** (Library > Folder tree: folders inside folders, an arrow to go up, the folder you came from marked).
-- [x] Search: Album Artists scope and Play / Shuffle for the results. (A Select row is not done.)
-- [x] Tag editor: Edit info has *Also write into the music file* (title, artist, album, track number; other tags and the cover are kept; the result is read back to make sure). Android 11+ often refuses files in shared folders: then it is saved in RemoteTunes only and says so. Settings has an *All files access* row (Android 11+, opens the phone's own page for the app) that lets it write to files in any folder.
-
-### UI / UX
-- [x] **EQ screen** with sliders, presets, per-output memory, a response curve, Preamp, Tone (Bass / Treble knobs) and Limit. Preamp up uses the phone's loudness enhancer, down lowers the volume. Not done: a true 10-band EQ.
-- [x] **10-band EQ view** (EQ screen switch *N bands (phone)* / *10 bands*): ten sliders (31 Hz to 16 kHz) blended onto the phone's real bands, with a note saying so. Presets fill the ten sliders too; the choice is remembered per output. It is not a true 10-band filter: Android's equalizer has about 5 bands, so neighbouring sliders work together.
-- [x] **Visualizer** (Settings > Visualizer, off by default): 24 moving bars under the cover while music plays, following whichever player is audible (also during crossfade). Uses Android's Visualizer on the app's own sound, which asks for the microphone permission (nothing is recorded). Only on this phone's own playback, not while controlling another phone or another music app.
-- [x] **Add folder: leave folders out + report.** After choosing a folder, a *Choose what to add* step lists its subfolders (with song counts, all ticked); untick to leave one (and what is inside) out, or open a folder (the arrow) and untick single songs, optionally also removing its songs already in the library. The choice is remembered (Settings > *Left out of the library* lists them and lets them back in), and removing a song from the library keeps it from coming back when its folder is added again. Every add (files or folder) ends with a report: found, added, already in the library, left out, removed, skipped with reasons.
-- [ ] **Bottom bar** (Library, EQ, Search, Queue) with a persistent mini player and progress line on every screen. A big navigation change: it would replace the top tabs.
-- [x] **Menu with shortcuts** (the button at the top left): Now Playing, Lyrics (opens the lyrics), Library, Playlists (opens the playlists), Search, Queue, Equalizer, Remote playback, Settings, What's new (release notes from GitHub) and Help. Skin settings are added with the skins.
-- [x] **Skins** (Menu > Skins): 7 built-in looks plus your own from pasted JSON (copy any skin to share it); dark-only guardrails; the album-art accent still tints the player.
-- [x] **Queue opens at the song playing** (Settings switch, on by default) and the **Up next sheet closes when you tap the player outside it**.
-- [ ] **Visualizer tab** (Player only). Needs audio analysis; the microphone permission or a simulated animation.
-- [ ] Now Playing v2 on the **Player's own screen** (it still has the small card), and the edge swipes there.
-- [x] A **favorite button** on the lock screen / notification (heart; shows only for library songs; may not appear on phones whose system hides notification buttons).
-
-### Lyrics
-- [x] Megalobiz fallback: time-synced lyrics when LRCLIB has none (credited on screen).
-- [x] Privacy page: [docs/21_PRIVACY.md](21_PRIVACY.md) lists everything that leaves the phone (lyrics, album art, Online Library, updates, links) and how to switch it off.
-
-### Direction: a music player first, the Controller as a mode (built, not yet tried on phones)
-- [x] **Step 1:** Settings > "When the app opens": *This phone's music* (default), *Control my last Player* (reconnects to the last trusted Player and controls it) or *Classic start screen* (the old Player / Controller choice).
-- [x] **Step 2:** the music-player shell: bottom bar (Now Playing, Library, Search, Queue), a mini player with a progress line under every tab but Now Playing, and a source chip in the top bar. It plays this phone's own music; with nothing playing there is no notification and no foreground service (a normal music player).
-- [x] **Step 3:** the Controller is a mode of the same screens. The source chip opens a sheet: *This phone*, *Control another phone* (finds a Player; once connected the same tabs show and control that Player; if it goes away the app falls back to this phone), *Disconnect*, and **Start remote playback** (starts the Player server on demand; Stop ends it; the sheet's row opens the QR / pairing page). Nothing listens on the network until pressed; Settings can start it automatically. Online Library and Play a link are rows in the Library list.
-- [x] **Now Playing is the same screen on both phones** (`NowPlayingView` on a `PlaybackSession`: `LocalSession` for this phone, `RemoteSession` for another): big cover, quick row, transport, lyrics, queue peek, edge swipes. The sleep timer is shared by this phone's screen and the Player server.
-- [ ] Still to do here: the "Group play" card only shows when controlling another phone; the classic Home / Player / Controller screens are still reachable (Settings > Classic start screen) and could be retired once the new flow is trusted; the Player server's pairing page could show in the shell instead of its own screen; the shell has no tablet / landscape layout.
-
-### Done after v0.7.0 (this batch)
-- [x] The queue sheet rests as just a handle (tap or swipe it up).
-- [x] Lyrics show inside the cover (button in its top-right corner); the separate Lyrics button is gone.
-- [x] The volume is a button in the quick row with a small vertical slider.
-- [x] The "Adding music" card has a fixed size (file names no longer make it jump).
-- [x] Notification: rebuilt only when something changes (it was rebuilt every second), and it has its own channel with normal importance and no sound. Lock-screen player: see the notes below.
-- [x] Group play and Auto-align verified by the owner on two phones.
-
-### Done in the batch after v0.9.0
-- [x] Pairing requests pop up over whatever screen is open (no need to open the Remote playback page).
-- [x] Keep the screen on while adding songs, updating tags and finding album art.
-- [x] Library > Folders: pick several folders (long-press) and add them to a playlist or the queue; Back from an opened folder (or artist, album, playlist, genre...) returns to the same spot in the list with that row quietly tinted, and a search is kept.
-- [x] Shuffle and repeat are remembered between runs (they use the Settings > Playback values, which now follow the Now Playing buttons).
-- [x] The classic Home / Player / Controller screens are retired (no Home screen, no role buttons, no "Classic start screen"). The connect page ("Control another phone") and the Remote playback page remain; the connected Controller screen is kept only for the web page.
-
-### Lyrics redesign (built, not yet tried on a phone)
-- [x] **Fade, then replace:** the lyrics button fades the cover out completely (the first half of a 0.46 s animation) and only then fades the lyrics card in; the lyrics card takes the cover's whole space with a small margin. The button flips back the same way.
-- [x] **Show fullscreen:** a button on the lyrics card opens a lightbox-style full-screen view (song name and artist, bigger type, a close button) that keeps following the music and the song behind it.
-- [x] **A designed look:** a gradient background in the accent color (so it follows the cover) with a soft glow; the line being sung large, white and bold, nearby lines smaller and dimmer, fading out at the top and bottom edges; a smooth ease to the current line; the credit as a quiet footer; plain lyrics get the same card.
-- Kept: tap a line to jump there, the "no lyrics" / "switched off" / retry messages, both phones.
-
-### Verification and housekeeping (owner)
-- [ ] Try everything on the phones with `docs/19_PHONE_TEST_CHECKLIST.md`: gapless, lyrics, edge swipes, Now Playing v2, library list, search, album-art finder, lock screen, updates, and group play / Auto-align (never verified).
-- [ ] Free space on the C: drive (it was nearly full).
-- [ ] GitHub Pages: Settings > Pages > Source: GitHub Actions (once) for the web Controller.
+## History of the releases (short)
+`v0.2` updates, gapless, haptics, queue peek · `v0.3` lyrics, folders, edge swipes · `v0.4` lock screen, art finder, tag editor · `v0.5`–`v0.6` Now Playing v2, library list, search · `v0.7`–`v0.8` music player first, controller as a mode · `v0.9` crossfade, EQ, Replay Gain · `v0.10` pairing popup, folder multi-select, screen on · `v0.11` lyrics redesign · `v0.12` retired the classic screens, menu, privacy page, composers, folder tree, Megalobiz, skins, queue scroll, tag writing (`v0.12.1`: crossfade fix) · `v0.13` All files access, 10-band EQ, visualizer, leaving folders and songs out, the add report.

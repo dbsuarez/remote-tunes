@@ -1,6 +1,6 @@
 # Phone test checklist
 
-Everything below is covered by automated tests, but most of it has **never been used by hand**. Tick each box when it behaves as written. If it doesn't, write what you saw next to it (a photo or screenshot helps) and send it over.
+Everything below is covered by automated tests, but most of it has **never been used by hand**. Sections 1 to 13 were ticked on the phones; **sections 14 to 19 are what is left to try** (14 first). Tick each box when it behaves as written. If it doesn't, write what you saw next to it (a photo or screenshot helps) and send it over.
 
 **Phones:** the Infinix X6873 (GT 30 Pro) and the X695. Both have the latest debug build. The X6873 has the most songs, so use it as the **Player** and the X695 as the **Controller** unless a step says otherwise. Both are currently named "My Phone": rename one in Settings > Device name (for example "GT30 Pro"), it makes the lists clearer.
 
@@ -136,54 +136,52 @@ Both phones now run the **release build** (faster than debug; same app).
 - [x] **Queue Peek:** on Now Playing a small sheet rests at the bottom showing the song playing. Drag it up: the next 3 songs appear, further up the whole queue. Tap a song: it plays. Drag down: it tucks away. The player controls above are never covered, and you can still scroll the page to its last card.
 - [x] Nothing queued, or playing an internet track: no sheet is shown.
 
-## 14. Gapless and updates
-- [ ] **Gapless:** queue two songs from the phone's own library that flow into each other (an album or a live recording). Let the first end: the second starts with no audible gap or click. Skip, repeat-one, shuffle and removing the next song still work normally.
-- [x] **Updates (after the GitHub secret is set and a release exists):** Settings > App updates > Check for updates says "newest version" or offers the new one. Update: Android asks to allow installs from RemoteTunes once, downloads, then shows its install screen; afterwards the app opens with your songs, playlists and trusted devices still there.
-- [ ] **Top / New / Folders** chips in the Library (scroll the chips sideways): Top fills as you play songs, New shows the newest first, Folders lists your music folders and opening one shows only its songs. Your old library is intact after the update.
-- [ ] **Lyrics:** play a well-known song, Now Playing > *Lyrics*. After a few seconds the lyrics appear, the current line is highlighted and follows the song; tap a line to jump. A song with no lyrics says so. With the Player offline it says it can't reach the service. Settings > Look and feel > Lyrics from the internet off: it says lyrics are switched off. Works from the Player's own screen too.
-- [ ] **Edge swipes (Controller):** on Now Playing swipe in from the right edge (a finger-width in from the very edge if Android's back gesture steals it): the queue rises, again for the full list. From the left edge: the Library opens. The normal swipe between tabs still works from the middle.
-- [ ] **Lock screen:** while playing, the lock screen / notification shows the cover and title; the seek bar moves; on Android 13+ the shuffle and repeat buttons show and work.
-- [ ] **Album art finder:** Settings > Find missing album art. It says how many albums lack a cover, finds some, and they show on the next song played from those albums.
-- [ ] **Edit info:** on the Player, Library > a song's menu > Edit info. Change the title, Save: the list shows the new title. The Controller shows it too after reopening the Library.
-- [ ] **Now Playing v2 (Controller):** the cover is big (never more than about 40% of the screen), the title is in the accent color, and favorite / shuffle / repeat sit under it and switch on and off. The 10-second back / forward buttons jump in the song. Everything below (volume, speed, sleep timer, Lyrics) is still reachable by scrolling, and the Queue Peek sheet doesn't cover it. On your smallest phone nothing is cut off.
-- [ ] **Library list:** the Library tab (both phones) opens on a list of categories; each opens its list with a back arrow to the list. Folders, Top and New work as before.
-- [ ] **Search screen:** the search button on the Library list opens it. Typing shows songs, albums, artists and folders in sections; "See all" narrows to one kind; tapping a song plays it, tapping an album / artist / folder opens it. Your recent searches show when the box is empty, can be removed one by one or cleared, and are still there after closing the app.
-- [ ] **Quick row:** speed (the icon turns into e.g. 1.25× when changed) and the sleep timer (shows the time left while running; the menu has Cancel) are in the row under the title.
-- [ ] **Format line:** under the seek bar, between the times, it reads something like "44.1 kHz · 320 kbps · MP3" a moment after a local song starts; nothing for internet tracks.
-- [ ] **Music player first:** the app opens on Now Playing for this phone's songs (bottom bar Now Playing / Library / Search / Queue, chip "This phone" at the top). Play a song, switch tabs: the mini player shows under every tab but Now Playing. With nothing playing there is **no** RemoteTunes notification.
-- [ ] **Add music** (+ in the Library tab's top bar), play from the Library, search, queue; everything works on the phone's own music with no other phone around.
-- [ ] **Start remote playback:** tap the chip > Start remote playback. The pairing / QR page opens; the notification now stays while nothing plays. From the other phone: chip > Control another phone > pick it. That phone's music shows in the same tabs and the buttons control it. Stop remote playback on the first phone: nothing is listening (the other phone shows it disconnected and falls back to its own music).
-- [ ] **Now Playing looks and behaves the same** on the Player and on the Controller: cover, accent title, favorite / shuffle / repeat / speed / sleep, 10-second jumps, lyrics, queue peek, edge swipes.
-- [ ] **When the app opens** (Settings): "Control my last Player" reconnects by itself (chip says Controlling ...); "Classic start screen" brings back the Player / Controller buttons. "Start remote playback when the app opens" starts it at once.
-- [ ] **Queue handle:** on Now Playing only a thin handle shows at the bottom; tap it or swipe it up for the queue, and tap or swipe down to put it away.
-- [ ] **Lyrics in the cover:** the button in the cover's top-right corner shows the lyrics over the cover, the same button brings the cover back.
-- [ ] **Volume:** the speaker icon in the row under the title opens a small vertical slider; there is no separate volume bar.
-- [ ] **Adding music:** the progress card keeps the same size while file names change.
-- [ ] **Lock screen:** start a song, lock the phone: the player (title, cover, buttons) shows on the lock screen. If it does not, tell me what you see (nothing at all, or a notification without buttons).
-- [ ] **Genres / Years / Album Artists:** Settings > Update tags from files, then Library > Genres, Years and Album Artists fill in and open like albums.
-- [ ] **Equalizer:** the equalizer icon in the top bar (or Settings > Equalizer). Play a song first. Pick Bass boost: the sliders move and the bass is clearly stronger. Switch it off: it sounds normal again. Turn on "Remember for ...", change to another output (headphones / Bluetooth) and back: the settings follow the output.
-- [ ] **Even out loudness:** Settings > Update tags from files, then Settings > Even out loudness > By song. Songs from albums with Replay Gain tags are turned down to about the same level (songs with no tags are unchanged).
-- [ ] **Crossfade:** Settings > Crossfade, set 5 s. Play an album from the phone: near the end of each song it fades out while the next fades in; skipping and pausing during a fade behave. Set it to Off for normal gapless.
-- [ ] **Equalizer extras:** the curve moves with the sliders; Preamp changes the overall loudness; Bass / Treble (Tone) and Limit work (Limit turns the music down when you boost).
-- [ ] **Folders:** long-press a folder, tap more, then add them to a playlist; open a folder far down the list, press Back: you are at the same spot and that folder is tinted.
-- [ ] **Shuffle and repeat:** switch both on, close the app completely, open it: both are still on.
-- [ ] **Pairing:** with Start remote playback on, the other phone connects and the request pops up on whatever screen you are on.
-- [ ] **Screen on:** adding a big folder, Update tags and Find album art do not let the screen lock while they run.
-- [ ] **Lock screen heart:** the notification has a heart button for the song playing (if your phone shows notification buttons).
-- [ ] **Lyrics redesign:** the cover button fades the cover out completely, then the lyrics card fades in at the cover's size; the line being sung is big and bright, the rest dimmer and fading at the top and bottom; the button brings the cover back. *Show fullscreen* opens the big view with the song name; it follows the music; the X closes it. The card's colors follow the cover's accent.
-- [ ] **Menu:** the button at the top left opens a menu. Lyrics shows the lyrics on Now Playing, Playlists opens the playlist list, What's new lists the release notes, Help explains the basics. A swipe in from the left edge still opens the Library (not the menu).
-- [ ] **Search Select:** in a search, Select (or a long-press on a song) lets you pick several and add them to the queue or a playlist.
-- [ ] **Composers and Folder tree:** Update tags from files, then Library > Composers lists them. Library > Folder tree starts at the top of your music folders; tap folders to go in, the up arrow to come back (the folder you left is tinted); songs in a folder play from the one you tap.
-- [ ] **Skins:** Menu > Skins lists 7 looks; tapping one changes the colors straight away and it is remembered. Add (+) accepts pasted JSON (copy one with the copy button to see the format), explains mistakes, and an added skin can be removed.
-- [ ] **Queue scroll:** opening the Queue tab goes to the song playing; Settings > *Queue opens at the song playing* off keeps the list where it was.
-- [ ] **Up next sheet:** slide it up, then tap the player above it: it slides back down.
-- [ ] **Write tags into files:** Edit info on a song has *Also write into the music file*. Tick it and save: the message says whether the file was changed. If Android refuses it says *Saved in RemoteTunes only*; then Settings > *All files access* opens Android's page for the app: switch it on, come back (the row shows Allowed) and save again. Report which phone and folder if it still refuses.
-- [ ] **Crossfade (again):** with crossfade on, the first change of a session fades once and the next song does not start over.
-- [ ] **10-band EQ:** on the EQ screen switch to *10 bands*. Ten sliders appear (31 to 16k) with a note about the phone's real bands. Moving the bass sliders changes the sound as you would expect; a preset fills all ten; switching back to the phone's bands works; it is still there after closing the app.
-- [ ] **Visualizer:** Settings > Visualizer on; allow the microphone permission. Under the cover, bars move with the music, stop when paused, and keep moving after a song change and during a crossfade. If you refuse the permission, it says so. Report if the bars stay flat on any phone or output (speaker / Bluetooth).
-- [ ] **Leave folders out:** Add a folder that has subfolders: a *Choose what to add* list appears. Untick one, add: the report shows Added and Left out counts. Add the same folder again: the unticked one is still left out. Settings > *Left out of the library* lists it; the undo arrow lets it back in. With a folder already added, untick one and tick *Also remove their songs*: the report shows Removed. Remove one song from the library, add its folder again: it does not return.
+## 14. Start here: the new things most likely to behave differently on a phone
+These were built after `v0.7.0` and have **never been tried on a phone**. Do them in this order (the riskiest first). Tick the box, or write what you saw next to it.
+
+- [ ] **Crossfade:** Settings > Crossfade, set 5 s. Play an album from the phone: near the end of each song it fades out while the next fades in. **The first change after opening the app fades once and the next song does not start over** (this was a bug in `v0.12.0`, fixed in `v0.12.1`). Skipping and pausing during a fade behave. Off gives normal gapless.
+- [ ] **Write tags into files:** Edit info on a song > *Also write into the music file*. Tick it and save: the message says whether the file was changed. If Android refuses it says *Saved in RemoteTunes only*; then Settings > *All files access* opens Android's page for the app: switch it on, come back (the row shows Allowed) and save again. Report which phone and which folder if it still refuses.
+- [ ] **Visualizer:** Settings > Visualizer on; allow the microphone permission. Under the cover bars move with the music, stop when paused, keep moving after a song change and during a crossfade. If you refuse the permission, it says so. Report if the bars stay flat on any phone or output (speaker / Bluetooth).
+- [ ] **Leave folders out:** add a folder that has subfolders: *Choose what to add* appears. Untick one, add: the report shows Added and Left out counts. Add the same folder again: the unticked one stays out. Settings > *Left out of the library* lists it; the undo arrow lets it back in. With a folder already added, untick one and tick *Also remove their songs*: the report shows Removed. Remove one song from the library, add its folder again: it does not return.
 - [ ] **Leave single songs out:** in *Choose what to add*, the arrow beside a folder (and *its own songs* at the top) lists its songs; untick one and add: the report counts it as left out, and adding the folder again leaves it out.
-- [ ] **Report:** adding files or a folder ends with a report (found, added, already in library, left out, removed, skipped with reasons).
+- [ ] **Report:** adding files or a folder ends with a report (found, added, already in the library, left out, removed, skipped with reasons). The progress card keeps the same size while file names change, and the screen does not lock while it runs.
+- [ ] **Lock screen:** start a song, lock the phone: the player (title, cover, buttons, a heart for library songs) shows on the lock screen. If it does not, tell me what you see (nothing at all, or a notification without buttons). The GT 30 Pro did not show it earlier (probably a phone setting).
+
+## 15. Sound
+- [ ] **Gapless:** queue two songs that flow into each other (an album or a live recording), crossfade off. Let the first end: the second starts with no gap or click. Skip, repeat-one, shuffle and removing the next song still work.
+- [ ] **Equalizer:** the equalizer icon in the top bar (or Menu > Equalizer). Play a song first. Bass boost: the bass is clearly stronger; switch it off: normal again. *Remember for ...*, change the output (headphones / Bluetooth) and back: the settings follow the output.
+- [ ] **EQ extras:** the curve moves with the sliders; Preamp changes the overall loudness; Bass / Treble (Tone) and Limit work (Limit turns the music down when you boost).
+- [ ] **10-band EQ:** on the EQ screen switch to *10 bands*. Ten sliders (31 to 16k) with a note about the phone's real bands. Bass sliders change the sound as you expect; a preset fills all ten; switching back works; it is still there after closing the app.
+- [ ] **Even out loudness:** Settings > Update tags from files, then Even out loudness > By song. Songs from albums with Replay Gain tags are turned down to about the same level (untagged songs are unchanged).
+
+## 16. Now Playing and the menu
+- [ ] **Music player first:** the app opens on Now Playing for this phone's songs (bottom bar Now Playing / Library / Search / Queue, chip *This phone* on top). Switch tabs: the mini player shows under every tab but Now Playing. With nothing playing there is **no** RemoteTunes notification.
+- [ ] **Now Playing:** the cover is big (never more than about 40% of the screen), the title is in the accent color; favorite / shuffle / repeat / speed / sleep timer / volume (a speaker button with a small vertical slider) sit under it; the 10-second buttons jump; the format line ("44.1 kHz · 320 kbps · MP3") shows for local songs. On your smallest phone nothing is cut off.
+- [ ] **Queue sheet:** only a thin handle rests at the bottom; tap it or swipe it up (middle, then full); a swipe in from the right edge does the same. **Tapping the player above the raised sheet puts it away.** Tapping a row jumps to it.
+- [ ] **Queue tab:** opening it scrolls to the song playing. Settings > *Queue opens at the song playing* off keeps the list where it was.
+- [ ] **Lyrics:** the button in the cover's top-right corner fades the cover out, then the lyrics card fades in at the cover's size; the line being sung is big and bright, the rest dimmer, fading at the top and bottom; tap a line to jump; *Show fullscreen* opens the big view; the button brings the cover back. A song with no lyrics says so; offline says it can't reach the service; Settings > Lyrics from the internet off says they are switched off. Timed lyrics also come from Megalobiz when LRCLIB has none (credited on the card).
+- [ ] **Menu** (top-left button): Now Playing, Lyrics (shows them on Now Playing), Library, Playlists, Search, Queue, Equalizer, Skins, Remote playback, Settings, What's new, Help. A swipe in from the left edge still opens the Library, not the menu.
+- [ ] **Skins:** Menu > Skins lists 7 looks; tapping one changes the colors at once and it is remembered. Add (+) accepts pasted JSON (copy one to see the format), explains mistakes; an added skin can be removed.
+
+## 17. Library and search
+- [ ] **Library list:** the Library tab opens on a list of categories (All Songs, Folders, Folder tree, Albums, Artists, Album Artists, Composers, Genres, Years, Favorites, Recent, Top, New, Playlists); each opens with a back arrow to the list.
+- [ ] **Genres / Years / Album Artists / Composers:** Settings > Update tags from files, then those lists fill in.
+- [ ] **Folder tree:** starts at the top of your music folders; tap folders to go in, the up arrow to come back (the folder you left is tinted); songs in a folder play from the one you tap.
+- [ ] **Folders:** long-press a folder, tap more, add them to a playlist or the queue; open a folder far down the list, press Back: same spot, that folder tinted.
+- [ ] **Search:** the search button opens it. Songs, albums, artists, album artists and folders in sections; *See all* narrows; recent searches show when the box is empty and survive closing the app. **Select** (or a long-press) picks several songs for the queue or a playlist; Play / Shuffle work on the results.
+- [ ] **Edit info:** a song's menu > Edit info; change the title, Save: the list shows it.
+- [ ] **Album art finder:** Settings > Find missing album art says how many albums lack a cover, finds some; they show on the next song played from those albums.
+- [ ] **Shuffle and repeat:** switch both on, close the app completely, open it: both are still on.
+
+## 18. The other phone (remote playback)
+- [ ] **Start remote playback:** the chip > Start remote playback; the pairing / QR page opens; the notification stays while nothing plays. On the other phone: chip > Control another phone > pick it. That phone's music shows in the same tabs and the buttons control it. Stop remote playback on the first phone: the other phone shows it disconnected and falls back to its own music.
+- [ ] **Pairing request** pops up over whatever screen is open on the Player.
+- [ ] **Now Playing is the same** on both phones: cover, accent title, quick row, 10-second jumps, lyrics, queue sheet, edge swipes.
+- [ ] **When the app opens** (Settings): *Control my last Player* reconnects by itself (chip says Controlling ...); *Start remote playback when the app opens* starts it at once.
+
+## 19. Updates
+- [x] **Updates:** Settings > App updates > Check for updates says "newest version" or offers the new one. Android asks to allow installs from RemoteTunes once, downloads, shows its install screen; afterwards your songs, playlists and trusted devices are still there.
+- [ ] **What's new** (Menu) lists the release notes from GitHub.
 
 ---
 
