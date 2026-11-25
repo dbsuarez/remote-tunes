@@ -369,6 +369,53 @@ final List<_Group> _groups = [
         },
       ),
       _Entry(
+        id: 'audiobooks',
+        title: 'Audiobooks',
+        keywords: 'audiobooks audiobook book spoken podcast remember place progress resume folders',
+        build: (c) {
+          final context = c.context;
+          final ref = c.ref;
+          final s = c.s;
+          final repo = c.repo;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                key: const ValueKey('remember-audiobooks'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Remember my place in audiobooks'),
+                subtitle: const Text(
+                  'An audiobook carries on where you stopped, and Play on a list of audiobooks carries '
+                  'on at the chapter you left. Music always starts at the beginning. Audiobooks live in '
+                  'their own folders (Music folders and rescan > Audiobook folders), and stay out of '
+                  'your music and shuffle.',
+                ),
+                value: s.rememberAudiobooks,
+                onChanged: repo.setRememberAudiobooks,
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const ValueKey('find-audiobooks'),
+                  onPressed: () async {
+                    final core = await ref.read(playerCoreProvider.future);
+                    final n = await core.audiobooks?.findByTags() ?? 0;
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(
+                          content: Text(n == 0
+                              ? 'No more songs with an audiobook genre or in an "audiobook" folder.'
+                              : 'Marked $n song${n == 1 ? '' : 's'} as audiobooks.')));
+                  },
+                  child: const Text('Find audiobooks by genre or folder name'),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      _Entry(
         id: 'artfinder',
         title: 'Find missing album art',
         keywords: 'album art cover finder musicbrainz pictures',

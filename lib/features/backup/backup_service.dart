@@ -92,6 +92,7 @@ class BackupService {
     SettingKeys.listLooks,
     SettingKeys.rescanOnOpen,
     SettingKeys.playHistory,
+    SettingKeys.rememberAudiobooks,
     SettingKeys.onlineSuggestions,
   };
 

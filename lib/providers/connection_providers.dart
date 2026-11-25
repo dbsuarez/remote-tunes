@@ -37,6 +37,7 @@ import '../features/player/sleep_timer.dart';
 import '../features/player/queue_playback_engine.dart';
 import '../features/player/server/player_advertiser.dart';
 import '../features/player/server/player_library.dart';
+import '../features/player/audiobook_tracker.dart';
 import '../features/player/visualizer.dart';
 import '../features/player/server/player_server.dart';
 import 'library_providers.dart';
@@ -59,7 +60,14 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   final backend = CrossfadeBackend(JustAudioBackend(), JustAudioBackend());
   // The visualizer follows whichever of the two players is audible.
   VisualizerService.currentSessionId = () => backend.audioSessionId;
+  // Audiobooks: which songs they are, and where each was left.
+  final audiobooks = AudiobookTracker(
+    ref.watch(libraryRepositoryProvider),
+    enabled: () => ref.read(settingsProvider).valueOrNull?.rememberAudiobooks ?? true,
+  );
+  // (Its list is read when the screen opens: see AppShell.)
   final localEngine = QueuePlaybackEngine(
+    audiobooks: audiobooks,
     backend: backend,
     initialVolume: settings.defaultVolume,
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
@@ -133,6 +141,7 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     localEngine: localEngine,
     library: library,
     audioHandler: handler,
+    audiobooks: audiobooks,
     sleepTimer: sleep,
   );
   ref.onDispose(() => core.dispose());

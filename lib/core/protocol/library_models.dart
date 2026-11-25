@@ -63,7 +63,11 @@ class RemoteSong {
     this.favorite = false,
     this.plays = 0,
     this.skips = 0,
+    this.audiobook = false,
   });
+
+  /// An audiobook: it remembers where it was left (see Settings > Audiobooks).
+  final bool audiobook;
 
   final int id;
   final String title;
@@ -91,6 +95,7 @@ class RemoteSong {
         if (trackNumber != null) 'trackNumber': trackNumber,
         'available': available,
         if (favorite) 'favorite': true,
+        if (audiobook) 'audiobook': true,
         if (plays > 0) 'plays': plays,
         if (skips > 0) 'skips': skips,
       };
@@ -104,6 +109,7 @@ class RemoteSong {
         trackNumber: j['trackNumber'] is num ? _int(j['trackNumber']) : null,
         available: j['available'] != false,
         favorite: j['favorite'] == true,
+        audiobook: j['audiobook'] == true,
         plays: _int(j['plays']),
         skips: _int(j['skips']),
       );
@@ -138,6 +144,9 @@ class GroupKind {
   static const year = 'year';
   static const albumArtist = 'albumArtist';
   static const composer = 'composer';
+
+  /// The audiobooks, one entry per book (its album).
+  static const audiobook = 'audiobook';
 }
 
 /// A genre, a year or an album artist, with how many songs it holds.

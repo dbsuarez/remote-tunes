@@ -1,3 +1,4 @@
+import 'audiobook_tracker.dart';
 import '../external/control_mode_engine.dart';
 import 'audio/player_audio_handler.dart';
 import 'eq/equalizer_controller.dart';
@@ -17,7 +18,11 @@ class PlayerCore {
     required this.sleepTimer,
     required this.equalizer,
     this.audioHandler,
+    this.audiobooks,
   });
+
+  /// Which songs are audiobooks and where they were left (null in tests).
+  final AudiobookTracker? audiobooks;
 
   /// The engine everything talks to (RemoteTunes' own player, or another music
   /// app when External App Control is on).

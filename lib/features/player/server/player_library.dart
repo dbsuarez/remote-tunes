@@ -287,11 +287,13 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       offset: offset,
       limit: limit,
     );
+    final books = await _repo.audiobookIdsAmong([for (final s in page.items) s.id]);
     return LibraryPage(
       items: [
         for (final s in page.items)
           s.toRemote(
             available: s.filePath != null && _fileExists(s.filePath!),
+            audiobook: books.contains(s.id),
           ),
       ],
       total: page.total,

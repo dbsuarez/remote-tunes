@@ -1,3 +1,4 @@
+import 'audiobook_tracker.dart';
 import 'playback_log.dart';
 import 'dart:async';
 import 'dart:io';
@@ -30,6 +31,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     this.onSongStarted,
     this.onSongSkipped,
     this.onSongEnded,
+    this.audiobooks,
     this.onStreamStarted,
     this.queueStore,
     this.formatReader,
@@ -64,6 +66,27 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   /// seconds were really heard, and how it ended (`finished`, `skipped` or `stopped`).
   final void Function(int songId, DateTime startedAt, int heardSeconds, String outcome)? onSongEnded;
 
+  /// Audiobooks remember where they were left, and are never faded into or lined up gaplessly
+  /// (they start where they were left). Null: no audiobooks (all songs are music).
+  final AudiobookTracker? audiobooks;
+
+  bool _isBook(PlayableSong s) {
+    final id = s.libraryId;
+    return id != null && (audiobooks?.isAudiobook(id) ?? false);
+  }
+
+  /// The audiobook is saved about every ten seconds of listening, and when it is paused or left.
+  int _bookSavedMs = 0;
+
+  void _saveBookPlace({bool finished = false}) {
+    final id = _trackedId;
+    final tracker = audiobooks;
+    if (id == null || tracker == null || !tracker.isAudiobook(id)) return;
+    final seconds = finished ? 0 : (_lastPositionMs / 1000).round();
+    _bookSavedMs = _lastPositionMs;
+    unawaited(tracker.save(id, seconds).catchError((Object _) {}));
+  }
+
   DateTime _trackedStart = DateTime.fromMillisecondsSinceEpoch(0);
   int? _trackedId;
   int _trackedDurationMs = 0;
@@ -73,6 +96,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   void _beginTracking(PlayableSong song) {
     _trackedId = song.libraryId;
     _trackedStart = DateTime.now();
+    _bookSavedMs = 0;
     _trackedDurationMs = song.durationSeconds * 1000;
     _listenedMs = 0;
     _lastPositionMs = 0;
@@ -80,6 +104,8 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
 
   /// The song that was tracked has ended: [finished] when it played to its end.
   void _endTracking({required bool finished}) {
+    // An audiobook remembers its place (a song that ended is forgotten, to start again).
+    _saveBookPlace(finished: finished);
     final id = _trackedId;
     _trackedId = null;
     if (id == null) return;
@@ -106,6 +132,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     final delta = ms - _lastPositionMs;
     _lastPositionMs = ms;
     if (_playing && delta > 0 && delta < 1500) _listenedMs += delta;
+    if (_playing && ms - _bookSavedMs >= 10000) _saveBookPlace();
   }
 
   /// Reads what a file is (sample rate, bitrate, type) for the Now Playing
@@ -294,6 +321,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         final n = _queue.peekNext();
         final path = n?.song.filePath;
         if (n != null &&
+            !_isBook(n.song) &&
             n.id != cur.id &&
             !n.song.isUrl &&
             path != null &&
@@ -459,6 +487,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   bool _canFadeInto(QueueEntry entry, bool wasPlaying) {
     final path = entry.song.filePath;
     return _crossfadeActive &&
+        !_isBook(entry.song) &&
         wasPlaying &&
         !_crossfading &&
         !_loading &&
@@ -535,6 +564,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     final next = _queue.peekNext();
     final path = next?.song.filePath;
     if (next == null ||
+        _isBook(next.song) ||
         next.id == cur.id ||
         next.song.isUrl ||
         path == null ||
@@ -653,6 +683,18 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
               _positionSeconds = at;
             }
           }
+          // An audiobook carries on where it was left (unless the queue was just restored, which
+          // already knows the exact spot).
+          final bookId = song.libraryId;
+          if (_resumeEntryId != current.id && bookId != null && (audiobooks?.isAudiobook(bookId) ?? false)) {
+            final saved = await audiobooks!.placeOf(bookId);
+            // Not at the very start, and not so near the end that it would finish at once.
+            if (saved > 10 && (_durationSeconds == 0 || saved < _durationSeconds - 15)) {
+              await _backend.seek(Duration(seconds: saved));
+              _positionSeconds = saved;
+              _lastPositionMs = saved * 1000;
+            }
+          }
           _resumeEntryId = null;
           _resumeSeconds = 0;
           if (autoplay) {
@@ -662,6 +704,9 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
             if (id != null) {
               onSongStarted?.call(id);
               _beginTracking(song);
+              _lastPositionMs = _positionSeconds * 1000;
+              _bookSavedMs = _lastPositionMs;
+              unawaited(audiobooks?.started(id).catchError((Object _) {}));
             }
             if (song.isUrl) onStreamStarted?.call(song);
           }
@@ -710,6 +755,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   Future<void> pause() => _serial(() async {
         await _backend.pause();
         _playing = false;
+        _saveBookPlace();
         _emit();
       });
 

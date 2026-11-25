@@ -89,10 +89,14 @@ class MusicFolder {
     this.lastScan,
     this.knownDirs = const {},
     this.songCount = 0,
+    this.audiobooks = false,
   });
 
   final String path;
   final DateTime? lastScan;
+
+  /// An audiobook folder: every song in it is an audiobook, and it is scanned apart from the music.
+  final bool audiobooks;
 
   /// The folders (relative to [path], '' for the folder itself) that were seen holding songs the
   /// last time, so a folder that appears later can be asked about.
@@ -104,6 +108,7 @@ class MusicFolder {
         if (lastScan != null) 'last': lastScan!.millisecondsSinceEpoch ~/ 1000,
         'dirs': knownDirs.toList()..sort(),
         'count': songCount,
+        if (audiobooks) 'books': true,
       };
 
   static MusicFolder? fromJson(Object? j) {
@@ -114,6 +119,7 @@ class MusicFolder {
       lastScan: last is num ? DateTime.fromMillisecondsSinceEpoch(last.toInt() * 1000) : null,
       knownDirs: j['dirs'] is List ? {for (final d in j['dirs'] as List) if (d is String) d} : {},
       songCount: j['count'] is num ? (j['count'] as num).toInt() : 0,
+      audiobooks: j['books'] == true,
     );
   }
 }
@@ -311,6 +317,7 @@ class LibraryImportService {
     String folderPath, {
     Set<String>? exclude,
     bool removeExcluded = false,
+    bool audiobooks = false,
     ProgressCallback? onProgress,
   }) async {
     final dir = Directory(folderPath);
@@ -330,10 +337,16 @@ class LibraryImportService {
       }
     }
     final all = await _scan(dir);
+    // Music never takes in what lives in an audiobook folder (even one inside the music folder).
+    final bookRoots = audiobooks
+        ? const <String>[]
+        : [for (final f in await _folders.load()) if (f.audiobooks && f.path != dir.path) f.path];
     final result = ImportResult()..found = all.length;
     final files = <String>[];
     for (final f in all) {
-      if (_isExcluded(f, excluded)) {
+      if (bookRoots.any((r) => p.isWithin(r, f))) {
+        result.found--;
+      } else if (_isExcluded(f, excluded)) {
         result.excluded++;
       } else {
         files.add(f);
@@ -352,7 +365,15 @@ class LibraryImportService {
       await _importOne(files[i], copy: false, result: result);
     }
     onProgress?.call(ImportProgress(files.length, files.length, null));
-    await _remember(dir.path, all);
+    // Everything in an audiobook folder is an audiobook, also what was already in the library.
+    if (audiobooks) {
+      final ids = [
+        for (final s in await _library.localSongFiles())
+          if (p.isWithin(dir.path, s.path)) s.id,
+      ];
+      await _library.setAudiobook(ids, true);
+    }
+    await _remember(dir.path, all, audiobooks: audiobooks);
     return result;
   }
 
@@ -383,30 +404,33 @@ class LibraryImportService {
   }
 
   /// Remembers [root] (and what it held), so it can be rescanned later.
-  Future<void> _remember(String root, List<String> files) async {
+  Future<void> _remember(String root, List<String> files, {bool audiobooks = false}) async {
     final all = await _folders.load();
-    // Already inside a remembered folder: that one covers it.
-    if (all.any((f) => f.path != root && p.isWithin(f.path, root))) return;
-    // It holds folders that were remembered on their own: it covers them now.
-    all.removeWhere((f) => f.path != root && p.isWithin(root, f.path));
+    // Already inside a remembered folder of the same kind: that one covers it.
+    if (all.any((f) => f.audiobooks == audiobooks && f.path != root && p.isWithin(f.path, root))) return;
+    // It holds folders of the same kind that were remembered on their own: it covers them now.
+    all.removeWhere((f) => f.audiobooks == audiobooks && f.path != root && p.isWithin(root, f.path));
     all.removeWhere((f) => f.path == root);
     all.add(MusicFolder(
       path: root,
       lastScan: DateTime.now(),
       knownDirs: _dirsOf(root, files),
       songCount: files.length,
+      audiobooks: audiobooks,
     ));
     await _folders.save(all);
   }
 
   /// Looks through the remembered folders without changing anything: which can be reached, and
   /// which folders are new since the last scan (so they can be asked about).
-  Future<RescanPlan> planRescan() async {
+  Future<RescanPlan> planRescan({bool audiobooks = false}) async {
     final stored = await _exclusions.load();
     final reachable = <MusicFolder>[];
     final unreachable = <String>[];
     final fresh = <NewFolder>[];
     for (final f in await musicFolders()) {
+      // Music folders and audiobook folders are scanned apart.
+      if (f.audiobooks != audiobooks) continue;
       final dir = Directory(f.path);
       if (!await dir.exists()) {
         unreachable.add(f.path);
@@ -457,7 +481,7 @@ class LibraryImportService {
     final total = ImportResult();
     total.unreachable.addAll(plan.unreachable);
     for (final f in plan.folders) {
-      final r = await importFolder(f.path, onProgress: onProgress);
+      final r = await importFolder(f.path, audiobooks: f.audiobooks, onProgress: onProgress);
       total
         ..added += r.added
         ..duplicates += r.duplicates

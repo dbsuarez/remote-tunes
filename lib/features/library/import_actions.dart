@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/permissions.dart';
+import '../../providers/connection_providers.dart' show playerCoreProvider;
 import '../../providers/library_providers.dart';
 import '../music/music_source.dart';
 import 'folder_choice.dart';
@@ -215,20 +216,61 @@ Future<ImportResult?> _runJob(
   return result;
 }
 
+/// Tells the player which songs are audiobooks now (after folders were added or scanned).
+Future<void> _refreshAudiobooks(WidgetRef ref) async {
+  // Only if the player is already running (it reads the list itself when it starts).
+  if (!ref.exists(playerCoreProvider)) return;
+  try {
+    await (await ref.read(playerCoreProvider.future)).audiobooks?.load();
+  } catch (_) {}
+}
+
+/// Picks a folder of audiobooks and adds it: every song in it is an audiobook. Add as many
+/// folders as you like (they can be anywhere on the phone). Returns true if anything was added.
+Future<bool> pickAndImportAudiobookFolder(BuildContext context, WidgetRef ref) async {
+  final permissions = ref.read(permissionsProvider);
+  final access = await permissions.ensureMusicAccess();
+  if (!context.mounted) return false;
+  if (access != PermissionOutcome.granted) {
+    await _explainPermission(context, permissions, permanent: access == PermissionOutcome.permanentlyDenied);
+    return false;
+  }
+  final String? folder;
+  try {
+    folder = await FilePicker.platform.getDirectoryPath();
+  } catch (_) {
+    if (context.mounted) _snack(context, "Couldn't open the folder picker.");
+    return false;
+  }
+  if (folder == null || !context.mounted) return false;
+  final service = await ref.read(importServiceProvider.future);
+  if (!context.mounted) return false;
+  final result = await _runJob(
+    context,
+    (onProgress) => service.importFolder(folder!, audiobooks: true, onProgress: onProgress),
+    title: 'Adding audiobooks',
+  );
+  await _refreshAudiobooks(ref);
+  return result != null && result.added > 0;
+}
+
 /// One tap: goes through every folder that was added before, adds what is new, follows what
 /// was moved, and says what is missing. Returns true if anything was added.
-Future<bool> rescanMusicFolders(BuildContext context, WidgetRef ref) async {
+Future<bool> rescanMusicFolders(BuildContext context, WidgetRef ref, {bool audiobooks = false}) async {
   final service = await ref.read(importServiceProvider.future);
-  final folders = await service.musicFolders();
+  final folders = [for (final f in await service.musicFolders()) if (f.audiobooks == audiobooks) f];
   if (!context.mounted) return false;
   if (folders.isEmpty) {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('No music folders yet'),
-        content: const Text(
-          'Add your music folder once (Library > + > Add folder). From then on, one tap on '
-          '"Rescan music folders" checks it for new songs.',
+        title: Text(audiobooks ? 'No audiobook folders yet' : 'No music folders yet'),
+        content: Text(
+          audiobooks
+              ? 'Add an audiobook folder once (Library > + > Add audiobook folder). You can add as many '
+                  'places as you like. From then on, one tap on "Rescan audiobook folders" checks them.'
+              : 'Add your music folder once (Library > + > Add folder). From then on, one tap on '
+                  '"Rescan music folders" checks it for new songs.',
         ),
         actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
@@ -246,7 +288,7 @@ Future<bool> rescanMusicFolders(BuildContext context, WidgetRef ref) async {
 
   final RescanPlan plan;
   try {
-    plan = await service.planRescan();
+    plan = await service.planRescan(audiobooks: audiobooks);
   } catch (e) {
     if (context.mounted) _snack(context, friendlyError(e));
     return false;
@@ -264,8 +306,9 @@ Future<bool> rescanMusicFolders(BuildContext context, WidgetRef ref) async {
   final result = await _runJob(
     context,
     (onProgress) => service.rescan(plan, leaveOut: leaveOut, onProgress: onProgress),
-    title: 'Rescanning',
+    title: audiobooks ? 'Rescanning audiobooks' : 'Rescanning',
   );
+  await _refreshAudiobooks(ref);
   if (result == null || !context.mounted) return false;
 
   if (result.missing.isNotEmpty) {

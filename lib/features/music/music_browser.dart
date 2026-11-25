@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/haptics.dart';
 import '../../core/protocol/library_models.dart';
+import '../../core/list_memory.dart';
 import '../../core/song_list_look.dart';
 import '../../core/song_list_style.dart';
 import 'list_options_sheet.dart';
@@ -32,6 +33,7 @@ enum _Scope {
   genres,
   years,
   composers,
+  audiobooks,
 }
 
 class _Drill {
@@ -110,6 +112,8 @@ class MusicBrowser extends StatefulWidget {
     this.songLookup,
     this.looks = const {},
     this.onLook,
+    this.listMemory,
+    this.onSetAudiobook,
     this.emptyMessage = 'No songs yet.',
     this.size = SongListSize.small,
     this.homeList = false,
@@ -167,6 +171,12 @@ class MusicBrowser extends StatefulWidget {
   /// e.g. on the web Controller).
   final Map<String, ListLook> looks;
   final void Function(String kind, ListLook look)? onLook;
+
+  /// Carries on where an audiobook list was left (this phone's player; null: not offered).
+  final ListMemory? listMemory;
+
+  /// Marks songs as audiobooks or as music (this phone's library; null: not offered).
+  final Future<void> Function(List<int> ids, bool audiobook)? onSetAudiobook;
   final String emptyMessage;
 
   @override
@@ -271,6 +281,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
       _Scope.genres: total(s.groups(kind: GroupKind.genre, limit: 1)),
       _Scope.years: total(s.groups(kind: GroupKind.year, limit: 1)),
       _Scope.composers: total(s.groups(kind: GroupKind.composer, limit: 1)),
+      _Scope.audiobooks: total(s.groups(kind: GroupKind.audiobook, limit: 1)),
       _Scope.favorites: total(s.songs(view: LibraryView.favorites, limit: 1)),
       _Scope.recent: total(s.songs(view: LibraryView.recent, limit: 1)),
       _Scope.top: total(s.songs(view: LibraryView.top, limit: 1)),
@@ -312,6 +323,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
         _Scope.genres => 'Genres',
         _Scope.years => 'Years',
         _Scope.composers => 'Composers',
+        _Scope.audiobooks => 'Audiobooks',
       };
   String _query = '';
   int _generation = 0;
@@ -357,6 +369,16 @@ class _MusicBrowserState extends State<MusicBrowser> {
 
   /// Every song id for the current artist/album (bounded by the Player's
   /// per-command limit).
+  /// The name this opened list is remembered by (for carrying on where an audiobook was left).
+  String _listKey(_Drill d) => listKeyFor(
+        playlistId: d.playlistId,
+        folderId: d.folderId,
+        artist: d.artist,
+        album: d.album,
+        groupKind: d.groupKind,
+        groupValue: d.groupValue,
+      );
+
   Future<List<int>> _allSongIds(_Drill d) async {
     final ids = <int>[];
     var offset = 0;
@@ -541,6 +563,25 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 }
               },
             ),
+            // Mark the picked songs as audiobooks (or as music again).
+            if (widget.onSetAudiobook != null)
+              PopupMenuButton<bool>(
+                tooltip: 'Audiobook or music',
+                icon: const Icon(Icons.menu_book_rounded),
+                onSelected: (book) => _run(() async {
+                  await widget.onSetAudiobook!(_selected.toList(), book);
+                  if (mounted) {
+                    setState(() {
+                      _selected.clear();
+                      _generation++;
+                    });
+                  }
+                }, done: book ? 'Marked as audiobooks' : 'Marked as music'),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: true, child: Text('Mark as audiobooks')),
+                  PopupMenuItem(value: false, child: Text('Mark as music')),
+                ],
+              ),
             // Edit info for all the picked songs (only what they can share).
             if (widget.onEditSongs != null)
               IconButton(
@@ -722,6 +763,8 @@ class _MusicBrowserState extends State<MusicBrowser> {
           : switch (kind) {
               GroupKind.genre => 'No genres yet. In Settings, "Update tags from files" reads them.',
               GroupKind.year => 'No years yet. In Settings, "Update tags from files" reads them.',
+              GroupKind.audiobook =>
+                'No audiobooks yet. Add an audiobook folder (Library > + > Add audiobook folder).',
               GroupKind.composer =>
                 'No composers yet. In Settings, "Update tags from files" reads them (MP3, FLAC, Ogg and APE files that have the tag).',
               _ => 'No album artists yet. In Settings, "Update tags from files" reads them.',
@@ -876,13 +919,16 @@ class _MusicBrowserState extends State<MusicBrowser> {
           }
           if (drill != null) {
             // Play the whole album/artist/playlist starting here.
+            widget.listMemory?.setActive(_listKey(drill));
             await widget.source
                 .playSongs(await _allSongIds(drill), startSongId: song.id);
           } else if (view != null) {
+            widget.listMemory?.setActive(null);
             await widget.source
                 .playSongs(await _allViewIds(view), startSongId: song.id);
           } else {
             // A single song: play it now but keep the queue.
+            widget.listMemory?.setActive(null);
             await widget.source.playSongs([song.id], keepQueue: true);
           }
         }),
@@ -907,6 +953,12 @@ class _MusicBrowserState extends State<MusicBrowser> {
                   await widget.source.removeFromPlaylist(drill!.playlistId!, song.id);
                   if (mounted) setState(() => _generation++);
                 }, done: 'Removed from playlist'),
+        onToggleAudiobook: widget.onSetAudiobook == null
+            ? null
+            : () => _run(() async {
+                  await widget.onSetAudiobook!([song.id], !song.audiobook);
+                  if (mounted) setState(() => _generation++);
+                }, done: song.audiobook ? 'Marked as music' : 'Marked as an audiobook'),
         onEdit: widget.onEditSong == null
             ? null
             : () async {
@@ -945,6 +997,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 _Scope.genres => _groupList(GroupKind.genre, Icons.piano_rounded),
                 _Scope.years => _groupList(GroupKind.year, Icons.calendar_month_rounded),
                 _Scope.composers => _groupList(GroupKind.composer, Icons.edit_note_rounded),
+                _Scope.audiobooks => _groupList(GroupKind.audiobook, Icons.menu_book_rounded),
                 _Scope.folders => _PagedList<RemoteFolder>(
                     key: scopeKey,
                     emptyMessage: _listQuery.isEmpty ? widget.emptyMessage : 'No matches.',
@@ -1209,6 +1262,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
                           _Scope.genres => 'Genres',
                           _Scope.years => 'Years',
                           _Scope.composers => 'Composers',
+                          _Scope.audiobooks => 'Audiobooks',
                         }),
                         selected: _scope == s,
                         onSelected: (_) {
@@ -1240,7 +1294,11 @@ class _MusicBrowserState extends State<MusicBrowser> {
                 onPlayAll: () => _run(() async {
                   final ids = await _allSongIds(drill);
                   if (ids.isEmpty) return;
-                  await widget.source.playSongs(ids);
+                  // A list of audiobooks carries on at the chapter it was left at.
+                  final key = _listKey(drill);
+                  final left = await widget.listMemory?.positionFor(key);
+                  widget.listMemory?.setActive(key);
+                  await widget.source.playSongs(ids, startSongId: left != null && ids.contains(left) ? left : null);
                 }),
                 onQueueAll: () => _run(() async {
                   final ids = await _allSongIds(drill);
@@ -1300,6 +1358,7 @@ class _CategoryList extends StatelessWidget {
     (_Scope.genres, Icons.piano_rounded, Color(0xFFFFD54F)),
     (_Scope.years, Icons.calendar_month_rounded, Color(0xFFFF8A65)),
     (_Scope.composers, Icons.edit_note_rounded, Color(0xFF81C784)),
+    (_Scope.audiobooks, Icons.menu_book_rounded, Color(0xFFBCAAA4)),
     (_Scope.favorites, Icons.favorite_rounded, Color(0xFFFF6B8B)),
     (_Scope.recent, Icons.history_rounded, Color(0xFFFFB74D)),
     (_Scope.top, Icons.trending_up_rounded, Color(0xFFFF8A65)),
@@ -1330,6 +1389,8 @@ class _CategoryList extends StatelessWidget {
           ),
         ),
         for (final (scope, icon, color) in _items)
+          // Audiobooks only show when there are some.
+          if (scope != _Scope.audiobooks || (counts[scope] ?? 0) > 0)
           ListTile(
             minTileHeight: 60,
             leading: CircleAvatar(
@@ -1466,7 +1527,7 @@ class _DrillHeader extends StatelessWidget {
   }
 }
 
-enum _SongAction { playNext, addToQueue, addToPlaylist, removeFromPlaylist, edit, remove }
+enum _SongAction { playNext, addToQueue, addToPlaylist, removeFromPlaylist, edit, audiobook, remove }
 
 class _SongTile extends StatelessWidget {
   const _SongTile({
@@ -1486,7 +1547,11 @@ class _SongTile extends StatelessWidget {
     this.onRemoveFromPlaylist,
     this.onEdit,
     this.onRemove,
+    this.onToggleAudiobook,
   });
+
+  /// Marks the song as an audiobook, or as music again (null: not offered).
+  final VoidCallback? onToggleAudiobook;
 
   /// In Most played / Most skipped: which number to show, big, at the right.
   final String? countView;
@@ -1591,6 +1656,9 @@ class _SongTile extends StatelessWidget {
           else if (song.durationSeconds > 0)
             Text(formatDuration(song.durationSeconds),
                 style: theme.textTheme.bodySmall?.copyWith(fontSize: 12 * k)),
+          if (song.audiobook)
+            Icon(Icons.menu_book_rounded,
+                key: const Key('audiobook-icon'), size: 16 * k, color: theme.colorScheme.primary),
           _FavoriteButton(initial: song.favorite, onChanged: onFavorite),
           PopupMenuButton<_SongAction>(
             tooltip: 'More',
@@ -1600,6 +1668,7 @@ class _SongTile extends StatelessWidget {
               _SongAction.addToPlaylist => onAddToPlaylist(),
               _SongAction.removeFromPlaylist => onRemoveFromPlaylist?.call(),
               _SongAction.edit => onEdit?.call(),
+              _SongAction.audiobook => onToggleAudiobook?.call(),
               _SongAction.remove => onRemove?.call(),
             },
             itemBuilder: (context) => [
@@ -1615,6 +1684,10 @@ class _SongTile extends StatelessWidget {
                     child: Text('Remove from playlist')),
               if (onEdit != null)
                 const PopupMenuItem(value: _SongAction.edit, child: Text('Edit info')),
+              if (onToggleAudiobook != null)
+                PopupMenuItem(
+                    value: _SongAction.audiobook,
+                    child: Text(song.audiobook ? 'Mark as music' : 'Mark as audiobook')),
               if (onRemove != null)
                 const PopupMenuItem(
                     value: _SongAction.remove, child: Text('Remove from library')),

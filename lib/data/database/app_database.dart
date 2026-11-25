@@ -112,6 +112,20 @@ extension PlayEventsTable on AppDatabase {
       "outcome TEXT NOT NULL DEFAULT 'stopped')",
     );
     await customStatement('CREATE INDEX IF NOT EXISTS play_events_started ON play_events (started_at)');
+    // Audiobooks: a song with a row here is an audiobook, and the row holds where it was left.
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS audiobooks ('
+      'song_id INTEGER PRIMARY KEY, '
+      'position_seconds INTEGER NOT NULL DEFAULT 0, '
+      'updated_at INTEGER NOT NULL DEFAULT 0)',
+    );
+    // Which song an audiobook list was left at (so Play carries on from there).
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS list_positions ('
+      'list_key TEXT PRIMARY KEY, '
+      'song_id INTEGER NOT NULL, '
+      'updated_at INTEGER NOT NULL DEFAULT 0)',
+    );
   }
 }
 

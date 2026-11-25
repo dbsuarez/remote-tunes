@@ -78,6 +78,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
       if (settings.startMode == StartMode.lastPlayer) unawaited(_reconnectLastPlayer());
       if (settings.rescanOnOpen && !settings.remoteAutoStart) unawaited(_rescanQuietly());
+      // Which songs are audiobooks (so they remember where they were left).
+      unawaited(ref.read(playerCoreProvider.future).then((c) => c.audiobooks?.load()).catchError((Object _) {}));
       // Android 13+ needs permission to show the media notification. Playback
       // works without it, so a "no" is fine.
       try {
@@ -232,11 +234,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                 if (v == 'files') pickAndImportFiles(context, ref);
                 if (v == 'folder') pickAndImportFolder(context, ref);
                 if (v == 'rescan') rescanMusicFolders(context, ref);
+                if (v == 'books') pickAndImportAudiobookFolder(context, ref);
+                if (v == 'rescan-books') rescanMusicFolders(context, ref, audiobooks: true);
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'rescan', child: Text('Rescan music folders')),
                 PopupMenuItem(value: 'folder', child: Text('Add folder')),
                 PopupMenuItem(value: 'files', child: Text('Add songs')),
+                PopupMenuItem(value: 'books', child: Text('Add audiobook folder')),
+                PopupMenuItem(value: 'rescan-books', child: Text('Rescan audiobook folders')),
               ],
             ),
           if (!remote)
@@ -565,6 +571,13 @@ class _LibraryTab extends ConsumerWidget {
       canWriteTags: local,
       onEditSongs: local ? (context, ids) => editSelectedSongs(context, ref, ids) : null,
       songLookup: local ? ref.read(songLookupProvider) : null,
+      listMemory: local ? ref.watch(playerCoreProvider).valueOrNull?.audiobooks : null,
+      onSetAudiobook: local
+          ? (ids, book) async {
+              final core = await ref.read(playerCoreProvider.future);
+              await core.audiobooks?.mark(ids, book);
+            }
+          : null,
       looks: ref.watch(settingsProvider).valueOrNull?.listLooks ?? const {},
       onLook: local
           ? (kind, look) => ref.read(settingsRepositoryProvider).setListLook(kind, look)

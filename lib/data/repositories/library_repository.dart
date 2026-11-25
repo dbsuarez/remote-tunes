@@ -111,6 +111,7 @@ class LibraryRepository {
         GroupKind.year => 'year',
         GroupKind.albumArtist => 'album_artist',
         GroupKind.composer => 'composer',
+        GroupKind.audiobook => 'album',
         _ => null,
       };
 
@@ -125,6 +126,8 @@ class LibraryRepository {
     if (col == null) return LibraryPage(items: const [], total: 0, offset: offset);
     final q = query.trim();
     final where = StringBuffer("WHERE $col IS NOT NULL AND CAST($col AS TEXT) != ''");
+    // Books have their own list; the others leave them out.
+    where.write(kind == GroupKind.audiobook ? ' AND $_isBook' : ' AND $_notBook');
     final vars = <Variable<Object>>[];
     if (q.isNotEmpty) {
       where.write(" AND CAST($col AS TEXT) LIKE ? ESCAPE '\\'");
@@ -261,6 +264,98 @@ class LibraryRepository {
         variables: [Variable<int>(songId)],
         updates: {_db.songs},
       );
+
+  // --------------------------------------------------------------- audiobooks
+
+  /// The songs marked as audiobooks.
+  Future<Set<int>> audiobookIds() async => {
+        for (final r in await _db.customSelect('SELECT song_id FROM audiobooks').get()) r.read<int>('song_id'),
+      };
+
+  /// Which of [ids] are audiobooks.
+  Future<Set<int>> audiobookIdsAmong(Iterable<int> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return {};
+    // The ids are integers from the database, so they are safe to write in.
+    return {
+      for (final r in await _db
+          .customSelect('SELECT song_id FROM audiobooks WHERE song_id IN (${list.join(',')})')
+          .get())
+        r.read<int>('song_id'),
+    };
+  }
+
+  /// Marks songs as audiobooks, or as music again (which forgets where they were left). Returns
+  /// how many changed.
+  Future<int> setAudiobook(List<int> ids, bool audiobook) async {
+    if (ids.isEmpty) return 0;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (!audiobook) {
+      return _db.customUpdate('DELETE FROM audiobooks WHERE song_id IN (${ids.join(',')})');
+    }
+    var changed = 0;
+    for (final id in ids) {
+      changed += await _db.customUpdate(
+        'INSERT OR IGNORE INTO audiobooks (song_id, position_seconds, updated_at) VALUES (?, 0, ?)',
+        variables: [Variable<int>(id), Variable<int>(now)],
+      );
+    }
+    return changed;
+  }
+
+  /// Genres that mean "this is a spoken book".
+  static const audiobookGenres = ['audiobook', 'audio book', 'audiobooks', 'audio books', 'spoken', 'podcast'];
+
+  /// Marks every song whose genre says audiobook (or spoken word, podcast), or that lives in a folder
+  /// whose name has "audiobook" in it. Never un-marks anything. Returns how many were marked.
+  Future<int> markAudiobooksByTags() async {
+    final genres = audiobookGenres.map((g) => "'$g'").join(',');
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return _db.customUpdate(
+      'INSERT OR IGNORE INTO audiobooks (song_id, position_seconds, updated_at) '
+      'SELECT id, 0, ? FROM songs WHERE '
+      "lower(IFNULL(genre, '')) IN ($genres) OR lower(IFNULL(genre, '')) LIKE '%audiobook%' "
+      "OR lower(IFNULL(file_path, '')) LIKE '%audiobook%' OR lower(IFNULL(file_path, '')) LIKE '%audio book%'",
+      variables: [Variable<int>(now)],
+    );
+  }
+
+  /// Where an audiobook was left (seconds; 0 if never started).
+  Future<int> audiobookPosition(int songId) async {
+    final r = await _db
+        .customSelect('SELECT position_seconds AS p FROM audiobooks WHERE song_id = ?',
+            variables: [Variable<int>(songId)])
+        .getSingleOrNull();
+    return r?.read<int>('p') ?? 0;
+  }
+
+  /// Remembers where an audiobook was left (a song that is not an audiobook is not touched).
+  Future<void> saveAudiobookPosition(int songId, int seconds) => _db.customUpdate(
+        'UPDATE audiobooks SET position_seconds = ?, updated_at = ? WHERE song_id = ?',
+        variables: [
+          Variable<int>(seconds < 0 ? 0 : seconds),
+          Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+          Variable<int>(songId),
+        ],
+      );
+
+  /// Remembers which song of a list was playing last.
+  Future<void> saveListPosition(String key, int songId) => _db.customInsert(
+        'INSERT OR REPLACE INTO list_positions (list_key, song_id, updated_at) VALUES (?, ?, ?)',
+        variables: [
+          Variable<String>(key),
+          Variable<int>(songId),
+          Variable<int>(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+        ],
+      );
+
+  /// The song a list was left at (null: never played).
+  Future<int?> listPosition(String key) async {
+    final r = await _db
+        .customSelect('SELECT song_id FROM list_positions WHERE list_key = ?', variables: [Variable<String>(key)])
+        .getSingleOrNull();
+    return r?.read<int>('song_id');
+  }
 
   /// Writes one row of the play log: [songId] started at [startedAt], was heard for
   /// [heardSeconds], and ended as [outcome] (`finished`, `skipped` or `stopped`).
@@ -499,6 +594,9 @@ class LibraryRepository {
 
   // ----------------------------------------------------------------- queries
 
+  static const _isBook = 'id IN (SELECT song_id FROM audiobooks)';
+  static const _notBook = 'id NOT IN (SELECT song_id FROM audiobooks)';
+
   /// Escapes LIKE wildcards so user text is matched literally.
   static String _like(String q) => '%${q.replaceAll(r'\', r'\\').replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
 
@@ -515,6 +613,12 @@ class LibraryRepository {
     final clauses = <String>[];
     final vars = <Variable<Object>>[];
     final groupCol = _groupColumn(groupKind);
+    // Audiobooks are apart from the music: only their own list and a playlist or folder show them.
+    if (groupKind == GroupKind.audiobook) {
+      clauses.add(_isBook);
+    } else if (playlistId == null && onlyIds == null) {
+      clauses.add(_notBook);
+    }
     if (groupCol != null && groupValue != null) {
       clauses.add('CAST($groupCol AS TEXT) = ?');
       vars.add(Variable<String>(groupValue));
@@ -564,7 +668,10 @@ class LibraryRepository {
     );
   }
 
-  String _songOrder({String? artist, String? album, String? view, int? playlistId}) {
+  String _songOrder({String? artist, String? album, String? view, int? playlistId, String? groupKind}) {
+    if (groupKind == GroupKind.audiobook) {
+      return 'ORDER BY COALESCE(track_number, 9999), title COLLATE NOCASE, id';
+    }
     if (view == LibraryView.recent) return 'ORDER BY last_played_at DESC, id';
     if (view == LibraryView.top) return 'ORDER BY play_count DESC, last_played_at DESC, id';
     if (view == LibraryView.skipped) return 'ORDER BY skip_count DESC, play_count DESC, id';
@@ -622,7 +729,7 @@ class LibraryRepository {
         .getSingle();
     final total = totals.read<int>('c');
     final rows = await _db.customSelect(
-      'SELECT * FROM songs ${f.where} ${_songOrder(artist: artist, album: album, view: view, playlistId: playlistId)} '
+      'SELECT * FROM songs ${f.where} ${_songOrder(artist: artist, album: album, view: view, playlistId: playlistId, groupKind: groupKind)} '
       'LIMIT ? OFFSET ?',
       variables: [...f.vars, Variable<int>(limit), Variable<int>(offset)],
     ).get();
@@ -796,7 +903,7 @@ class LibraryRepository {
     int limit = 50,
   }) async {
     final q = query.trim();
-    final where = q.isEmpty ? '' : r"WHERE artist LIKE ? ESCAPE '\'";
+    final where = q.isEmpty ? 'WHERE $_notBook' : "WHERE $_notBook AND artist LIKE ? ESCAPE '\\'";
     final vars = q.isEmpty ? <Variable<Object>>[] : [Variable<String>(_like(q))];
     final total = (await _db
             .customSelect(
@@ -830,7 +937,7 @@ class LibraryRepository {
     int offset = 0,
     int limit = 50,
   }) async {
-    final clauses = <String>[];
+    final clauses = <String>[_notBook];
     final vars = <Variable<Object>>[];
     final q = query.trim();
     if (q.isNotEmpty) {
@@ -888,7 +995,8 @@ extension SongMapping on Song {
     );
   }
 
-  RemoteSong toRemote({required bool available}) => RemoteSong(
+  RemoteSong toRemote({required bool available, bool audiobook = false}) => RemoteSong(
+        audiobook: audiobook,
         id: id,
         title: title,
         artist: artist ?? unknownArtist,
