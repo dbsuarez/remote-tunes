@@ -60,7 +60,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 ### Lyrics
 - [ ] Megalobiz fallback (scraping a site that asks for attribution; skipped unless LRCLIB misses a lot).
-- [ ] A note in the privacy documents that lyrics, album-art and update checks contact LRCLIB / lyrics.ovh, MusicBrainz / Cover Art Archive and GitHub (the Settings text already says what is sent).
+- [x] Privacy page: [docs/21_PRIVACY.md](21_PRIVACY.md) lists everything that leaves the phone (lyrics, album art, Online Library, updates, links) and how to switch it off.
 
 ### Direction: a music player first, the Controller as a mode (built, not yet tried on phones)
 - [x] **Step 1:** Settings > "When the app opens": *This phone's music* (default), *Control my last Player* (reconnects to the last trusted Player and controls it) or *Classic start screen* (the old Player / Controller choice).
