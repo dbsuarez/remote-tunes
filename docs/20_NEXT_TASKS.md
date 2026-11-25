@@ -8,6 +8,42 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 ## Not done
 
+### Planned next (not coded yet; the owner chose to wait, credits are low)
+
+**1. A true 10-band equalizer / our own audio effects** (the owner wants this built first)
+- Why: Android's equalizer has about 5 bands, so today's *10 bands* view only blends ten sliders onto them. A real one needs our own processing of the sound.
+- Idea: our own filter chain (ten peaking filters, plus a gain stage and a limiter so boosts do not clip) that the audio passes through before the speaker. Once there is a place for our own effects, more can follow (a real bass boost, stereo width, a compressor, reverb).
+- The hard part (to decide when coding): `just_audio` has no hook for our own processing. The options are a small native audio processor added to its Android player, or a different playback engine that allows one. Crossfade (two players), gapless playback, Replay Gain, the visualizer and the notification all sit on the current engine, so they must be rechecked with whichever route is chosen. Try it on a phone early; battery and glitches are the risks.
+- Keep: per-output memory (speaker / wired / Bluetooth), presets, Preamp, Tone and Limit; the current Android equalizer stays as a fallback for phones where ours fails.
+
+**2. Auto-tagging the local library** (from [remotetuneslocallibrary.md](remotetuneslocallibrary.md); the owner has about 2,000 songs)
+- Rule: trust good tags; fill only what is missing; correct only on a high-confidence match; send doubts to a review queue; never silently overwrite.
+- Already built that this uses: *Update tags from files* (reads genre, year, album artist, composer, Replay Gain), *Edit info*, and **writing tags into files** (title, artist, album, track number; read back to check; *All files access*), plus the *Album art finder*.
+- Phases:
+  - [ ] **1. Scan and report:** a *Tag cleanup* screen with counts (complete, missing title / artist / album / artwork, possible mismatches). Changes nothing.
+  - [ ] **2. Safe auto-fill:** parse the file name when tags are missing; fill only empty fields; progress; resumable (a `tag_jobs` table with the statuses pending, processing, tagged, needs review, no match, failed, skipped).
+  - [ ] **3. AcoustID / MusicBrainz:** fingerprint only the songs that need help, confidence scoring, conflict detection, a **review queue** (*Keep current* / *Use suggestion* / *Skip*) and *Approve all high-confidence*. Needs a fingerprint library for Android (to choose) and an AcoustID key (kept out of git, like the Jamendo ID). It works for known commercial recordings, so personal recordings, remixes and live versions will often be *no match*.
+  - [ ] **4. Batch tag writing:** write the cleaned tags into the files on request, with an undo or backup, progress, and the *All files access* rule. (Single-song writing exists; the batch and the undo do not.)
+  - [ ] **5. Cloud Library preparation:** pick cleaned songs to upload (see 3).
+- Not now: AI genre / mood / BPM, lyrics tagging, automatic artwork downloads, silent overwriting, uploading during tagging.
+- Names are sent to MusicBrainz / AcoustID, so add them to the [privacy page](21_PRIVACY.md) with their own switch.
+
+**3. A personal Cloud Library** (from [remotetunescloud.md](remotetunescloud.md))
+- What: your own songs stored in **Cloudflare R2** (one account, bucket `remotetunes`, public development URL, test song verified; keys stay private and never go in git) with the catalog (songs, artists, albums, genres, playlists) in **Supabase**. It is one more music source beside *This phone*, the *Online Library* (Jamendo) and other apps. Songs stream from R2 to whichever phone plays; the player gets a normal URL (the existing *play a link* path), so playback itself does not change.
+- Since the doc was written the app became player-first: a cloud song can play on **this phone** (like an Online Library track) or, when controlling another phone, on that one with the existing `playUrl` command. The Cloud Library should appear like the Online Library does (a Library category, searchable, *Play*, *Add to queue*), and cloud songs behave like internet tracks in the queue (no gapless or crossfade into them, no Replay Gain unless their tags are stored).
+- Phases:
+  - [ ] **8.1 Minimum:** a Cloud Library list, search by title, play, add to queue; a basic `songs` table; songs uploaded by hand through the Cloudflare dashboard.
+  - [ ] **8.2 Better browsing:** artists, albums, genres, artwork, sort, recently played, genre filters.
+  - [ ] **8.3 Upload and manage:** upload from the phone (with the auto-tagging above and a review screen before saving), edit, delete, duplicate detection.
+  - [ ] **8.4 Private access:** a private bucket with short-lived signed URLs and owner-only access, only if needed (the public URL means anyone who has the exact link can fetch the file).
+- Rules: one Cloudflare account only; MP3s in R2, never in Supabase Storage; only songs you own or may host (not Spotify or YouTube songs); stay offline-first; no accounts, sharing, recommendations or DRM in v1; no automatic uploads of the whole library.
+- Free tier: 10 GB of storage on R2 is roughly 2,500 songs at 128 kbps; no egress fees.
+- Privacy: song titles and the files themselves would go to your own R2 and Supabase; add this to the privacy page when built.
+
+Suggested order: **1** first (the owner's choice, and it stands alone), then **2 (phases 1 to 2)** because it is useful on its own and prepares **3**.
+
+---
+
 ### To check by hand (owner)
 - [ ] Try the phone checklist, sections 14 to 19 (everything since `v0.7.0`: crossfade, tag writing, visualizer, leaving folders out, lock screen, EQ, lyrics, menu, skins...). Group play and Auto-align were verified earlier on two phones.
 - [ ] Lock screen on the **GT 30 Pro** did not show the player (it works on the Note 10 Pro); probably a phone setting, parked.
@@ -15,7 +51,7 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 - [ ] GitHub Pages: Settings > Pages > Source: GitHub Actions (once), for the web Controller.
 
 ### Known limits (built, but not as far as it could go)
-- [ ] **10-band EQ is virtual:** Android's equalizer has about 5 bands, so the ten sliders are blended onto them (the screen says so). A true 10-band filter would need our own audio processing.
+- [ ] **10-band EQ is virtual** (a true one is planned, see *Planned next*): Android's equalizer has about 5 bands, so the ten sliders are blended onto them (the screen says so). A true 10-band filter would need our own audio processing.
 - [ ] **Replay Gain** reads the tags only; *measuring* loudness for files that have none needs decoding every file.
 - [ ] **Writing tags into files** depends on Android: files in shared folders are refused unless *All files access* is on (Settings). It writes title, artist, album and track number only (not genre, year, cover).
 - [ ] **Visualizer** needs the microphone permission (Android's rule for reading the sound; nothing is recorded), works only for this phone's own playback, and some phones or outputs may refuse it.
@@ -24,7 +60,6 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 ### Ideas not started
 - [ ] A **user guide for friends** (a shorter, friendlier version of [22_USER_GUIDE.md](22_USER_GUIDE.md)). Wanted later; for now the app is for personal use only.
-- [ ] A true 10-band equalizer / our own audio effects (see above).
 - [ ] Leave files out by pattern (for example "everything named *intro*"), or an exclude list you can edit by hand (today: untick folders and songs, and the *Left out of the library* screen).
 
 ---
