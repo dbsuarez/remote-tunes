@@ -38,6 +38,7 @@ class RestoreReport {
   int infoRestored = 0;
   int artRestored = 0;
   int artSkipped = 0;
+  int historyAdded = 0;
 
   int get found => byPath + byTags + looseMatches + picked;
 }
@@ -145,6 +146,7 @@ class BackupService {
     bool settings = true,
     bool art = false,
     bool activity = true,
+    bool history = true,
   }) async {
     final rows = await db.customSelect(
       'SELECT id, title, artist, album, duration_seconds, file_path, file_size_bytes, favorite, '
@@ -155,17 +157,28 @@ class BackupService {
         r.read<int>('song_id'),
     };
 
+    // The songs that are in the play history (their rows are found again by their place or tags).
+    final inHistory = history
+        ? {
+            for (final r in await db.customSelect('SELECT DISTINCT song_id FROM play_events').get())
+              r.read<int>('song_id'),
+          }
+        : const <int>{};
+
     // Only songs that have something worth keeping: a playlist, a heart, plays or skips.
     final chosen = <QueryRow>[];
-    for (final r in activity ? rows : const <QueryRow>[]) {
-      if (inPlaylist.contains(r.read<int>('id')) ||
-          r.read<bool>('favorite') ||
-          r.read<int>('play_count') > 0 ||
-          r.read<int>('skip_count') > 0 ||
-          r.read<bool>('info_edited') ||
-          r.readNullable<DateTime>('last_played_at') != null) {
-        chosen.add(r);
-      }
+    final withActivity = <int>{};
+    for (final r in rows) {
+      final id = r.read<int>('id');
+      final hit = activity &&
+          (inPlaylist.contains(id) ||
+              r.read<bool>('favorite') ||
+              r.read<int>('play_count') > 0 ||
+              r.read<int>('skip_count') > 0 ||
+              r.read<bool>('info_edited') ||
+              r.readNullable<DateTime>('last_played_at') != null);
+      if (hit) withActivity.add(id);
+      if (hit || inHistory.contains(id)) chosen.add(r);
     }
 
     // The music root: the folder every referenced file is in (copies are not).
@@ -192,13 +205,25 @@ class BackupService {
         durationSeconds: r.readNullable<int>('duration_seconds') ?? 0,
         relativePath: relative(r.readNullable<String>('file_path')),
         sizeBytes: r.readNullable<int>('file_size_bytes'),
-        favorite: r.read<bool>('favorite'),
-        plays: r.read<int>('play_count'),
-        skips: r.read<int>('skip_count'),
-        lastPlayed: r.readNullable<DateTime>('last_played_at'),
-        edited: r.read<bool>('info_edited'),
+        // A song that is only here for the play history carries no hearts or counts.
+        favorite: withActivity.contains(r.read<int>('id')) && r.read<bool>('favorite'),
+        plays: withActivity.contains(r.read<int>('id')) ? r.read<int>('play_count') : 0,
+        skips: withActivity.contains(r.read<int>('id')) ? r.read<int>('skip_count') : 0,
+        lastPlayed: withActivity.contains(r.read<int>('id')) ? r.readNullable<DateTime>('last_played_at') : null,
+        edited: withActivity.contains(r.read<int>('id')) && r.read<bool>('info_edited'),
         trackNumber: r.readNullable<int>('track_number'),
       ));
+    }
+
+    final playLog = <BackupPlay>[];
+    if (history) {
+      for (final e in await db
+          .customSelect('SELECT song_id, started_at, heard_seconds, outcome FROM play_events ORDER BY started_at, id')
+          .get()) {
+        final idx = indexOfDbId[e.read<int>('song_id')];
+        if (idx == null) continue; // the song is no longer in the library
+        playLog.add(BackupPlay(idx, e.read<int>('started_at'), e.read<int>('heard_seconds'), e.read<String>('outcome')));
+      }
     }
 
     final playlists = <BackupPlaylist>[];
@@ -288,6 +313,7 @@ class BackupService {
       ],
       settings: values,
       art: covers,
+      playLog: playLog,
     );
   }
 
@@ -413,6 +439,7 @@ class BackupService {
     bool includeLyrics = true,
     bool includeSettings = true,
     bool includeArt = true,
+    bool includeHistory = true,
     Map<int, int> picks = const {},
   }) async {
     final report = RestoreReport()..songsInBackup = data.songs.length;
@@ -605,6 +632,29 @@ class BackupService {
         } catch (_) {
           report.artSkipped++;
         }
+      }
+    }
+
+    if (includeHistory) {
+      // Each play once: a play already in the log (same song, same moment) is not added again.
+      for (final e in data.playLog) {
+        final id = idOf[e.songIndex];
+        if (id == null) continue;
+        final have = await db.customSelect(
+          'SELECT 1 FROM play_events WHERE song_id = ? AND started_at = ? LIMIT 1',
+          variables: [Variable<int>(id), Variable<int>(e.startedAt)],
+        ).get();
+        if (have.isNotEmpty) continue;
+        await db.customInsert(
+          'INSERT INTO play_events (song_id, started_at, heard_seconds, outcome) VALUES (?, ?, ?, ?)',
+          variables: [
+            Variable<int>(id),
+            Variable<int>(e.startedAt),
+            Variable<int>(e.heardSeconds),
+            Variable<String>(e.outcome),
+          ],
+        );
+        report.historyAdded++;
       }
     }
 

@@ -119,6 +119,19 @@ class BackupLyric {
   final String source;
 }
 
+/// One play of the play history: which song (a position in [BackupData.songs]), when it started,
+/// how many seconds were heard, and how it ended (`finished`, `skipped` or `stopped`).
+class BackupPlay {
+  const BackupPlay(this.songIndex, this.startedAt, this.heardSeconds, this.outcome);
+
+  final int songIndex;
+
+  /// Seconds since 1970.
+  final int startedAt;
+  final int heardSeconds;
+  final String outcome;
+}
+
 /// A cover picture: one per album, found again by artist and album.
 class BackupArt {
   const BackupArt({required this.artist, required this.album, required this.bytes, this.ext = 'jpg'});
@@ -145,6 +158,7 @@ class BackupData {
     this.lyrics = const [],
     this.settings = const {},
     this.art = const [],
+    this.playLog = const [],
   });
 
   static const format = 2;
@@ -165,6 +179,9 @@ class BackupData {
 
   /// Cover pictures (when the backup was made with them).
   final List<BackupArt> art;
+
+  /// The play history (when the backup was made with it).
+  final List<BackupPlay> playLog;
 
   int get edited => songs.where((s) => s.edited).length;
   int get favorites => songs.where((s) => s.favorite).length;
@@ -193,6 +210,10 @@ class BackupData {
             },
         ],
         'settings': settings,
+        if (playLog.isNotEmpty)
+          'plays': [
+            for (final e in playLog) [e.songIndex, e.startedAt, e.heardSeconds, e.outcome],
+          ],
         'art': [
           for (var i = 0; i < art.length; i++)
             {'artist': art[i].artist, 'album': art[i].album, 'f': 'art/$i.${art[i].ext}'},
@@ -309,6 +330,24 @@ class BackupData {
         if (k is String && v is String) settings[k] = v;
       });
     }
+    final playLog = <BackupPlay>[];
+    final rawPlays = j['plays'];
+    if (rawPlays is List) {
+      for (final e in rawPlays) {
+        if (e is! List || e.length < 4 || e[0] is! num || e[1] is! num || e[2] is! num || e[3] is! String) {
+          continue;
+        }
+        final idx = indexMap[(e[0] as num).toInt()];
+        if (idx == null) continue;
+        final how = e[3] as String;
+        playLog.add(BackupPlay(
+          idx,
+          (e[1] as num).toInt(),
+          (e[2] as num).toInt().clamp(0, 86400),
+          how == 'finished' || how == 'skipped' ? how : 'stopped',
+        ));
+      }
+    }
     final art = <BackupArt>[];
     final rawArt = j['art'];
     if (rawArt is List) {
@@ -341,6 +380,7 @@ class BackupData {
       lyrics: lyrics,
       settings: settings,
       art: art,
+      playLog: playLog,
     );
   }
 }

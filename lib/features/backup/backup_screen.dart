@@ -80,6 +80,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _settings = true;
   bool _art = true;
   bool _activity = true;
+  bool _history = true;
+  bool _restoreHistory = true;
   bool _restoreArt = true;
   bool _busy = false;
   int _copies = 0;
@@ -132,7 +134,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       final service = await ref.read(backupServiceProvider.future);
       final data = await service.create(
-          lyrics: _lyrics, settings: _settings, art: _art, activity: _activity);
+          lyrics: _lyrics, settings: _settings, art: _art, activity: _activity, history: _history);
       final bytes = data.encode();
       final d = data.created;
       String two(int n) => n.toString().padLeft(2, '0');
@@ -205,6 +207,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           includeLyrics: _restoreLyrics,
           includeSettings: _restoreSettings,
           includeArt: _restoreArt,
+          includeHistory: _restoreHistory,
           picks: picks,
         );
         // The lists and the look may have changed.
@@ -248,6 +251,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       if (d.settings.isNotEmpty) n(d.settings.length, 'setting'),
       if (d.art.isNotEmpty) n(d.art.length, 'cover'),
       if (d.edited > 0) n(d.edited, 'edited song info', 'edited song infos'),
+      if (d.playLog.isNotEmpty) n(d.playLog.length, 'play in the history', 'plays in the history'),
     ].join(' · ');
   }
 
@@ -276,6 +280,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   'Also play and skip counts, edited song info and the left-out list'),
               value: _activity,
               onChanged: (v) => setState(() => _activity = v),
+            ),
+            SwitchListTile(
+              key: const Key('backup-history'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include play history'),
+              subtitle: const Text('Each song played, when and for how long (for Insights)'),
+              value: _history,
+              onChanged: (v) => setState(() => _history = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -312,6 +324,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   ? null
                   : () => setState(() {
                         _activity = false;
+                        _history = false;
                         _settings = false;
                         _lyrics = true;
                         _art = true;
@@ -400,6 +413,16 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                           value: _restoreArt,
                           onChanged: (v) => setState(() => _restoreArt = v ?? true),
                         ),
+                      if (loaded.playLog.isNotEmpty)
+                        CheckboxListTile(
+                          key: const Key('restore-history'),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text('Play history (${loaded.playLog.length} plays)'),
+                          subtitle: const Text('Plays already in the history here are not added again'),
+                          value: _restoreHistory,
+                          onChanged: (v) => setState(() => _restoreHistory = v ?? true),
+                        ),
                       if (loaded.settings.isNotEmpty)
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
@@ -484,6 +507,7 @@ class RestoreReportDialog extends StatelessWidget {
               row('Songs with play or skip counts', r.countsRestored),
               row('Left-out folders and files', r.leftOutAdded),
               row('Lyrics added', r.lyricsAdded),
+              row('Plays added to the history', r.historyAdded),
               row('Album covers added', r.artRestored),
               row('Song info changed (edited by hand)', r.infoRestored),
               row('Settings applied', r.settingsApplied),
