@@ -1,3 +1,4 @@
+import '../playback_log.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -63,6 +64,7 @@ class CrossfadeBackend implements AudioBackend {
         final fade = _fade;
         final inc = _other;
         if (fade != null) {
+          PlaybackLog.add('fade: the song ended during the fade (${_ramp != null ? 'fading' : 'still loading'})');
           // The song ran out during the fade: the next one takes over (while the
           // next is still loading, the fade starts as soon as it is ready).
           if (_ramp != null) {
@@ -71,6 +73,7 @@ class CrossfadeBackend implements AudioBackend {
           }
           return;
         }
+        PlaybackLog.add('backend: the song ended');
         _completed.add(null);
       }),
       b.durationStream.listen((d) {
@@ -231,6 +234,7 @@ class CrossfadeBackend implements AudioBackend {
     if (_fade != null || length <= Duration.zero) return false;
     final incoming = _other;
     final done = Completer<bool>();
+    PlaybackLog.add('fade: loading the next song on the other player');
     // Claimed straight away, so nothing else starts a fade while this one loads.
     _fade = done;
     _pendingPath = filePath;
@@ -250,6 +254,8 @@ class CrossfadeBackend implements AudioBackend {
     }
     await incoming.setVolume(0);
     await incoming.setSpeed(_speed);
+    PlaybackLog.add('fade: next song loaded; this song is at '
+        '${_active.position.inMilliseconds} ms of ${_lastDuration[_active]?.inMilliseconds ?? 'unknown'} ms');
 
     // Time the fade to the end of the song playing: wait if there is time to
     // spare (the next song is already loaded, so it starts at once), shorten the
@@ -270,6 +276,7 @@ class CrossfadeBackend implements AudioBackend {
             : const Duration(milliseconds: 200);
       }
     }
+    PlaybackLog.add('fade: starts, ${fadeLength.inMilliseconds} ms');
     await incoming.play();
 
     final step = tick.inMilliseconds / fadeLength.inMilliseconds;
@@ -290,6 +297,7 @@ class CrossfadeBackend implements AudioBackend {
   Future<void> _finishFade(AudioBackend incoming, String filePath) async {
     final fade = _fade;
     if (fade == null) return;
+    PlaybackLog.add('fade: done, the next song takes over');
     final outgoing = _active;
     _active = incoming;
     _fade = null;

@@ -1,3 +1,4 @@
+import 'playback_log.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -259,9 +260,17 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     _preloadedEntryId = null;
     _crossfading = false;
     final next = _queue.advance(auto: true);
-    if (next == null || next.id != expected || next.song.filePath != path) {
+    PlaybackLog.add('engine: moved on by itself (expected ${expected ?? '-'}, queue gives '
+        '${next?.id ?? '-'}, same file: ${next != null && next.song.filePath == path})');
+    // The player is already playing the right file: take it over as it is. (It must
+    // never be loaded again, which would start the song from its beginning.)
+    if (next != null && path != null && next.song.filePath == path && next.id != expected) {
+      PlaybackLog.add('engine: kept the song playing (the lined-up entry differed)');
+    }
+    if (next == null || next.song.filePath != path) {
       // Out of step with the queue (it changed just then): load it properly.
       if (next != null) {
+        PlaybackLog.add('engine: loading ${next.id} again (the file differs)');
         try {
           await _startEntry(next, autoplay: true);
         } on PlaybackException {
@@ -389,6 +398,8 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     }
     _crossfading = true;
     _preloadedEntryId = next.id;
+    PlaybackLog.add('engine: fade ${len}s starts at ${position.inMilliseconds} ms of '
+        '$_durationSeconds s (queue ${_queue.currentIndex} -> next ${next.id})');
     // Not through the command queue: it would hold up pause / next for the whole
     // fade. The backend ends the fade by itself when a new song is loaded.
     unawaited(() async {
@@ -465,6 +476,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
             _error = '';
             _emit();
           }
+          PlaybackLog.add('engine: loads entry ${current.id} (autoplay: $autoplay)');
           final duration = song.isUrl
               ? await _backend.loadUrl(song.url!)
               : await _backend.load(path!);
@@ -644,6 +656,8 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
       });
 
   Future<void> _onCompleted() async {
+    PlaybackLog.add('engine: the song ended (loaded $_loadedEntryId, position $_positionSeconds s '
+        'of $_durationSeconds s)');
     final next = _queue.advance(auto: true);
     if (next == null) {
       // End of the queue: rewind and stop, staying on the last track.

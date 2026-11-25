@@ -1,3 +1,5 @@
+import '../player/playback_log.dart';
+import '../update/update_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -141,6 +143,9 @@ class DiagnosticsInfo {
       '  Microphone permission (Auto-align): '
           '${microphonePermission == null ? 'unknown' : yn(microphonePermission!)}',
       ..._groupLines(),
+      '',
+      'Playback log (song changes, newest last)',
+      if (PlaybackLog.lines.isEmpty) '  nothing yet' else ...[for (final l in PlaybackLog.lines) '  $l'],
     ];
     return lines.join('\n');
   }
@@ -201,7 +206,10 @@ final diagnosticsProvider = FutureProvider.autoDispose<DiagnosticsInfo>((ref) as
     group: ref.read(groupFollowerProvider)?.status.isOn == true
         ? ref.read(groupFollowerProvider)!.status
         : null,
-    appVersion: AppConstants.appVersion,
+    // The installed app's own version (the constant only says what the source had).
+    appVersion: (await ref.read(installedAppProvider.future).catchError((Object _) => null))
+            ?.short ??
+        AppConstants.appVersion,
     protocolVersion: AppConstants.protocolVersion,
     platform: '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
     schemaVersion: db.schemaVersion,

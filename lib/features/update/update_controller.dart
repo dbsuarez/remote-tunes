@@ -63,6 +63,30 @@ final updateDirProvider = Provider<Future<Directory> Function()>((ref) => () asy
       return Directory('${base.path}${Platform.pathSeparator}updates');
     });
 
+/// Which version of the app is installed on this phone (null where it cannot be
+/// read, e.g. in the web page or in tests).
+class InstalledApp {
+  const InstalledApp(this.version, this.build, this.abi);
+
+  final String version;
+  final int build;
+  final String abi;
+
+  /// "1.0.2"
+  String get label => version;
+
+  /// "Version 1.0.2 (build 57)"
+  String get long => 'Version $version (build $build)';
+
+  /// "1.0.2 (build 57)"
+  String get short => '$version (build $build)';
+}
+
+final installedAppProvider = FutureProvider<InstalledApp?>((ref) async {
+  final me = await ref.read(updateNativeProvider).info();
+  return me == null ? null : InstalledApp(me.version, me.build, me.abi);
+});
+
 final updateProvider =
     StateNotifierProvider<UpdateController, UpdateState>((ref) => UpdateController(ref));
 

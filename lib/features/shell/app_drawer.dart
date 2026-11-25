@@ -17,7 +17,15 @@ class AppDrawer extends StatelessWidget {
     required this.onHelp,
     this.onSkins,
     this.showEqualizer = true,
+    this.version,
+    this.updateAvailable = false,
   });
+
+  /// The installed version ("1.0.2"), shown under the name.
+  final String? version;
+
+  /// A newer version is out: a note under the version opens Settings.
+  final bool updateAvailable;
 
   final VoidCallback onNowPlaying;
   final VoidCallback onLyrics;
@@ -58,9 +66,30 @@ class AppDrawer extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Text('RemoteTunes',
-                  style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.primary)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('RemoteTunes',
+                      style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.primary)),
+                  if (version != null)
+                    Text('Version $version',
+                        key: const Key('drawer-version'),
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
             ),
+            if (updateAvailable)
+              ListTile(
+                key: const Key('drawer-update'),
+                dense: true,
+                leading: Icon(Icons.system_update_rounded, color: theme.colorScheme.primary),
+                title: const Text('A new version is available'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSettings();
+                },
+              ),
             item(Icons.play_circle_outline_rounded, 'Now Playing', onNowPlaying),
             item(Icons.lyrics_outlined, 'Lyrics', onLyrics),
             item(Icons.library_music_outlined, 'Library', onLibrary),

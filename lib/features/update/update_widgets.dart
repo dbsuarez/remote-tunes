@@ -35,7 +35,7 @@ class _UpdateBannerState extends ConsumerState<UpdateBanner> {
             u.status == UpdateStatus.failed);
     if (!show) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Card(
         child: ListTile(
           leading: const Icon(Icons.system_update_rounded),
@@ -91,8 +91,19 @@ class UpdateSettingsTiles extends ConsumerWidget {
         subtitle = u.installed == null ? 'Updates come from GitHub.' : 'Installed: ${u.installed}';
     }
 
+    final app = ref.watch(installedAppProvider).valueOrNull;
     return Column(
       children: [
+        // Which version is on this phone, always visible.
+        ListTile(
+          key: const Key('installed-version'),
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.info_outline_rounded),
+          title: Text(app == null ? 'RemoteTunes' : 'RemoteTunes ${app.label}'),
+          subtitle: Text(app == null
+              ? 'The version shows in the Android app.'
+              : 'Installed: ${app.long}. Built for ${app.abi}.'),
+        ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.system_update_rounded),

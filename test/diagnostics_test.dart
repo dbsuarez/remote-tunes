@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/core/constants.dart';
 import 'package:remote_tunes/features/group/group_models.dart';
+import 'package:remote_tunes/features/player/playback_log.dart';
 import 'package:remote_tunes/features/settings/diagnostics_screen.dart';
 
 void main() {
@@ -41,6 +42,34 @@ void main() {
     expect(r, contains('Songs: 12'));
     expect(r.toLowerCase(), isNot(contains('token')));
     expect(r.toLowerCase(), isNot(contains('sb_publishable')));
+  });
+
+  test('the report ends with the playback log, which has no song names', () {
+    PlaybackLog.clear();
+    PlaybackLog.add('fade: starts, 2000 ms');
+    const info = DiagnosticsInfo(
+      appVersion: '1.0.0 (build 57)',
+      protocolVersion: 1,
+      platform: 'android 14',
+      schemaVersion: 3,
+      connectionMode: 'auto',
+      onlineRelayEnabled: false,
+      onlineKeysSet: false,
+      externalControlEnabled: false,
+      notificationAccess: null,
+      port: 8765,
+      addresses: [],
+      songs: 1,
+      favorites: 0,
+      playlists: 0,
+      trustedControllers: 0,
+    );
+    final r = info.toReport();
+    expect(r, contains('Version: 1.0.0 (build 57)'));
+    expect(r, contains('Playback log'));
+    expect(r.trimRight(), endsWith('fade: starts, 2000 ms'));
+    PlaybackLog.clear();
+    expect(info.toReport(), contains('nothing yet'));
   });
 
   group('group play and Online Library lines', () {

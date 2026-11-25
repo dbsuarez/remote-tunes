@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../update/update_controller.dart';
+import '../update/update_widgets.dart';
 import '../player/visualizer.dart';
 import '../library/tag_writer.dart';
 import '../../core/constants.dart';
@@ -167,6 +169,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       // Library on Now Playing.
       drawerEnableOpenDragGesture: false,
       drawer: AppDrawer(
+        version: ref.watch(installedAppProvider).valueOrNull?.label,
+        updateAvailable: ref.watch(updateProvider).status == UpdateStatus.available,
         showEqualizer: !remote,
         onNowPlaying: () => setState(() => _tab = 0),
         onLyrics: () {
@@ -237,6 +241,9 @@ class _AppShellState extends ConsumerState<AppShell> {
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
+                  // A card appears when a newer version is out (it also does the quiet
+                  // check, about once a day).
+                  const UpdateBanner(),
                   Expanded(
                     child: IndexedStack(
                       index: _tab,
