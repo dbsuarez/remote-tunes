@@ -220,6 +220,9 @@ class LibraryImportService {
         albumArtPath: artPath,
         fileSizeBytes: size,
         mimeType: _mimeFor(path),
+        albumArtist: meta.albumArtist,
+        genre: meta.genre,
+        year: meta.year,
       );
       result.added++;
     } catch (_) {
@@ -245,6 +248,32 @@ class LibraryImportService {
     final path = p.join(_artDir.path, '${_uuid.v4()}.$ext');
     await File(path).writeAsBytes(bytes, flush: true);
     return path;
+  }
+
+  /// Reads the tags again for every song in the library and fills in the album
+  /// artist, genre and year (songs added before those were kept have none).
+  /// Titles, artists, albums and covers are not changed. Returns how many songs
+  /// got at least one of them.
+  Future<int> refreshTags({ProgressCallback? onProgress}) async {
+    final files = await _library.localSongFiles();
+    var filled = 0;
+    for (var i = 0; i < files.length; i++) {
+      final f = files[i];
+      onProgress?.call(ImportProgress(i, files.length, p.basename(f.path)));
+      try {
+        if (!await File(f.path).exists()) continue;
+        final meta = await _extractor.extract(f.path);
+        if (meta.albumArtist != null || meta.genre != null || meta.year != null) {
+          await _library.updateSongTags(f.id,
+              albumArtist: meta.albumArtist, genre: meta.genre, year: meta.year);
+          filled++;
+        }
+      } catch (_) {
+        // One unreadable file does not stop the rest.
+      }
+    }
+    onProgress?.call(ImportProgress(files.length, files.length, null));
+    return filled;
   }
 
   /// Removes a song from the library, and deletes its copied file and its art

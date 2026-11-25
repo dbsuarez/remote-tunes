@@ -66,10 +66,22 @@ class FakeMusicSource implements MusicSource {
       String? view,
       int? playlistId,
       int? folderId,
+      String? groupKind,
+      String? groupValue,
       int offset = 0,
       int limit = 50}) async {
     if (failWith != null) throw failWith!;
     return _page(_filter(query, artist, album, view: view, playlistId: playlistId),
+        offset, limit);
+  }
+
+  final groupsByKind = <String, List<RemoteGroup>>{};
+
+  @override
+  Future<LibraryPage<RemoteGroup>> groups(
+      {required String kind, String query = '', int offset = 0, int limit = 50}) async {
+    final all = groupsByKind[kind] ?? const <RemoteGroup>[];
+    return _page(all.where((g) => g.name.toLowerCase().contains(query.toLowerCase())).toList(),
         offset, limit);
   }
 

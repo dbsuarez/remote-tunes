@@ -132,6 +132,11 @@ class NowPlayingViewState extends State<NowPlayingView> {
           enabled: enabled,
           onSet: (m) => _run(() => session.setSleepTimer(m)),
         ),
+        VolumeButton(
+          volume: p.volume,
+          enabled: enabled,
+          onChanged: (v) => _run(() => session.setVolume(v)),
+        ),
       ],
     );
   }
@@ -204,11 +209,15 @@ class NowPlayingViewState extends State<NowPlayingView> {
                       p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, 10),
                 ),
                 const SizedBox(height: 8),
-                VolumeSlider(
-                  volume: p.volume,
-                  enabled: enabled,
-                  onChanged: (v) => _run(() => session.setVolume(v)),
-                ),
+                // The volume is a button in the row of quick actions (with a small
+                // vertical slider); when another music app is controlled there is
+                // no such row, so it keeps the slider.
+                if (p.isExternal)
+                  VolumeSlider(
+                    volume: p.volume,
+                    enabled: enabled,
+                    onChanged: (v) => _run(() => session.setVolume(v)),
+                  ),
                 // Speed and the sleep timer are in the row of quick actions under
                 // the title; when another music app is controlled they keep their
                 // card.

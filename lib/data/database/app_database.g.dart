@@ -170,6 +170,35 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _albumArtistMeta = const VerificationMeta(
+    'albumArtist',
+  );
+  @override
+  late final GeneratedColumn<String> albumArtist = GeneratedColumn<String>(
+    'album_artist',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _genreMeta = const VerificationMeta('genre');
+  @override
+  late final GeneratedColumn<String> genre = GeneratedColumn<String>(
+    'genre',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _playCountMeta = const VerificationMeta(
     'playCount',
   );
@@ -199,6 +228,9 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
     addedAt,
     favorite,
     lastPlayedAt,
+    albumArtist,
+    genre,
+    year,
     playCount,
   ];
   @override
@@ -319,6 +351,27 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         ),
       );
     }
+    if (data.containsKey('album_artist')) {
+      context.handle(
+        _albumArtistMeta,
+        albumArtist.isAcceptableOrUnknown(
+          data['album_artist']!,
+          _albumArtistMeta,
+        ),
+      );
+    }
+    if (data.containsKey('genre')) {
+      context.handle(
+        _genreMeta,
+        genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
     if (data.containsKey('play_count')) {
       context.handle(
         _playCountMeta,
@@ -394,6 +447,18 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, Song> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_played_at'],
       ),
+      albumArtist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_artist'],
+      ),
+      genre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}genre'],
+      ),
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      ),
       playCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}play_count'],
@@ -430,6 +495,13 @@ class Song extends DataClass implements Insertable<Song> {
   /// When the song last started playing; null if never (schema v3).
   final DateTime? lastPlayedAt;
 
+  /// Tags read from the file (schema v7): the album's artist, the first genre
+  /// and the year. Null when the file has none (or was added before v7 and
+  /// not re-read yet).
+  final String? albumArtist;
+  final String? genre;
+  final int? year;
+
   /// How many times the song started playing (schema v5; feeds "Top").
   final int playCount;
   const Song({
@@ -448,6 +520,9 @@ class Song extends DataClass implements Insertable<Song> {
     required this.addedAt,
     required this.favorite,
     this.lastPlayedAt,
+    this.albumArtist,
+    this.genre,
+    this.year,
     required this.playCount,
   });
   @override
@@ -488,6 +563,15 @@ class Song extends DataClass implements Insertable<Song> {
     if (!nullToAbsent || lastPlayedAt != null) {
       map['last_played_at'] = Variable<DateTime>(lastPlayedAt);
     }
+    if (!nullToAbsent || albumArtist != null) {
+      map['album_artist'] = Variable<String>(albumArtist);
+    }
+    if (!nullToAbsent || genre != null) {
+      map['genre'] = Variable<String>(genre);
+    }
+    if (!nullToAbsent || year != null) {
+      map['year'] = Variable<int>(year);
+    }
     map['play_count'] = Variable<int>(playCount);
     return map;
   }
@@ -527,6 +611,13 @@ class Song extends DataClass implements Insertable<Song> {
       lastPlayedAt: lastPlayedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPlayedAt),
+      albumArtist: albumArtist == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumArtist),
+      genre: genre == null && nullToAbsent
+          ? const Value.absent()
+          : Value(genre),
+      year: year == null && nullToAbsent ? const Value.absent() : Value(year),
       playCount: Value(playCount),
     );
   }
@@ -552,6 +643,9 @@ class Song extends DataClass implements Insertable<Song> {
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       favorite: serializer.fromJson<bool>(json['favorite']),
       lastPlayedAt: serializer.fromJson<DateTime?>(json['lastPlayedAt']),
+      albumArtist: serializer.fromJson<String?>(json['albumArtist']),
+      genre: serializer.fromJson<String?>(json['genre']),
+      year: serializer.fromJson<int?>(json['year']),
       playCount: serializer.fromJson<int>(json['playCount']),
     );
   }
@@ -574,6 +668,9 @@ class Song extends DataClass implements Insertable<Song> {
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'favorite': serializer.toJson<bool>(favorite),
       'lastPlayedAt': serializer.toJson<DateTime?>(lastPlayedAt),
+      'albumArtist': serializer.toJson<String?>(albumArtist),
+      'genre': serializer.toJson<String?>(genre),
+      'year': serializer.toJson<int?>(year),
       'playCount': serializer.toJson<int>(playCount),
     };
   }
@@ -594,6 +691,9 @@ class Song extends DataClass implements Insertable<Song> {
     DateTime? addedAt,
     bool? favorite,
     Value<DateTime?> lastPlayedAt = const Value.absent(),
+    Value<String?> albumArtist = const Value.absent(),
+    Value<String?> genre = const Value.absent(),
+    Value<int?> year = const Value.absent(),
     int? playCount,
   }) => Song(
     id: id ?? this.id,
@@ -615,6 +715,9 @@ class Song extends DataClass implements Insertable<Song> {
     addedAt: addedAt ?? this.addedAt,
     favorite: favorite ?? this.favorite,
     lastPlayedAt: lastPlayedAt.present ? lastPlayedAt.value : this.lastPlayedAt,
+    albumArtist: albumArtist.present ? albumArtist.value : this.albumArtist,
+    genre: genre.present ? genre.value : this.genre,
+    year: year.present ? year.value : this.year,
     playCount: playCount ?? this.playCount,
   );
   Song copyWithCompanion(SongsCompanion data) {
@@ -644,6 +747,11 @@ class Song extends DataClass implements Insertable<Song> {
       lastPlayedAt: data.lastPlayedAt.present
           ? data.lastPlayedAt.value
           : this.lastPlayedAt,
+      albumArtist: data.albumArtist.present
+          ? data.albumArtist.value
+          : this.albumArtist,
+      genre: data.genre.present ? data.genre.value : this.genre,
+      year: data.year.present ? data.year.value : this.year,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
     );
   }
@@ -666,6 +774,9 @@ class Song extends DataClass implements Insertable<Song> {
           ..write('addedAt: $addedAt, ')
           ..write('favorite: $favorite, ')
           ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('albumArtist: $albumArtist, ')
+          ..write('genre: $genre, ')
+          ..write('year: $year, ')
           ..write('playCount: $playCount')
           ..write(')'))
         .toString();
@@ -688,6 +799,9 @@ class Song extends DataClass implements Insertable<Song> {
     addedAt,
     favorite,
     lastPlayedAt,
+    albumArtist,
+    genre,
+    year,
     playCount,
   );
   @override
@@ -709,6 +823,9 @@ class Song extends DataClass implements Insertable<Song> {
           other.addedAt == this.addedAt &&
           other.favorite == this.favorite &&
           other.lastPlayedAt == this.lastPlayedAt &&
+          other.albumArtist == this.albumArtist &&
+          other.genre == this.genre &&
+          other.year == this.year &&
           other.playCount == this.playCount);
 }
 
@@ -728,6 +845,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
   final Value<DateTime> addedAt;
   final Value<bool> favorite;
   final Value<DateTime?> lastPlayedAt;
+  final Value<String?> albumArtist;
+  final Value<String?> genre;
+  final Value<int?> year;
   final Value<int> playCount;
   const SongsCompanion({
     this.id = const Value.absent(),
@@ -745,6 +865,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.addedAt = const Value.absent(),
     this.favorite = const Value.absent(),
     this.lastPlayedAt = const Value.absent(),
+    this.albumArtist = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.year = const Value.absent(),
     this.playCount = const Value.absent(),
   });
   SongsCompanion.insert({
@@ -763,6 +886,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     this.addedAt = const Value.absent(),
     this.favorite = const Value.absent(),
     this.lastPlayedAt = const Value.absent(),
+    this.albumArtist = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.year = const Value.absent(),
     this.playCount = const Value.absent(),
   }) : title = Value(title),
        source = Value(source);
@@ -782,6 +908,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Expression<DateTime>? addedAt,
     Expression<bool>? favorite,
     Expression<DateTime>? lastPlayedAt,
+    Expression<String>? albumArtist,
+    Expression<String>? genre,
+    Expression<int>? year,
     Expression<int>? playCount,
   }) {
     return RawValuesInsertable({
@@ -800,6 +929,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
       if (addedAt != null) 'added_at': addedAt,
       if (favorite != null) 'favorite': favorite,
       if (lastPlayedAt != null) 'last_played_at': lastPlayedAt,
+      if (albumArtist != null) 'album_artist': albumArtist,
+      if (genre != null) 'genre': genre,
+      if (year != null) 'year': year,
       if (playCount != null) 'play_count': playCount,
     });
   }
@@ -820,6 +952,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
     Value<DateTime>? addedAt,
     Value<bool>? favorite,
     Value<DateTime?>? lastPlayedAt,
+    Value<String?>? albumArtist,
+    Value<String?>? genre,
+    Value<int?>? year,
     Value<int>? playCount,
   }) {
     return SongsCompanion(
@@ -838,6 +973,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
       addedAt: addedAt ?? this.addedAt,
       favorite: favorite ?? this.favorite,
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      albumArtist: albumArtist ?? this.albumArtist,
+      genre: genre ?? this.genre,
+      year: year ?? this.year,
       playCount: playCount ?? this.playCount,
     );
   }
@@ -890,6 +1028,15 @@ class SongsCompanion extends UpdateCompanion<Song> {
     if (lastPlayedAt.present) {
       map['last_played_at'] = Variable<DateTime>(lastPlayedAt.value);
     }
+    if (albumArtist.present) {
+      map['album_artist'] = Variable<String>(albumArtist.value);
+    }
+    if (genre.present) {
+      map['genre'] = Variable<String>(genre.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
     if (playCount.present) {
       map['play_count'] = Variable<int>(playCount.value);
     }
@@ -914,6 +1061,9 @@ class SongsCompanion extends UpdateCompanion<Song> {
           ..write('addedAt: $addedAt, ')
           ..write('favorite: $favorite, ')
           ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('albumArtist: $albumArtist, ')
+          ..write('genre: $genre, ')
+          ..write('year: $year, ')
           ..write('playCount: $playCount')
           ..write(')'))
         .toString();
@@ -4579,6 +4729,9 @@ typedef $$SongsTableCreateCompanionBuilder =
       Value<DateTime> addedAt,
       Value<bool> favorite,
       Value<DateTime?> lastPlayedAt,
+      Value<String?> albumArtist,
+      Value<String?> genre,
+      Value<int?> year,
       Value<int> playCount,
     });
 typedef $$SongsTableUpdateCompanionBuilder =
@@ -4598,6 +4751,9 @@ typedef $$SongsTableUpdateCompanionBuilder =
       Value<DateTime> addedAt,
       Value<bool> favorite,
       Value<DateTime?> lastPlayedAt,
+      Value<String?> albumArtist,
+      Value<String?> genre,
+      Value<int?> year,
       Value<int> playCount,
     });
 
@@ -4722,6 +4878,21 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<DateTime> get lastPlayedAt => $composableBuilder(
     column: $table.lastPlayedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get albumArtist => $composableBuilder(
+    column: $table.albumArtist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4865,6 +5036,21 @@ class $$SongsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get albumArtist => $composableBuilder(
+    column: $table.albumArtist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get playCount => $composableBuilder(
     column: $table.playCount,
     builder: (column) => ColumnOrderings(column),
@@ -4934,6 +5120,17 @@ class $$SongsTableAnnotationComposer
     column: $table.lastPlayedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get albumArtist => $composableBuilder(
+    column: $table.albumArtist,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get genre =>
+      $composableBuilder(column: $table.genre, builder: (column) => column);
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
 
   GeneratedColumn<int> get playCount =>
       $composableBuilder(column: $table.playCount, builder: (column) => column);
@@ -5032,6 +5229,9 @@ class $$SongsTableTableManager
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<bool> favorite = const Value.absent(),
                 Value<DateTime?> lastPlayedAt = const Value.absent(),
+                Value<String?> albumArtist = const Value.absent(),
+                Value<String?> genre = const Value.absent(),
+                Value<int?> year = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
               }) => SongsCompanion(
                 id: id,
@@ -5049,6 +5249,9 @@ class $$SongsTableTableManager
                 addedAt: addedAt,
                 favorite: favorite,
                 lastPlayedAt: lastPlayedAt,
+                albumArtist: albumArtist,
+                genre: genre,
+                year: year,
                 playCount: playCount,
               ),
           createCompanionCallback:
@@ -5068,6 +5271,9 @@ class $$SongsTableTableManager
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<bool> favorite = const Value.absent(),
                 Value<DateTime?> lastPlayedAt = const Value.absent(),
+                Value<String?> albumArtist = const Value.absent(),
+                Value<String?> genre = const Value.absent(),
+                Value<int?> year = const Value.absent(),
                 Value<int> playCount = const Value.absent(),
               }) => SongsCompanion.insert(
                 id: id,
@@ -5085,6 +5291,9 @@ class $$SongsTableTableManager
                 addedAt: addedAt,
                 favorite: favorite,
                 lastPlayedAt: lastPlayedAt,
+                albumArtist: albumArtist,
+                genre: genre,
+                year: year,
                 playCount: playCount,
               ),
           withReferenceMapper: (p0) => p0

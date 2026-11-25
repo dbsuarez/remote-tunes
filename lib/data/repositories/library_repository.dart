@@ -32,6 +32,9 @@ class LibraryRepository {
     String? albumArtPath,
     int? fileSizeBytes,
     String? mimeType,
+    String? albumArtist,
+    String? genre,
+    int? year,
   }) {
     return _db.into(_db.songs).insert(
           SongsCompanion.insert(
@@ -44,9 +47,73 @@ class LibraryRepository {
             albumArtPath: Value(albumArtPath),
             fileSizeBytes: Value(fileSizeBytes),
             mimeType: Value(mimeType),
+            albumArtist: Value(albumArtist),
+            genre: Value(genre),
+            year: Value(year),
             source: SongSource.localFile.name,
           ),
         );
+  }
+
+  /// Local songs with the file they play (to read their tags again).
+  Future<List<({int id, String path})>> localSongFiles() async {
+    final rows = await _db
+        .customSelect('SELECT id, file_path FROM songs WHERE file_path IS NOT NULL ORDER BY id')
+        .get();
+    return [for (final r in rows) (id: r.read<int>('id'), path: r.read<String>('file_path'))];
+  }
+
+  /// Saves the album artist, genre and year read from a file's tags. A tag the
+  /// file does not have leaves what is saved as it is.
+  Future<void> updateSongTags(int id, {String? albumArtist, String? genre, int? year}) =>
+      (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(SongsCompanion(
+        albumArtist: albumArtist == null ? const Value.absent() : Value(albumArtist),
+        genre: genre == null ? const Value.absent() : Value(genre),
+        year: year == null ? const Value.absent() : Value(year),
+      ));
+
+  static String? _groupColumn(String? kind) => switch (kind) {
+        GroupKind.genre => 'genre',
+        GroupKind.year => 'year',
+        GroupKind.albumArtist => 'album_artist',
+        _ => null,
+      };
+
+  /// Genres, years or album artists with their song counts.
+  Future<LibraryPage<RemoteGroup>> groups({
+    required String kind,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    final col = _groupColumn(kind);
+    if (col == null) return LibraryPage(items: const [], total: 0, offset: offset);
+    final q = query.trim();
+    final where = StringBuffer("WHERE $col IS NOT NULL AND CAST($col AS TEXT) != ''");
+    final vars = <Variable<Object>>[];
+    if (q.isNotEmpty) {
+      where.write(" AND CAST($col AS TEXT) LIKE ? ESCAPE '\\'");
+      vars.add(Variable<String>(_like(q)));
+    }
+    final order = kind == GroupKind.year ? 'ORDER BY $col DESC' : 'ORDER BY $col COLLATE NOCASE';
+    final total = (await _db
+            .customSelect('SELECT COUNT(*) AS c FROM (SELECT 1 FROM songs $where GROUP BY $col)',
+                variables: vars)
+            .getSingle())
+        .read<int>('c');
+    final rows = await _db.customSelect(
+      'SELECT CAST($col AS TEXT) AS name, COUNT(*) AS song_count FROM songs $where '
+      'GROUP BY $col $order LIMIT ? OFFSET ?',
+      variables: [...vars, Variable<int>(limit), Variable<int>(offset)],
+    ).get();
+    return LibraryPage(
+      items: [
+        for (final r in rows)
+          RemoteGroup(name: r.read<String>('name'), songCount: r.read<int>('song_count')),
+      ],
+      total: total,
+      offset: offset,
+    );
   }
 
   /// Deletes a song and returns it (so callers can remove its files).
@@ -288,9 +355,16 @@ class LibraryRepository {
     String? view,
     int? playlistId,
     List<int>? onlyIds,
+    String? groupKind,
+    String? groupValue,
   }) {
     final clauses = <String>[];
     final vars = <Variable<Object>>[];
+    final groupCol = _groupColumn(groupKind);
+    if (groupCol != null && groupValue != null) {
+      clauses.add('CAST($groupCol AS TEXT) = ?');
+      vars.add(Variable<String>(groupValue));
+    }
     if (view == LibraryView.favorites) clauses.add('favorite = 1');
     if (view == LibraryView.recent) clauses.add('last_played_at IS NOT NULL');
     if (view == LibraryView.top) {
@@ -366,10 +440,14 @@ class LibraryRepository {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
     int offset = 0,
     int limit = 50,
   }) async {
     final f = _songFilter(
+        groupKind: groupKind,
+        groupValue: groupValue,
         query: query,
         artist: artist,
         album: album,

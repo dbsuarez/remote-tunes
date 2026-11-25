@@ -30,6 +30,8 @@ class _Client extends ControllerClient {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
     int offset = 0,
     int limit = 50,
   }) async =>

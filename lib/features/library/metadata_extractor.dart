@@ -36,7 +36,16 @@ class ExtractedMetadata {
     this.trackNumber,
     this.artBytes,
     this.artMimeType,
+    this.albumArtist,
+    this.genre,
+    this.year,
   });
+
+  final String? albumArtist;
+
+  /// The first genre in the tags.
+  final String? genre;
+  final int? year;
 
   final String? title;
   final String? artist;
@@ -86,7 +95,18 @@ ExtractedMetadata _read(String path) {
     return (t == null || t.isEmpty) ? null : t;
   }
 
+  String? genre;
+  try {
+    genre = m.genres.isEmpty ? null : clean(m.genres.first);
+  } catch (_) {
+    genre = null; // some formats never set it
+  }
+  final year = m.year?.year;
+
   return ExtractedMetadata(
+    albumArtist: clean(m.albumArtist),
+    genre: genre,
+    year: (year != null && year >= 1000 && year <= 2999) ? year : null,
     title: clean(m.title),
     artist: clean(m.artist),
     album: clean(m.album),

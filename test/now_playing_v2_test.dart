@@ -8,6 +8,7 @@ import 'package:remote_tunes/core/protocol/library_models.dart';
 import 'package:remote_tunes/core/protocol/protocol.dart';
 import 'package:remote_tunes/features/controller/controller_client.dart';
 import 'package:remote_tunes/features/controller/controller_views.dart';
+import 'package:remote_tunes/features/music/now_playing_controls.dart';
 
 import 'music_widgets_test.dart' show settleUi;
 
@@ -254,6 +255,37 @@ void main() {
       ),
     );
     expect(find.text('Sleep timer'), findsOneWidget);
+  });
+
+  testWidgets('volume is a button in the quick row; it shows a small vertical slider',
+      (tester) async {
+    await open(tester, state());
+    expect(find.byType(Slider), findsOneWidget, reason: 'only the seek bar until it is pressed');
+    await tester.tap(find.byTooltip('Volume'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Slider), findsNWidgets(2));
+    expect(find.text('80%'), findsOneWidget, reason: 'the current volume');
+    // The new slider stands up (turned a quarter).
+    expect(find.byType(RotatedBox), findsWidgets);
+    final volume = tester.widgetList<Slider>(find.byType(Slider)).last;
+    volume.onChanged!(0.35);
+    await tester.pump(const Duration(milliseconds: 200));
+    volume.onChangeEnd!(0.35);
+    await tester.pump();
+    expect(client.sent, contains(RemoteActions.setVolume));
+    expect(client.params.last['volume'], closeTo(0.35, 0.001));
+  });
+
+  testWidgets('the volume icon follows the level', (tester) async {
+    expect(VolumeButton.iconFor(0), Icons.volume_off_rounded);
+    expect(VolumeButton.iconFor(0.3), Icons.volume_down_rounded);
+    expect(VolumeButton.iconFor(0.9), Icons.volume_up_rounded);
+  });
+
+  testWidgets('the old volume bar is gone from the page', (tester) async {
+    await open(tester, state());
+    // Only the seek slider is left on the page.
+    expect(find.byType(Slider), findsOneWidget);
   });
 
   testWidgets('an internet track has no favorite, but still has the other actions',

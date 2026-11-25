@@ -1667,10 +1667,16 @@ class PlayerServer {
             view: text('view'),
             playlistId: p['playlistId'] is num ? (p['playlistId'] as num).toInt() : null,
             folderId: p['folderId'] is num ? (p['folderId'] as num).toInt() : null,
+            groupKind: text('groupKind'),
+            groupValue: text('groupValue'),
             offset: offset,
             limit: limit,
           );
           body = _pageJson(page, (RemoteSong e) => e.toJson());
+        case LibraryScope.groups:
+          final page = await lib.groups(
+              kind: text('kind') ?? '', query: query, offset: offset, limit: limit);
+          body = _pageJson(page, (RemoteGroup e) => e.toJson());
         case LibraryScope.folders:
           final page = await lib.folders(query: query, offset: offset, limit: limit);
           body = _pageJson(page, (RemoteFolder e) => e.toJson());

@@ -19,6 +19,16 @@ abstract class PlayerLibrary {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
+    int offset,
+    int limit,
+  });
+
+  /// Genres, years or album artists ([GroupKind]) with their song counts.
+  Future<LibraryPage<RemoteGroup>> groups({
+    required String kind,
+    String query,
     int offset,
     int limit,
   });
@@ -239,6 +249,8 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
     int offset = 0,
     int limit = 50,
   }) async {
@@ -250,6 +262,8 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       view: view,
       playlistId: playlistId,
       folderId: folderId,
+      groupKind: groupKind,
+      groupValue: groupValue,
       offset: offset,
       limit: limit,
     );
@@ -264,6 +278,15 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
       offset: page.offset,
     );
   }
+
+  @override
+  Future<LibraryPage<RemoteGroup>> groups({
+    required String kind,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _repo.groups(kind: kind, query: query, offset: offset, limit: limit);
 
   @override
   Future<LibraryPage<RemoteFolder>> folders({

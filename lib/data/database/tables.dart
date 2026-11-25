@@ -28,6 +28,13 @@ class Songs extends Table {
   /// When the song last started playing; null if never (schema v3).
   DateTimeColumn get lastPlayedAt => dateTime().nullable()();
 
+  /// Tags read from the file (schema v7): the album's artist, the first genre
+  /// and the year. Null when the file has none (or was added before v7 and
+  /// not re-read yet).
+  TextColumn get albumArtist => text().nullable()();
+  TextColumn get genre => text().nullable()();
+  IntColumn get year => integer().nullable()();
+
   /// How many times the song started playing (schema v5; feeds "Top").
   IntColumn get playCount => integer().withDefault(const Constant(0))();
 

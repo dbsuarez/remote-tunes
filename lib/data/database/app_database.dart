@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -62,6 +62,12 @@ class AppDatabase extends _$AppDatabase {
           if (from < 6) {
             // Lyrics found on the internet, kept per song.
             await m.createTable(lyricsCache);
+          }
+          if (from < 7) {
+            // Album artist, genre and year, filled by re-reading the tags.
+            await m.addColumn(songs, songs.albumArtist);
+            await m.addColumn(songs, songs.genre);
+            await m.addColumn(songs, songs.year);
           }
         },
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).

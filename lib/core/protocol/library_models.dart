@@ -16,6 +16,9 @@ class LibraryScope {
   static const artists = 'artists';
   static const albums = 'albums';
   static const folders = 'folders';
+
+  /// Genres, years or album artists (`kind`).
+  static const groups = 'groups';
   static const playlists = 'playlists';
 
   /// What was played from the Online Library (kept on the Player).
@@ -103,6 +106,29 @@ class RemoteArtist {
         songCount: _int(j['songCount']),
         albumCount: _int(j['albumCount']),
       );
+}
+
+/// Which grouping of the library a `groups` request is for.
+class GroupKind {
+  GroupKind._();
+
+  static const genre = 'genre';
+  static const year = 'year';
+  static const albumArtist = 'albumArtist';
+}
+
+/// A genre, a year or an album artist, with how many songs it holds.
+class RemoteGroup {
+  const RemoteGroup({required this.name, required this.songCount});
+
+  /// The genre, the year (as text) or the artist.
+  final String name;
+  final int songCount;
+
+  Map<String, dynamic> toJson() => {'name': name, 'songCount': songCount};
+
+  factory RemoteGroup.fromJson(Map<String, dynamic> j) =>
+      RemoteGroup(name: _str(j['name']), songCount: _int(j['songCount']));
 }
 
 /// Lyrics for one song, as the Player found them.

@@ -184,3 +184,100 @@ class SleepTimerControlState extends State<SleepTimerControl> {
   }
 }
 
+/// Volume as an icon in the quick-action row. Pressing it shows a small
+/// vertical slider to adjust the volume; tap anywhere else to put it away.
+class VolumeButton extends StatelessWidget {
+  const VolumeButton({
+    super.key,
+    required this.volume,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  /// 0.0 to 1.0.
+  final double volume;
+  final bool enabled;
+  final ValueChanged<double> onChanged;
+
+  static IconData iconFor(double v) => v <= 0.001
+      ? Icons.volume_off_rounded
+      : (v < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<void>(
+      tooltip: 'Volume',
+      enabled: enabled,
+      icon: Icon(iconFor(volume), color: theme.colorScheme.onSurfaceVariant),
+      itemBuilder: (_) => [
+        PopupMenuItem<void>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: _VerticalVolume(initial: volume, onChanged: onChanged),
+        ),
+      ],
+    );
+  }
+}
+
+class _VerticalVolume extends StatefulWidget {
+  const _VerticalVolume({required this.initial, required this.onChanged});
+
+  final double initial;
+  final ValueChanged<double> onChanged;
+
+  @override
+  State<_VerticalVolume> createState() => _VerticalVolumeState();
+}
+
+class _VerticalVolumeState extends State<_VerticalVolume> {
+  late double _value = widget.initial.clamp(0.0, 1.0);
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _change(double v) {
+    setState(() => _value = v);
+    // While dragging, send now and then rather than on every pixel.
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 150), () => widget.onChanged(v));
+  }
+
+  void _end(double v) {
+    _debounce?.cancel();
+    Haptics.selection();
+    widget.onChanged(v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 64,
+      height: 220,
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Text('${(_value * 100).round()}%', style: theme.textTheme.labelMedium),
+          Expanded(
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: Slider(
+                value: _value,
+                onChanged: _change,
+                onChangeEnd: _end,
+              ),
+            ),
+          ),
+          Icon(VolumeButton.iconFor(_value), size: 20, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+}

@@ -775,6 +775,9 @@ class ControllerClient {
     String? view,
     int? playlistId,
     int? folderId,
+    String? kind,
+    String? groupKind,
+    String? groupValue,
     int offset = 0,
     int limit = 50,
   }) async {
@@ -786,6 +789,9 @@ class ControllerClient {
       if (view != null) 'view': view,
       if (playlistId != null) 'playlistId': playlistId,
       if (folderId != null) 'folderId': folderId,
+      if (kind != null) 'kind': kind,
+      if (groupKind != null) 'groupKind': groupKind,
+      if (groupValue != null) 'groupValue': groupValue,
       'offset': offset,
       'limit': limit,
     });
@@ -816,6 +822,8 @@ class ControllerClient {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
     int offset = 0,
     int limit = 50,
   }) async =>
@@ -827,6 +835,8 @@ class ControllerClient {
             view: view,
             playlistId: playlistId,
             folderId: folderId,
+            groupKind: groupKind,
+            groupValue: groupValue,
             offset: offset,
             limit: limit),
         RemoteSong.fromJson,
@@ -906,6 +916,19 @@ class ControllerClient {
 
   Future<void> setFavorite(int songId, bool favorite) => sendCommand(
       RemoteActions.setFavorite, {'songId': songId, 'favorite': favorite});
+
+  /// Genres, years or album artists ([GroupKind]) with their song counts.
+  Future<LibraryPage<RemoteGroup>> groups({
+    required String kind,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) async =>
+      _page(
+        await _library(LibraryScope.groups,
+            kind: kind, query: query, offset: offset, limit: limit),
+        RemoteGroup.fromJson,
+      );
 
   /// Lyrics for a library song. The Player may need a few seconds to look
   /// them up the first time.

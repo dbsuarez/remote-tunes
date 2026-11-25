@@ -18,6 +18,16 @@ abstract class MusicSource {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
+    int offset,
+    int limit,
+  });
+
+  /// Genres, years or album artists ([GroupKind]) with their song counts.
+  Future<LibraryPage<RemoteGroup>> groups({
+    required String kind,
+    String query,
     int offset,
     int limit,
   });
@@ -100,6 +110,8 @@ class RemoteMusicSource implements MusicSource {
     String? view,
     int? playlistId,
     int? folderId,
+    String? groupKind,
+    String? groupValue,
     int offset = 0,
     int limit = 50,
   }) =>
@@ -110,8 +122,19 @@ class RemoteMusicSource implements MusicSource {
           view: view,
           playlistId: playlistId,
           folderId: folderId,
+          groupKind: groupKind,
+          groupValue: groupValue,
           offset: offset,
           limit: limit);
+
+  @override
+  Future<LibraryPage<RemoteGroup>> groups({
+    required String kind,
+    String query = '',
+    int offset = 0,
+    int limit = 50,
+  }) =>
+      _client.groups(kind: kind, query: query, offset: offset, limit: limit);
 
   @override
   Future<RemoteLyrics> lyrics(int songId) => _client.lyrics(songId);
