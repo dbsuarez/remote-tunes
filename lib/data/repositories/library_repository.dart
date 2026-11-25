@@ -262,6 +262,26 @@ class LibraryRepository {
         updates: {_db.songs},
       );
 
+  /// Writes one row of the play log: [songId] started at [startedAt], was heard for
+  /// [heardSeconds], and ended as [outcome] (`finished`, `skipped` or `stopped`).
+  Future<void> recordPlayEvent(int songId, DateTime startedAt, int heardSeconds, String outcome) =>
+      _db.customInsert(
+        'INSERT INTO play_events (song_id, started_at, heard_seconds, outcome) VALUES (?, ?, ?, ?)',
+        variables: [
+          Variable<int>(songId),
+          Variable<int>(startedAt.millisecondsSinceEpoch ~/ 1000),
+          Variable<int>(heardSeconds < 0 ? 0 : heardSeconds),
+          Variable<String>(outcome),
+        ],
+      );
+
+  /// How many plays are in the log.
+  Future<int> playEventCount() async =>
+      (await _db.customSelect('SELECT COUNT(*) AS c FROM play_events').getSingle()).read<int>('c');
+
+  /// Empties the play log. Returns how many rows went.
+  Future<int> clearPlayEvents() => _db.customUpdate('DELETE FROM play_events');
+
   /// Sets every play and skip count back to zero (and forgets when songs were
   /// last played). Returns how many songs had something.
   Future<int> resetListeningStats() => _db.customUpdate(

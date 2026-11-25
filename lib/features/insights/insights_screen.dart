@@ -85,6 +85,7 @@ class InsightsView extends StatelessWidget {
         _Section('Genres', d.genres, empty: 'No genres yet. In Settings, "Update tags from files" reads them.', unit: 'song'),
         _Section('Top artists', d.topArtists, empty: 'No artists yet.', unit: 'song'),
         _Months(d.addedByMonth),
+        _Listening(d.playLog),
         _Section('Most played', d.mostPlayed, empty: 'Nothing played yet.', unit: 'play', showDetail: true),
         _Section('Most skipped', d.mostSkipped, empty: 'Nothing skipped yet.', unit: 'skip', showDetail: true),
         _Section('Recently played', d.recentlyPlayed, empty: 'Nothing played yet.', unit: '', showDetail: true, bars: false),
@@ -165,7 +166,8 @@ class _Section extends StatelessWidget {
                     children: [
                       Expanded(child: Text(i.label, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       if (unit.isNotEmpty)
-                        Text('${i.value} $unit${i.value == 1 ? '' : 's'}', style: theme.textTheme.labelMedium),
+                        Text('${i.value} $unit${i.value == 1 || unit == 'min' ? '' : 's'}',
+            style: theme.textTheme.labelMedium),
                     ],
                   ),
                   if (showDetail && i.detail.isNotEmpty)
@@ -196,8 +198,11 @@ class _Section extends StatelessWidget {
 
 /// Songs added in each of the last twelve months, as upright bars.
 class _Months extends StatelessWidget {
-  const _Months(this.months);
+  const _Months(this.months, {this.title = 'Songs added, last 12 months', this.unit = 'song', this.keyPrefix = 'month'});
   final List<InsightItem> months;
+  final String title;
+  final String unit;
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -209,9 +214,9 @@ class _Months extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Songs added, last 12 months', style: theme.textTheme.titleMedium),
+          Text(title, style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
-          Text('$total song${total == 1 ? '' : 's'}',
+          Text('$total $unit${total == 1 ? '' : 's'}',
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 8),
           SizedBox(
@@ -228,7 +233,7 @@ class _Months extends StatelessWidget {
                         children: [
                           if (m.value > 0) Text('${m.value}', style: const TextStyle(fontSize: 10)),
                           Container(
-                            key: ValueKey('month-${m.label}'),
+                            key: ValueKey('$keyPrefix-${m.label}'),
                             height: 4 + 70 * (m.value / biggest),
                             margin: const EdgeInsets.symmetric(horizontal: 2),
                             decoration: BoxDecoration(
@@ -239,7 +244,7 @@ class _Months extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(m.label.substring(5),
+                          Text(m.label.length >= 7 ? m.label.substring(5) : m.label.substring(m.label.length - 2),
                               style: TextStyle(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
                         ],
                       ),
@@ -250,6 +255,62 @@ class _Months extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// What the play log says: time listened, plays per day, and where the time went.
+class _Listening extends StatelessWidget {
+  const _Listening(this.log);
+  final PlayLogInsights log;
+
+  static String _hm(int seconds) {
+    final m = (seconds / 60).round();
+    return m >= 60 ? '${m ~/ 60} h ${m % 60} min' : '$m min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (log.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Listening', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Nothing recorded yet. From now on each song you play is noted (when it started, how long you '
+              'heard it, how it ended), and this fills in. It stays on this phone; Settings can switch it off or clear it.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
+    final ended = log.finished + log.skipped;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 24, bottom: 8),
+          child: Text('Listening', style: theme.textTheme.titleMedium),
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _Stat('This week', _hm(log.weekSeconds), note: '${log.weekPlays} plays'),
+            _Stat('Recorded', _hm(log.totalSeconds), note: '${log.plays} plays'),
+            if (ended > 0) _Stat('Played to the end', '${(100 * log.finished / ended).round()}%', note: '${log.skipped} skipped'),
+          ],
+        ),
+        _Months(log.playsByDay, title: 'Plays, last 14 days', unit: 'play', keyPrefix: 'plays'),
+        _Months(log.minutesByDay, title: 'Minutes listened, last 14 days', unit: 'minute', keyPrefix: 'minutes'),
+        _Section('Listening by genre', log.minutesByGenre, empty: 'No genres yet.', unit: 'min'),
+        _Section('Most listened artists', log.minutesByArtist, empty: 'No artists yet.', unit: 'min'),
+      ],
     );
   }
 }

@@ -64,6 +64,14 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     initialVolume: settings.defaultVolume,
     onSongStarted: (id) => unawaited(library.markPlayed(id).catchError((Object _) {})),
     onSongSkipped: (id) => unawaited(library.markSkipped(id).catchError((Object _) {})),
+    // The play log, unless it is switched off in Settings.
+    onSongEnded: (id, startedAt, heard, outcome) => unawaited(() async {
+      try {
+        if ((await ref.read(settingsRepositoryProvider).load()).playHistory) {
+          await library.recordPlayEvent(id, startedAt, heard, outcome);
+        }
+      } catch (_) {}
+    }()),
     onStreamStarted: (s) => unawaited(library.recordStream(s).catchError((Object _) {})),
     queueStore: DriftQueueStore(ref.watch(databaseProvider)),
     formatReader: AudioFormatReader().describe,

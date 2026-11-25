@@ -67,6 +67,9 @@ abstract class PlayerLibrary {
   Future<void> markPlayed(int songId);
   Future<void> markSkipped(int songId);
 
+  /// One song played: see [LibraryRepository.recordPlayEvent].
+  Future<void> recordPlayEvent(int songId, DateTime startedAt, int heardSeconds, String outcome);
+
   /// Returns the new playlist's id. Throws a PlaybackException for bad names.
   Future<int> createPlaylist(String name);
   Future<bool> renamePlaylist(int id, String name);
@@ -209,6 +212,10 @@ class RepositoryPlayerLibrary implements PlayerLibrary {
 
   @override
   Future<void> markSkipped(int songId) => _repo.markSkipped(songId);
+
+  @override
+  Future<void> recordPlayEvent(int songId, DateTime startedAt, int heardSeconds, String outcome) =>
+      _repo.recordPlayEvent(songId, startedAt, heardSeconds, outcome);
 
   @override
   Future<LibraryPage<RemotePlaylist>> playlists(

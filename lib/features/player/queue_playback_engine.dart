@@ -29,6 +29,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     UrlChecker? urlChecker,
     this.onSongStarted,
     this.onSongSkipped,
+    this.onSongEnded,
     this.onStreamStarted,
     this.queueStore,
     this.formatReader,
@@ -59,6 +60,11 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   /// another.
   void Function(int songId)? onSongSkipped;
 
+  /// Called when a library song stops being played, for the play log: when it started, how many
+  /// seconds were really heard, and how it ended (`finished`, `skipped` or `stopped`).
+  final void Function(int songId, DateTime startedAt, int heardSeconds, String outcome)? onSongEnded;
+
+  DateTime _trackedStart = DateTime.fromMillisecondsSinceEpoch(0);
   int? _trackedId;
   int _trackedDurationMs = 0;
   int _listenedMs = 0;
@@ -66,6 +72,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
 
   void _beginTracking(PlayableSong song) {
     _trackedId = song.libraryId;
+    _trackedStart = DateTime.now();
     _trackedDurationMs = song.durationSeconds * 1000;
     _listenedMs = 0;
     _lastPositionMs = 0;
@@ -75,12 +82,19 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   void _endTracking({required bool finished}) {
     final id = _trackedId;
     _trackedId = null;
-    if (id == null || finished) return;
+    if (id == null) return;
+    if (finished) {
+      onSongEnded?.call(id, _trackedStart, (_listenedMs / 1000).round(), 'finished');
+      return;
+    }
     // Short songs count by half their length, long ones by thirty seconds.
     final limit = _trackedDurationMs > 0 ? math.min(30000, _trackedDurationMs ~/ 2) : 30000;
     if (_listenedMs < limit) {
       PlaybackLog.add('engine: skipped (heard $_listenedMs ms)');
       onSongSkipped?.call(id);
+      onSongEnded?.call(id, _trackedStart, (_listenedMs / 1000).round(), 'skipped');
+    } else {
+      onSongEnded?.call(id, _trackedStart, (_listenedMs / 1000).round(), 'stopped');
     }
   }
 

@@ -464,6 +464,65 @@ final List<_Group> _groups = [
         },
       ),
       _Entry(
+        id: 'playlog',
+        title: 'Play history',
+        keywords: 'play history log insights listening time record clear',
+        build: (c) {
+          final context = c.context;
+          final ref = c.ref;
+          final s = c.s;
+          final repo = c.repo;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                key: const ValueKey('play-history'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Play history'),
+                subtitle: const Text(
+                  'Notes each song you play (when, how long you heard it, how it ended) for Insights. '
+                  'It stays on this phone.',
+                ),
+                value: s.playHistory,
+                onChanged: repo.setPlayHistory,
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const ValueKey('clear-play-history'),
+                  onPressed: () async {
+                    final lib = ref.read(libraryRepositoryProvider);
+                    final n = await lib.playEventCount();
+                    if (!context.mounted) return;
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Clear the play history?'),
+                        content: Text(n == 0
+                            ? 'There is nothing recorded.'
+                            : 'This forgets $n recorded play${n == 1 ? '' : 's'}. Play and skip counts stay as they are.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear')),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+                    await lib.clearPlayEvents();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(const SnackBar(content: Text('Play history cleared')));
+                    }
+                  },
+                  child: const Text('Clear play history'),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      _Entry(
         id: 'reset',
         title: 'Reset play and skip counts',
         keywords: 'reset counts plays skips most played history',

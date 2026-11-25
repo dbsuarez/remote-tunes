@@ -36,7 +36,10 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
+        onCreate: (m) async {
+          await m.createAll();
+          await _createPlayEvents();
+        },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             // Trusted devices: keeps every existing row (and the library).
@@ -89,8 +92,27 @@ class AppDatabase extends _$AppDatabase {
         // Future migrations MUST preserve the library (docs/03_DATA_MODEL.md).
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
+          // The play log (one row per song played); made here so every older database gets it too.
+          await _createPlayEvents();
         },
       );
+}
+
+extension PlayEventsTable on AppDatabase {
+  /// One row per song played: when it started, how many seconds were really heard, and how it
+  /// ended (`finished`, `skipped` or `stopped`). Kept on the phone; Settings can switch it off and
+  /// clear it. No foreign key: the history stays when a song is removed from the library.
+  Future<void> _createPlayEvents() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS play_events ('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+      'song_id INTEGER NOT NULL, '
+      'started_at INTEGER NOT NULL, '
+      'heard_seconds INTEGER NOT NULL DEFAULT 0, '
+      "outcome TEXT NOT NULL DEFAULT 'stopped')",
+    );
+    await customStatement('CREATE INDEX IF NOT EXISTS play_events_started ON play_events (started_at)');
+  }
 }
 
 LazyDatabase _openConnection() {

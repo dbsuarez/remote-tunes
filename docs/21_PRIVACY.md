@@ -14,7 +14,7 @@ Each one only when you use the feature, and each can be switched off or simply n
 |---|---|---|---|
 | **Lyrics** | LRCLIB (lrclib.net), then lyrics.ovh | The song's title, artist, album and length. Never file names or paths. The answer is kept on the Player. | Settings > Look and feel > Lyrics from the internet |
 | **Look up this song** | MusicBrainz, the Cover Art Archive and the lyrics sources | The song's title, artist, album and length, for the one song, only when you tap the button in Edit info. | Only runs when you tap it |
-| **Insights** | Nobody | Nothing leaves the phone: the numbers are worked out from your own library. | Menu > Insights |
+| **Insights and play history** | Nobody | Nothing leaves the phone: the numbers (and the play history, a note of each song played) are worked out and kept on the phone. Not in backups. | Menu > Insights |
 | **Find missing album art** | MusicBrainz and the Cover Art Archive | The artist and album names, one album at a time, about once a second. | Only runs when you start it (Settings > Find missing album art) |
 | **Online Library** | Jamendo (api.jamendo.com) | Your search words, and the Jamendo client ID of this build. Tracks stream from Jamendo. | Only when you open the Online Library |
 | **Updates** | GitHub (api.github.com, github.com) | A request for the latest release of this app. Nothing about you or your phone. | Settings > App updates > Check automatically |

@@ -40,6 +40,7 @@ class SettingKeys {
   static const visualizerOnCover = 'visualizer_on_cover';
   static const listLooks = 'list_looks';
   static const rescanOnOpen = 'rescan_on_open';
+  static const playHistory = 'play_history';
   static const onlineSuggestions = 'online_suggestions';
   static const customSkins = 'custom_skins';
   static const remoteAutoStart = 'remote_auto_start';
@@ -106,6 +107,7 @@ class AppSettings {
     this.visualizerOnCover = false,
     this.listLooks = const {},
     this.rescanOnOpen = false,
+    this.playHistory = true,
     this.onlineSuggestions = true,
     this.customSkins = const [],
     this.remoteAutoStart = false,
@@ -177,6 +179,9 @@ class AppSettings {
   /// Look through the remembered music folders for new songs each time the app opens.
   final bool rescanOnOpen;
 
+  /// Keep a log of each song played (for Insights). On by default; it stays on the phone.
+  final bool playHistory;
+
   /// Popular and newest tracks on the Online Library home screen.
   final bool onlineSuggestions;
 
@@ -234,6 +239,7 @@ class AppSettings {
       visualizerOnCover: m[SettingKeys.visualizerOnCover] == 'true',
       listLooks: decodeListLooks(m[SettingKeys.listLooks]),
       rescanOnOpen: m[SettingKeys.rescanOnOpen] == 'true',
+      playHistory: m[SettingKeys.playHistory] != 'false',
       onlineSuggestions: m[SettingKeys.onlineSuggestions] != 'false',
       customSkins: _decodeSkins(m[SettingKeys.customSkins]),
       remoteAutoStart: m[SettingKeys.remoteAutoStart] == 'true',
@@ -339,6 +345,8 @@ class SettingsRepository {
   Future<void> setOnlineSuggestions(bool v) => _put(SettingKeys.onlineSuggestions, v.toString());
 
   Future<void> setVisualizerStyle(String v) => _put(SettingKeys.visualizerStyle, v);
+
+  Future<void> setPlayHistory(bool v) => _put(SettingKeys.playHistory, v.toString());
 
   Future<void> setRescanOnOpen(bool v) => _put(SettingKeys.rescanOnOpen, v.toString());
 
