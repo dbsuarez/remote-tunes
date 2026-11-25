@@ -34,6 +34,7 @@ class CrossfadeBackend implements AudioBackend {
   double _t = 0;
   Timer? _ramp;
   Completer<bool>? _fade;
+  String? _pendingPath;
   bool _activePlaying = false;
 
   final _position = StreamController<Duration>.broadcast();
@@ -58,7 +59,19 @@ class CrossfadeBackend implements AudioBackend {
         }
       }),
       b.completedStream.listen((_) {
-        if (identical(b, _active)) _completed.add(null);
+        if (!identical(b, _active)) return;
+        final fade = _fade;
+        final inc = _other;
+        if (fade != null) {
+          // The song ran out during the fade: the next one takes over (while the
+          // next is still loading, the fade starts as soon as it is ready).
+          if (_ramp != null) {
+            _ramp?.cancel();
+            _finishFade(inc, _pendingPath ?? '');
+          }
+          return;
+        }
+        _completed.add(null);
       }),
       b.durationStream.listen((d) {
         _lastDuration[b] = d;
@@ -190,19 +203,49 @@ class CrossfadeBackend implements AudioBackend {
   Future<bool> crossfadeTo(String filePath, Duration length) async {
     if (_fade != null || length <= Duration.zero) return false;
     final incoming = _other;
+    final done = Completer<bool>();
+    // Claimed straight away, so nothing else starts a fade while this one loads.
+    _fade = done;
+    _pendingPath = filePath;
+    _t = 0;
     try {
       await incoming.load(filePath);
     } on AudioBackendException {
+      if (identical(_fade, done)) _fade = null;
+      if (!done.isCompleted) done.complete(false);
+      return false;
+    }
+    // The first load of the other player can be slow (it is cold). If the fade
+    // was cancelled meanwhile (a skip, a seek), leave it.
+    if (!identical(_fade, done)) {
+      await incoming.pause();
       return false;
     }
     await incoming.setVolume(0);
     await incoming.setSpeed(_speed);
+
+    // Time the fade to the end of the song playing: wait if there is time to
+    // spare (the next song is already loaded, so it starts at once), shorten the
+    // fade if the load took too long.
+    var fadeLength = length;
+    final total = _lastDuration[_active];
+    if (total != null && total > Duration.zero) {
+      final remaining = total - _active.position;
+      if (remaining > length + const Duration(milliseconds: 80)) {
+        await Future<void>.delayed(remaining - length);
+        if (!identical(_fade, done)) {
+          await incoming.pause();
+          return false;
+        }
+      } else if (remaining < length) {
+        fadeLength = remaining > const Duration(milliseconds: 200)
+            ? remaining
+            : const Duration(milliseconds: 200);
+      }
+    }
     await incoming.play();
 
-    final done = Completer<bool>();
-    _fade = done;
-    _t = 0;
-    final step = tick.inMilliseconds / length.inMilliseconds;
+    final step = tick.inMilliseconds / fadeLength.inMilliseconds;
     _ramp = Timer.periodic(tick, (timer) async {
       // While paused the fade waits where it is.
       if (!_activePlaying) return;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/core/models/enums.dart';
 import 'package:remote_tunes/features/player/audio/crossfade_backend.dart';
@@ -43,6 +45,44 @@ void main() {
       expect([a.speed, b.speed], [1.5, 1.5], reason: 'both, so a fade does not change speed');
       expect(b.currentPath, isNull);
       expect(x.supportsCrossfade, isTrue);
+    });
+
+    test('a slow first load, with the song ending meanwhile, still gives one clean change',
+        () async {
+      await x.load('/m/1.mp3');
+      await x.play();
+      a.emitDuration(const Duration(seconds: 100));
+      await wait(5);
+      a.position = const Duration(milliseconds: 99500);
+      final gate = Completer<void>();
+      b.loadGate = gate.future;
+      final completed = <void>[];
+      final advanced = <String?>[];
+      x.completedStream.listen(completed.add);
+      x.advancedStream.listen(advanced.add);
+      final fade = x.crossfadeTo('/m/2.mp3', const Duration(seconds: 2));
+      await wait(10);
+      a.emitCompleted(); // the song ran out while the next was still loading
+      await wait(10);
+      gate.complete();
+      expect(await fade, isTrue);
+      expect(completed, isEmpty, reason: 'the engine must not start the next song itself');
+      expect(advanced, ['/m/2.mp3']);
+      expect(b.playing, isTrue);
+    });
+
+    test('with time to spare the next song waits, loaded, until the fade should begin', () async {
+      await x.load('/m/1.mp3');
+      await x.play();
+      a.emitDuration(const Duration(seconds: 100));
+      await wait(5);
+      a.position = const Duration(milliseconds: 99700);
+      final fade = x.crossfadeTo('/m/2.mp3', const Duration(milliseconds: 100));
+      await wait(30);
+      expect(b.currentPath, '/m/2.mp3');
+      expect(b.playing, isFalse, reason: 'not started yet: 500 ms of the song are still to play');
+      expect(await fade, isTrue);
+      expect(b.playing, isTrue);
     });
 
     test('only the audible player is heard', () async {

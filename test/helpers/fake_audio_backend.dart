@@ -105,8 +105,15 @@ class FakeAudioBackend implements AudioBackend {
   /// Simulates a playback error after the track loaded.
   void emitError(String message) => _errors.add(message);
 
+  /// When set, [load] waits for it (a cold player taking its time).
+  Future<void>? loadGate;
+
+  /// Simulates the end of the song.
+  void emitCompleted() => _completed.add(null);
+
   @override
   Future<Duration?> load(String filePath) async {
+    if (loadGate != null) await loadGate;
     if (unplayable.contains(filePath)) {
       throw AudioBackendException('Cannot play $filePath');
     }

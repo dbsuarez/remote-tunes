@@ -371,9 +371,11 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     if (!_crossfadeActive || _crossfading || !_playing || _loadedEntryId == null) return;
     final len = _crossfadeSeconds;
     // Songs too short to fade (twice the fade, plus a little) just change.
-    if (_durationSeconds < 2 * len + 4) return;
+    if (_durationSeconds < 2 * len + 6) return;
+    // Started a little early: the next song loads (a cold player is slow) and the
+    // backend begins the fade at exactly the right moment.
     final remainingMs = _durationSeconds * 1000 - position.inMilliseconds;
-    if (remainingMs > len * 1000 + 300 || remainingMs < 0) return;
+    if (remainingMs > len * 1000 + 2500 || remainingMs < 0) return;
     final cur = _queue.current;
     if (cur == null || cur.id != _loadedEntryId) return;
     final next = _queue.peekNext();
