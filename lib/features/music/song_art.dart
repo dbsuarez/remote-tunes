@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,12 +6,15 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/default_art.dart';
 import 'music_source.dart';
 
-/// The round picture at the start of a song row: the album art if the song has
-/// any, otherwise a music note. Art is fetched when the row first shows (and
-/// remembered by the source), so long lists stay light.
+/// The round picture at the start of a song row: the album art if the song has any, otherwise the
+/// default picture. Art is fetched when the row first shows and remembered, so scrolling back to a row
+/// shows its picture at once instead of loading it (and flashing) again.
+///
+/// While the picture is being fetched the row shows the default picture (not a grey circle), so songs
+/// that have no cover never flash at all and the others change once, with a short fade.
 ///
 /// [overlayIcon] marks a state (selected, playing now, file missing): it
-/// replaces the note, or sits on a dimmed picture.
+/// replaces the picture, or sits on a dimmed one.
 class SongArt extends StatefulWidget {
   const SongArt({
     super.key,
@@ -29,12 +33,32 @@ class SongArt extends StatefulWidget {
   final IconData? overlayIcon;
   final Color? overlayColor;
 
+  /// What was found per source and song, for a little while (a cover can change when the art finder or
+  /// Look up runs). Bytes are shared between the songs of one album, so this stays small.
+  static final _known = Expando<_Known>('SongArt');
+  static const _keepFor = Duration(minutes: 2);
+  static const _maxEntries = 400;
+
+  /// Forgets what is remembered (after covers changed).
+  static void forgetAll() {
+    // An Expando cannot be emptied; a new generation makes every entry stale.
+    _generation++;
+  }
+
+  static int _generation = 0;
+
   @override
   State<SongArt> createState() => _SongArtState();
 }
 
+class _Known {
+  final LinkedHashMap<int, ({Uint8List? bytes, DateTime at, int generation})> byId = LinkedHashMap();
+}
+
 class _SongArtState extends State<SongArt> {
-  Future<Uint8List?>? _art;
+  /// True once it is known whether the song has a picture.
+  bool _resolved = false;
+  Uint8List? _bytes;
 
   @override
   void initState() {
@@ -49,9 +73,39 @@ class _SongArtState extends State<SongArt> {
   }
 
   void _load() {
-    _art = widget.songId > 0
-        ? widget.source.artFor(widget.songId, size: 96).catchError((Object _) => null)
-        : null;
+    final id = widget.songId;
+    if (id <= 0) {
+      _resolved = true;
+      _bytes = null;
+      return;
+    }
+    final known = SongArt._known[widget.source];
+    final hit = known?.byId[id];
+    if (hit != null &&
+        hit.generation == SongArt._generation &&
+        DateTime.now().difference(hit.at) < SongArt._keepFor) {
+      _resolved = true;
+      _bytes = hit.bytes;
+      return;
+    }
+    _resolved = false;
+    _bytes = null;
+    final source = widget.source;
+    source.artFor(id, size: 96).catchError((Object _) => null).then((bytes) {
+      final k = SongArt._known[source] ?? (SongArt._known[source] = _Known());
+      k.byId.remove(id);
+      k.byId[id] = (bytes: bytes, at: DateTime.now(), generation: SongArt._generation);
+      while (k.byId.length > SongArt._maxEntries) {
+        k.byId.remove(k.byId.keys.first);
+      }
+      // Only if this row still shows this song.
+      if (mounted && widget.songId == id && identical(widget.source, source)) {
+        setState(() {
+          _resolved = true;
+          _bytes = bytes;
+        });
+      }
+    });
   }
 
   @override
@@ -65,40 +119,35 @@ class _SongArtState extends State<SongArt> {
           child: Icon(icon, size: r * 1.2, color: iconColor),
         );
 
-    // No cover: the default picture (a state like "playing" or "selected" keeps its icon).
-    Widget none() => widget.overlayIcon == null
-        ? DefaultArt.albumAvatar(radius: r)
-        : note(widget.overlayIcon!);
-    final art = _art;
-    if (art == null) return none();
-    return FutureBuilder<Uint8List?>(
-      future: art,
-      builder: (context, snap) {
-        final bytes = snap.data;
-        // While it loads, a plain circle (not the default picture, which would flash).
-        if (snap.connectionState != ConnectionState.done && bytes == null) {
-          return widget.overlayIcon != null
-              ? note(widget.overlayIcon!)
-              : CircleAvatar(
-                  radius: r, backgroundColor: theme.colorScheme.surfaceContainerHighest);
-        }
-        if (bytes == null) return none();
-        return CircleAvatar(
-          radius: r,
-          backgroundColor: theme.colorScheme.surfaceContainerHighest,
-          backgroundImage: MemoryImage(bytes),
-          onBackgroundImageError: (_, __) {},
-          child: widget.overlayIcon == null
-              ? null
-              : DecoratedBox(
-                  decoration: const BoxDecoration(
-                      shape: BoxShape.circle, color: Color(0x99000000)),
-                  child: Center(
-                    child: Icon(widget.overlayIcon, size: r * 1.2, color: iconColor),
-                  ),
-                ),
-        );
-      },
+    // No cover (or not known yet): the default picture. A state like "playing" or "selected" keeps its icon.
+    final plain = widget.overlayIcon == null ? DefaultArt.albumAvatar(radius: r) : note(widget.overlayIcon!);
+    final bytes = _bytes;
+    final Widget shown;
+    if (!_resolved || bytes == null) {
+      shown = KeyedSubtree(key: const ValueKey('no-art'), child: plain);
+    } else {
+      shown = CircleAvatar(
+        key: const ValueKey('art'),
+        radius: r,
+        backgroundColor: theme.colorScheme.surfaceContainerHighest,
+        backgroundImage: MemoryImage(bytes),
+        onBackgroundImageError: (_, __) {},
+        child: widget.overlayIcon == null
+            ? null
+            : DecoratedBox(
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x99000000)),
+                child: Center(child: Icon(widget.overlayIcon, size: r * 1.2, color: iconColor)),
+              ),
+      );
+    }
+    // A picture that arrives after the row showed is faded in; one that is known at once just shows.
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 160),
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.center,
+        children: [...previous, if (current != null) current],
+      ),
+      child: shown,
     );
   }
 }

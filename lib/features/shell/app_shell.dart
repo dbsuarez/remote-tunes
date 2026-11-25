@@ -1,3 +1,5 @@
+import '../music/song_art.dart';
+import '../../core/widgets/default_art.dart';
 import '../cloud/cloud_upload_flow.dart';
 import '../cloud/cloud_library_view.dart';
 import '../cloud/cloud_settings_screen.dart';
@@ -75,6 +77,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      // The default cover and artist pictures are decoded now, so lists do not flash as they appear.
+      unawaited(DefaultArt.precache(context));
       final settings = await ref.read(settingsRepositoryProvider).load();
       if (!mounted) return;
       if (settings.remoteAutoStart) {
@@ -642,6 +646,7 @@ class _LibraryTab extends ConsumerWidget {
               // A cover chosen in the look-up becomes the album's picture.
               if (saved && e.cover != null) {
                 await ref.read(songLookupProvider).applyCover(song.id, e.cover!);
+                SongArt.forgetAll();
               }
               if (saved && e.writeToFile) {
                 final row = await library.songById(song.id);

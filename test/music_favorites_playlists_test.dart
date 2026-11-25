@@ -26,7 +26,8 @@ void main() {
       (tester) async {
     source.withArt.add(2); // only Banana
     await open(tester);
-    await tester.pump(const Duration(milliseconds: 100));
+    // The picture fades in once it has arrived.
+    await tester.pump(const Duration(milliseconds: 500));
 
     CircleAvatar avatarOf(String title) => tester.widget<CircleAvatar>(find.descendant(
         of: find.ancestor(of: find.text(title), matching: find.byType(ListTile)),

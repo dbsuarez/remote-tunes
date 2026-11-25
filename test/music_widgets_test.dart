@@ -135,9 +135,14 @@ class FakeMusicSource implements MusicSource {
   /// Songs that have art, by id (a tiny valid picture is returned for them).
   final withArt = <int>{};
 
+  /// Every song id the art was asked for (to see how often a row fetches).
+  final artAsked = <int>[];
+
   @override
-  Future<Uint8List?> artFor(int songId, {int size = 96}) async =>
-      withArt.contains(songId) ? tinyJpeg : null;
+  Future<Uint8List?> artFor(int songId, {int size = 96}) async {
+    artAsked.add(songId);
+    return withArt.contains(songId) ? tinyJpeg : null;
+  }
 
   @override
   Future<void> setFavorite(int songId, bool favorite) async {
