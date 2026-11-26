@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -324,6 +325,81 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('browser-file-mine.rtbackup')));
       await tester.pumpAndSettle();
       expect(chosen, '/phone/Download/mine.rtbackup');
+    });
+  });
+
+  group('choosing a picture', () {
+    final onePixel = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+    final asked = <String>[];
+
+    Future<void> openPictures(WidgetTester tester, {Size size = const Size(400, 800), Set<String> types = const {'jpg', 'png'}}) async {
+      asked.clear();
+      folders.tree['/phone'] = ['Camera', 'cat.jpg', 'dog.png', 'notes.txt', 'song.mp3'];
+      folders.tree['/phone/Camera'] = [for (var i = 0; i < 60; i++) 'img$i.jpg'];
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          folderSourceProvider.overrideWithValue(folders),
+          browserThumbnailProvider.overrideWithValue((path) {
+            asked.add(path);
+            return MemoryImage(onePixel);
+          }),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async => chosen = await showFileBrowser(context, title: 'Choose a picture', extensions: types),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('pictures show as thumbnails under the folders, and a tap chooses one', (tester) async {
+      await openPictures(tester);
+      expect(find.byKey(const ValueKey('browser-folder-Camera')), findsOneWidget);
+      expect(asked, unorderedEquals(['/phone/cat.jpg', '/phone/dog.png']));
+      expect(find.text('notes.txt'), findsNothing);
+      final cat = tester.getTopLeft(find.byKey(const ValueKey('browser-file-cat.jpg')));
+      final dog = tester.getTopLeft(find.byKey(const ValueKey('browser-file-dog.png')));
+      expect(cat.dy, dog.dy, reason: 'side by side');
+      await tester.tap(find.byKey(const ValueKey('browser-file-dog.png')));
+      await tester.pumpAndSettle();
+      expect(chosen, '/phone/dog.png');
+    });
+
+    testWidgets('it can be a list instead, and that is remembered', (tester) async {
+      await openPictures(tester);
+      await tap(tester, 'browser-view');
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('cat.jpg'), findsOneWidget);
+      await into(tester, 'Camera');
+      expect(find.byType(Image), findsNothing);
+      await tap(tester, 'browser-view');
+      expect(find.byType(Image), findsWidgets);
+    });
+
+    testWidgets('only the thumbnails on screen are read, on a narrow phone too', (tester) async {
+      await openPictures(tester, size: const Size(320, 600));
+      await into(tester, 'Camera');
+      asked.clear();
+      await tester.pump();
+      expect(find.byType(Image).evaluate().length, lessThan(30));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('choosing other files has no thumbnails', (tester) async {
+      await openPictures(tester, types: const {'txt'});
+      expect(find.byKey(const Key('browser-view')), findsNothing);
+      expect(find.byType(Image), findsNothing);
     });
   });
 

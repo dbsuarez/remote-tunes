@@ -78,6 +78,16 @@ final folderSourceProvider = Provider<FolderSource>((ref) => PhoneFolderSource()
 /// Android's "All files access" (replaced in tests).
 final fileAccessProvider = Provider<FileAccess>((ref) => const FileAccess());
 
+/// File types the browser can show as thumbnails.
+const _pictureTypes = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
+
+/// The small picture of an image file (replaced in tests). Read small, so a folder of photos is light.
+final browserThumbnailProvider =
+    Provider<ImageProvider Function(String path)>((ref) => (path) => ResizeImage(FileImage(File(path)), width: 320));
+
+/// Whether pictures show as thumbnails (else as a list).
+final browserThumbnailsProvider = StateProvider<bool>((ref) => true);
+
 /// Where the browser was last, so the next time starts there.
 final lastBrowsedFolderProvider = StateProvider<String?>((ref) => null);
 
@@ -275,6 +285,9 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> with WidgetsBindi
     final up = _up;
     final contents = _contents;
     final several = widget._mode == _Mode.files;
+    // Choosing a picture: they can be shown as thumbnails.
+    final pictures = widget._mode == _Mode.file && _pictureTypes.containsAll(_types);
+    final thumbnails = pictures && ref.watch(browserThumbnailsProvider);
     final here = contents == null ? const <String>[] : _shown(contents);
     final allHere = here.isNotEmpty && here.every(_picked.contains);
     return PopScope(
@@ -346,12 +359,19 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> with WidgetsBindi
                           onPressed: () => setState(() => allHere ? _picked.removeAll(here) : _picked.addAll(here)),
                           child: Text(allHere ? 'None' : 'All'),
                         ),
+                      if (pictures)
+                        IconButton(
+                          key: const Key('browser-view'),
+                          tooltip: thumbnails ? 'Show as a list' : 'Show thumbnails',
+                          icon: Icon(thumbnails ? Icons.view_list_rounded : Icons.grid_view_rounded),
+                          onPressed: () => ref.read(browserThumbnailsProvider.notifier).state = !thumbnails,
+                        ),
                       const SizedBox(width: 12),
                     ],
                   ),
                 ),
               ),
-            Expanded(child: _list(theme, path, contents)),
+            Expanded(child: _list(theme, path, contents, thumbnails: thumbnails)),
             if (widget._mode == _Mode.folder && path != null)
               _bottom(
                 const Key('browser-choose'),
@@ -381,7 +401,7 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> with WidgetsBindi
         ),
       );
 
-  Widget _list(ThemeData theme, String? path, FolderContents? contents) {
+  Widget _list(ThemeData theme, String? path, FolderContents? contents, {bool thumbnails = false}) {
     if (path == null) {
       if (_roots.isEmpty) return const Center(child: CircularProgressIndicator());
       return ListView(
@@ -415,42 +435,100 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> with WidgetsBindi
       );
     }
     final muted = theme.colorScheme.onSurfaceVariant;
+    if (thumbnails && files.isNotEmpty) {
+      return CustomScrollView(
+        key: ValueKey('browser-list-$path'),
+        slivers: [
+          SliverList.builder(itemCount: folders.length, itemBuilder: (context, i) => _folderRow(theme, folders[i], audio)),
+          SliverPadding(
+            padding: const EdgeInsets.all(8),
+            sliver: SliverGrid.builder(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 140, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 0.82),
+              itemCount: files.length,
+              itemBuilder: (context, i) => _thumbnail(theme, files[i]),
+            ),
+          ),
+        ],
+      );
+    }
     return ListView.builder(
       key: ValueKey('browser-list-$path'),
       itemCount: folders.length + files.length,
-      itemBuilder: (context, i) {
-        if (i >= folders.length) return _fileRow(theme, files[i - folders.length], muted);
-        final folder = folders[i];
-        final inside = _inside[folder] ??= _source.list(folder).then<FolderContents?>((c) => c).catchError((Object _) => null);
-        return ListTile(
-          key: ValueKey('browser-folder-${p.basename(folder)}'),
-          minTileHeight: 60,
-          leading: Icon(Icons.folder_rounded, color: theme.colorScheme.primary),
-          title: Text(p.basename(folder), maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: FutureBuilder<FolderContents?>(
-            future: inside,
-            builder: (context, snap) {
-              final c = snap.data;
-              if (snap.connectionState != ConnectionState.done) return const Text(' ');
-              if (c == null) return const Text("Can't be read");
-              final n = _shown(c).length;
-              return Text([
-                if (n > 0) _count(n, audio ? 'song' : 'file'),
-                if (c.folders.isNotEmpty) _count(c.folders.length, 'folder'),
-                if (n == 0 && c.folders.isEmpty) 'Empty',
-              ].join(' · '));
-            },
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => _open(folder),
-        );
-      },
+      itemBuilder: (context, i) =>
+          i >= folders.length ? _fileRow(theme, files[i - folders.length], muted) : _folderRow(theme, folders[i], audio),
+    );
+  }
+
+  Widget _folderRow(ThemeData theme, String folder, bool audio) {
+    final inside = _inside[folder] ??= _source.list(folder).then<FolderContents?>((c) => c).catchError((Object _) => null);
+    return ListTile(
+      key: ValueKey('browser-folder-${p.basename(folder)}'),
+      minTileHeight: 60,
+      leading: Icon(Icons.folder_rounded, color: theme.colorScheme.primary),
+      title: Text(p.basename(folder), maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: FutureBuilder<FolderContents?>(
+        future: inside,
+        builder: (context, snap) {
+          final c = snap.data;
+          if (snap.connectionState != ConnectionState.done) return const Text(' ');
+          if (c == null) return const Text("Can't be read");
+          final n = _shown(c).length;
+          return Text([
+            if (n > 0) _count(n, audio ? 'song' : 'file'),
+            if (c.folders.isNotEmpty) _count(c.folders.length, 'folder'),
+            if (n == 0 && c.folders.isEmpty) 'Empty',
+          ].join(' · '));
+        },
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () => _open(folder),
+    );
+  }
+
+  /// A picture to choose: its thumbnail and its name.
+  Widget _thumbnail(ThemeData theme, String file) {
+    final name = p.basename(file);
+    return Semantics(
+      button: true,
+      label: name,
+      excludeSemantics: true,
+      child: InkWell(
+        key: ValueKey('browser-file-$name'),
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => Navigator.of(context).pop(file),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: ColoredBox(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Image(
+                    image: ref.read(browserThumbnailProvider)(file),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: theme.textTheme.labelSmall),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _fileRow(ThemeData theme, String file, Color muted) {
     final name = p.basename(file);
-    final icon = supportedAudioExtensions.contains(extensionOf(file)) ? Icons.audio_file_rounded : Icons.description_rounded;
+    final type = extensionOf(file);
+    final icon = supportedAudioExtensions.contains(type)
+        ? Icons.audio_file_rounded
+        : _pictureTypes.contains(type)
+            ? Icons.image_rounded
+            : Icons.description_rounded;
     switch (widget._mode) {
       // Choosing a folder: the files only show what is inside.
       case _Mode.folder:
