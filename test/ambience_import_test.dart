@@ -40,8 +40,8 @@ void main() {
   });
 
   test('part of a word is not a match, and the rest become new sounds', () {
-    expect(plan(['weather_heavy_thunderstorm.mp3', 'Rainforest Canopy.mp3', 'envelope.mp3']),
-        {'weather_heavy_thunderstorm.mp3': fresh, 'Rainforest Canopy.mp3': fresh, 'envelope.mp3': fresh});
+    expect(plan(['weather_heavy_thunderstorm.mp3', 'Rainbow Canopy.mp3', 'envelope.mp3']),
+        {'weather_heavy_thunderstorm.mp3': fresh, 'Rainbow Canopy.mp3': fresh, 'envelope.mp3': fresh});
   });
 
   test('files marked "env" are environments, named after what follows, and take no slot', () {
@@ -68,7 +68,26 @@ void main() {
   });
 
   test('two files never share a sound; the one named exactly wins', () {
-    expect(plan(['weather_wind.mp3', 'Wind.wav', 'desert wind.mp3']), {'weather_wind.mp3': fresh, 'Wind.wav': 'wind', 'desert wind.mp3': fresh});
+    expect(plan(['weather_wind.mp3', 'Wind.wav', 'gusty wind.mp3']), {'weather_wind.mp3': fresh, 'Wind.wav': 'wind', 'gusty wind.mp3': fresh});
+  });
+
+  test('with the long list, files still find their sound', () {
+    expect(
+      plan(['Rain on Leaves.wav', 'Waterfall.wav', 'Cicadas.wav', 'Forest Night.mp3', 'Seagulls.mp3', 'Owls.mp3', 'Car Ride.wav',
+          'Steps in the Snow.wav', 'Strong Wind.mp3', 'Flute.mp3']),
+      {
+        'Rain on Leaves.wav': 'rain-on-leaves',
+        'Waterfall.wav': 'waterfall',
+        'Cicadas.wav': 'cicadas',
+        'Forest Night.mp3': 'night-forest',
+        'Seagulls.mp3': 'seagulls',
+        'Owls.mp3': 'owls',
+        'Car Ride.wav': fresh,
+        'Steps in the Snow.wav': 'steps-in-the-snow',
+        'Strong Wind.mp3': 'strong-wind',
+        'Flute.mp3': 'flute',
+      },
+    );
   });
 
   test('only files that can be looped are listed, and the noises are never replaced', () {

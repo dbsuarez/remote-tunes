@@ -1,27 +1,35 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-enum NoiseColor { white, pink, brown }
+enum NoiseColor { white, pink, brown, green, blue, gray }
 
 /// Which noise a built-in sound is, or null.
 NoiseColor? noiseColorOf(String soundId) => switch (soundId) {
       'white-noise' => NoiseColor.white,
       'pink-noise' => NoiseColor.pink,
       'brown-noise' => NoiseColor.brown,
+      'green-noise' => NoiseColor.green,
+      'blue-noise' => NoiseColor.blue,
+      'gray-noise' => NoiseColor.gray,
       _ => null,
     };
 
 const noiseSampleRate = 44100;
 
 /// A loop of noise as a 16-bit mono WAV file. White is flat hiss; pink is softer (like steady rain);
-/// brown is deep (like a far waterfall). All three are made equally strong, and the end runs into the
+/// brown is deep (like a far waterfall); green sits in the middle (like wind in leaves); blue is thin and
+/// bright; gray is shaped to sound about even to the ear. All are made equally strong, and the end runs into the
 /// start, so it loops without a click.
 Uint8List noiseWav(NoiseColor color, {int seconds = 20, Random? random}) {
   final r = random ?? Random(7);
   final n = noiseSampleRate * seconds;
   final overlap = min(noiseSampleRate, n ~/ 4);
   final raw = Float64List(n + overlap);
-  var b0 = 0.0, b1 = 0.0, b2 = 0.0, b3 = 0.0, b4 = 0.0, b5 = 0.0, b6 = 0.0, brown = 0.0;
+  var b0 = 0.0, b1 = 0.0, b2 = 0.0, b3 = 0.0, b4 = 0.0, b5 = 0.0, b6 = 0.0, brown = 0.0, before = 0.0;
+  var wide = 0.0, narrow = 0.0, deep = 0.0, bass = 0.0;
+  // How far a one-pole low-pass moves toward each new sample, for a cut-off in Hz.
+  double pole(double hz) => 1 - exp(-2 * pi * hz / noiseSampleRate);
+  final green1 = pole(900), green2 = pole(250), grayLow = pole(180), grayTop = pole(6000);
   // The filters settle first, so the start sounds like the rest.
   for (var i = -noiseSampleRate; i < raw.length; i++) {
     final white = r.nextDouble() * 2 - 1;
@@ -41,6 +49,17 @@ Uint8List noiseWav(NoiseColor color, {int seconds = 20, Random? random}) {
       case NoiseColor.brown:
         brown = (brown + 0.02 * white) / 1.02;
         v = brown;
+      case NoiseColor.green: // the middle of white noise, around 500 Hz
+        wide += green1 * (white - wide);
+        narrow += green2 * (wide - narrow);
+        v = wide - narrow;
+      case NoiseColor.blue: // the change from one sample to the next: more at the top
+        v = white - before;
+        before = white;
+      case NoiseColor.gray: // roughly what the ear hears as even: more bass and treble, less middle
+        deep += grayLow * (white - deep);
+        bass += grayTop * (white - bass);
+        v = deep * 4 + white * 0.25 + (white - bass) * 0.6;
     }
     if (i >= 0) raw[i] = v;
   }

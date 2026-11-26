@@ -75,31 +75,39 @@ List<AmbienceImportRow> planImport(List<String> paths, List<AmbienceSound> sound
     rows.add(AmbienceImportRow(path: path, fileName: file, newName: name.length > 30 ? name.substring(0, 30).trim() : name));
   }
 
-  final targets = importTargets(sounds)..sort((a, b) => _words(b.name).length.compareTo(_words(a.name).length));
+  final targets = importTargets(sounds);
+  // Every name a sound answers to, the longest first: "light rain" must be tried before "rain".
+  final names = [
+    for (final sound in targets)
+      for (final name in [sound.name, ...?ambienceAliases[sound.id]]) (sound: sound, words: _words(name)),
+  ]..sort((a, b) => b.words.length.compareTo(a.words.length));
   final taken = <String>{};
   // Environments are whole places: they never fill a single sound's slot.
-  void give(bool Function(AmbienceImportRow row, AmbienceSound sound) matches, {String of = AmbienceImportRow.newSound}) {
-    for (final sound in targets) {
-      if (taken.contains(sound.id)) continue;
-      for (final row in rows) {
-        if (row.target == of && matches(row, sound)) {
-          row.target = sound.id;
-          taken.add(sound.id);
-          break;
-        }
+  void give(AmbienceSound sound, bool Function(AmbienceImportRow row) matches, {String of = AmbienceImportRow.newSound}) {
+    if (taken.contains(sound.id)) return;
+    for (final row in rows) {
+      if (row.target == of && matches(row)) {
+        row.target = sound.id;
+        taken.add(sound.id);
+        return;
       }
     }
   }
 
   String bare(String file) => _words(file.substring(0, file.lastIndexOf('.'))).join(' ');
-  give((row, sound) => bare(row.fileName) == _words(sound.name).join(' '));
-  give((row, sound) {
-    final have = _words(bare(row.fileName)).toSet();
-    return _words(sound.name).every(have.contains);
-  });
+  for (final n in names) {
+    give(n.sound, (row) => bare(row.fileName) == n.words.join(' '));
+  }
+  for (final n in names) {
+    give(n.sound, (row) => n.words.every(_words(bare(row.fileName)).toSet().contains));
+  }
   // A new sound named like one of the owner's own would be a second copy: it replaces that one.
   bool sameName(AmbienceImportRow row, AmbienceSound sound) => sound.name.toLowerCase() == row.newName.toLowerCase();
-  give((row, sound) => sound.category == ambienceOwnCategory && sameName(row, sound));
-  give((row, sound) => sound.category == ambienceEnvironmentCategory && sameName(row, sound), of: AmbienceImportRow.newEnvironment);
+  for (final sound in targets) {
+    if (sound.category == ambienceOwnCategory) give(sound, (row) => sameName(row, sound));
+    if (sound.category == ambienceEnvironmentCategory) {
+      give(sound, (row) => sameName(row, sound), of: AmbienceImportRow.newEnvironment);
+    }
+  }
   return rows;
 }

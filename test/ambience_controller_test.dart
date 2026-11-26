@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/features/ambience/ambience_controller.dart';
+import 'package:remote_tunes/features/ambience/ambience_icons.dart';
 import 'package:remote_tunes/features/ambience/ambience_models.dart';
 import 'package:remote_tunes/features/ambience/ambience_noise.dart';
 
@@ -73,7 +74,8 @@ void main() {
     test('only the noises can be played before files are added', () async {
       final c = make();
       await c.load();
-      expect([for (final s in c.state.sounds) if (s.available) s.id], ['white-noise', 'pink-noise', 'brown-noise']);
+      expect([for (final s in c.state.sounds) if (s.available) s.id],
+          ['white-noise', 'pink-noise', 'brown-noise', 'green-noise', 'blue-noise', 'gray-noise']);
       await expectLater(c.setActive('rain', true), throwsA(isA<AmbienceException>()));
       expect(engine.voices, isEmpty);
     });
@@ -199,7 +201,7 @@ void main() {
     test('a preset plays what it has and names what is missing', () async {
       final c = make();
       final missing = await c.startMix('sleep');
-      expect(missing, ['Rain']);
+      expect(missing, ['Morning Rain']);
       expect(engine.voices.keys, ['white-noise']);
       expect(c.state.mixName, 'Sleep');
     });
@@ -208,7 +210,7 @@ void main() {
       final c = make();
       await c.setActive('pink-noise', true);
       await expectLater(c.startMix('campfire'),
-          throwsA(isA<AmbienceException>().having((e) => e.message, 'message', 'Add files for Campfire and Wind first.')));
+          throwsA(isA<AmbienceException>().having((e) => e.message, 'message', 'Add files for Campfire and Light Wind first.')));
       expect(engine.voices.keys, ['pink-noise']);
     });
 
@@ -341,6 +343,54 @@ void main() {
         expect((samples.first - samples.last).abs(), lessThanOrEqualTo(steps));
       });
     }
+  });
+
+  group('the catalog', () {
+    test('has the whole list, with unique ids and a picture each', () {
+      final ids = [for (final s in ambienceCatalog) s.id];
+      expect(ids.toSet(), hasLength(ids.length));
+      expect(ids.length, greaterThan(150));
+      expect(ids.every(ambienceDefaultPictures.containsKey), isTrue);
+    });
+
+    test('keeps the ids sounds were saved under, and the mixes still point at sounds', () {
+      final ids = {for (final s in ambienceCatalog) s.id};
+      expect(ids, containsAll(['rain', 'light-rain', 'thunder', 'distant-thunder', 'ocean', 'seagulls', 'stream', 'crickets',
+        'owls', 'frogs', 'campfire', 'wind', 'birds', 'white-noise', 'pink-noise', 'brown-noise']));
+      expect([for (final m in ambiencePresets) ...m.layers.keys].every(ids.contains), isTrue);
+    });
+
+    test('every noise the app offers can be made', () {
+      for (final s in ambienceCatalog.where((s) => s.available)) {
+        expect(noiseColorOf(s.id), isNotNull, reason: s.id);
+      }
+    });
+
+    test('the noises sound different: blue is bright, brown deep, green in between', () {
+      double neighbours(NoiseColor c) {
+        final d = ByteData.sublistView(noiseWav(c, seconds: 1, random: Random(3)));
+        var same = 0.0, power = 0.0, before = 0.0;
+        for (var i = 44; i < d.lengthInBytes; i += 2) {
+          final v = d.getInt16(i, Endian.little).toDouble();
+          same += v * before;
+          power += v * v;
+          before = v;
+        }
+        return same / power;
+      }
+
+      expect(neighbours(NoiseColor.blue), lessThan(-0.3));
+      expect(neighbours(NoiseColor.white).abs(), lessThan(0.05));
+      expect(neighbours(NoiseColor.brown), greaterThan(0.95));
+      expect(neighbours(NoiseColor.green), allOf(greaterThan(0.75), lessThan(neighbours(NoiseColor.brown))));
+      expect(neighbours(NoiseColor.gray), allOf(greaterThan(0.1), lessThan(0.95)));
+    });
+
+    test('the other phone is sent only what can be played', () {
+      final c = make();
+      final sent = AmbienceState.fromJson(c.state.toJson(readyOnly: true));
+      expect(sent.sounds, hasLength(6));
+    });
   });
 
   test('the state travels to the other phone and back', () {

@@ -182,7 +182,7 @@ void main() {
       await connect();
       final remote = RemoteAmbience(client);
       await expectLater(remote.setActive('rain', true),
-          throwsA(isA<ControllerException>().having((e) => e.message, 'message', contains('Add a file for Rain'))));
+          throwsA(isA<ControllerException>().having((e) => e.message, 'message', contains('Add a file for Morning Rain'))));
       await expectLater(client.sendCommand(RemoteActions.ambience, {'op': 'volume', 'id': 'rain', 'volume': 'loud'}),
           throwsA(isA<ControllerException>()));
       await expectLater(client.sendCommand(RemoteActions.ambience, {'op': 'explode'}), throwsA(isA<ControllerException>()));

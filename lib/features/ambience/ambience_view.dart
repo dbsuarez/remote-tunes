@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import 'ambience_icons.dart';
@@ -61,6 +62,29 @@ class _AmbienceViewState extends State<AmbienceView> {
   final Map<String, double> _dragging = {};
 
   AmbienceControls get _c => widget.controls;
+
+  /// The page shown: a category, or null for every sound that is ready to play.
+  String? _category;
+
+  final _pages = PageController();
+  final Map<String?, GlobalKey> _chipKeys = {};
+
+  /// The pages as last built, to stay on the same group when one appears or goes.
+  List<String?> _pageList = const [null];
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  /// Keeps the chip of the page shown in view.
+  void _revealChip(String? category) => WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = _chipKeys[category]?.currentContext;
+        if (context != null && context.mounted) {
+          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 200));
+        }
+      });
 
   void _snack(String text) {
     if (!mounted) return;
@@ -236,7 +260,10 @@ class _AmbienceViewState extends State<AmbienceView> {
         final state = _c.state;
         final own = [for (final m in state.mixes) if (!m.builtIn) m];
         final presets = [for (final m in state.mixes) if (m.builtIn) m];
-        String names(AmbienceMix m) => [for (final id in m.layers.keys) state.sound(id)?.name ?? id].join(', ');
+        String names(AmbienceMix m) => [
+              for (final id in m.layers.keys)
+                state.sound(id)?.name ?? ambienceCatalog.where((s) => s.id == id).map((s) => s.name).firstOrNull ?? id,
+            ].join(', ');
         Widget tile(AmbienceMix m) => ListTile(
               key: ValueKey('amb-mix-${m.id}'),
               title: Text(m.name),
@@ -309,48 +336,106 @@ class _AmbienceViewState extends State<AmbienceView> {
               ? const Center(child: CircularProgressIndicator())
               : Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(state.error!, textAlign: TextAlign.center)));
         }
-        final categories = <String>{for (final s in state.sounds) s.category, if (widget.owner != null) ambienceOwnCategory};
+        // A page for what is ready, then one for each category; swipe between them or tap a chip. The owner
+        // can always add a sound of their own.
+        final all = <String>{for (final s in state.sounds) s.category, if (widget.owner != null) ambienceOwnCategory};
+        final pages = <String?>[null, ...all];
+        final chosen = pages.contains(_category) ? _category : null;
+        if (!listEquals(pages, _pageList)) {
+          _pageList = pages;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _pages.hasClients) _pages.jumpToPage(pages.indexOf(chosen));
+          });
+        }
+        Widget chip(String? value, String label) => Padding(
+              key: _chipKeys[value] ??= GlobalKey(),
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                key: ValueKey('amb-cat-${value ?? 'ready'}'),
+                showCheckmark: false,
+                visualDensity: VisualDensity.compact,
+                label: Text(label),
+                selected: chosen == value,
+                onSelected: (_) {
+                  setState(() => _category = value);
+                  _revealChip(value);
+                  if (_pages.hasClients) _pages.jumpToPage(pages.indexOf(value));
+                },
+              ),
+            );
         return Column(
           children: [
+            SizedBox(
+              height: 52,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
+                child: Row(children: [chip(null, 'Ready'), for (final c in all) chip(c, c)]),
+              ),
+            ),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  final columns = (box.maxWidth / 112).floor().clamp(3, 8);
-                  final width = (box.maxWidth - 24) / columns;
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    children: [
-                      if (widget.owner?.pickFolder != null)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            key: const Key('amb-import'),
-                            onPressed: widget.enabled ? _importFolder : null,
-                            icon: const Icon(Icons.drive_folder_upload_rounded),
-                            label: const Text('Import a folder'),
-                          ),
-                        ),
-                      for (final c in categories) ...[
-                        _Heading(c),
-                        if (widget.owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                            child: Text('Hold a sound to change its picture.', style: Theme.of(context).textTheme.bodySmall),
-                          ),
-                        Wrap(
-                          children: [
-                            for (final s in state.sounds.where((s) => s.category == c))
-                              SizedBox(width: width, child: _tile(theme, state, s)),
-                            if (c == ambienceOwnCategory && widget.owner != null) SizedBox(width: width, child: _addTile(theme)),
-                          ],
-                        ),
-                      ],
-                    ],
-                  );
+              child: PageView.builder(
+                key: const Key('amb-pages'),
+                controller: _pages,
+                itemCount: pages.length,
+                onPageChanged: (i) {
+                  if (i >= pages.length || pages[i] == _category) return;
+                  setState(() => _category = pages[i]);
+                  _revealChip(pages[i]);
                 },
+                itemBuilder: (context, i) => _page(theme, state, all, pages[i]),
               ),
             ),
             _bar(theme, state),
+          ],
+        );
+      },
+    );
+  }
+
+  /// One page: the sounds ready to play (by category), or every place of one category.
+  Widget _page(ThemeData theme, AmbienceState state, Set<String> all, String? page) {
+    final owner = widget.owner;
+    bool visible(AmbienceSound s) => page == null ? s.available : s.category == page;
+    final categories = [
+      for (final c in all)
+        if (page == c ||
+            (page == null && (state.sounds.any((s) => s.category == c && s.available) || (c == ambienceOwnCategory && owner != null))))
+          c,
+    ];
+    return LayoutBuilder(
+      builder: (context, box) {
+        final columns = (box.maxWidth / 112).floor().clamp(3, 8);
+        final width = (box.maxWidth - 24) / columns;
+        return ListView(
+          key: PageStorageKey('amb-list-${page ?? 'ready'}'),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          children: [
+            if (owner?.pickFolder != null && (page == null || page == ambienceOwnCategory))
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  key: const Key('amb-import'),
+                  onPressed: widget.enabled ? _importFolder : null,
+                  icon: const Icon(Icons.drive_folder_upload_rounded),
+                  label: const Text('Import a folder'),
+                ),
+              ),
+            for (final c in categories) ...[
+              _Heading(c, key: ValueKey('amb-group-$c')),
+              if (owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  child: Text('Hold a sound to change its picture.', style: theme.textTheme.bodySmall),
+                ),
+              Wrap(
+                children: [
+                  for (final s in state.sounds.where((s) => s.category == c && visible(s)))
+                    SizedBox(width: width, child: _tile(theme, state, s)),
+                  if (c == ambienceOwnCategory && owner != null) SizedBox(width: width, child: _addTile(theme)),
+                ],
+              ),
+            ],
           ],
         );
       },
@@ -517,7 +602,7 @@ class _AmbienceViewState extends State<AmbienceView> {
 }
 
 class _Heading extends StatelessWidget {
-  const _Heading(this.text);
+  const _Heading(this.text, {super.key});
   final String text;
 
   @override
@@ -620,6 +705,13 @@ class _ImportDialogState extends State<_ImportDialog> {
         row.target = target;
       });
 
+  String _labelOf(AmbienceImportRow row) => switch (row.target) {
+        AmbienceImportRow.newSound => 'New sound "${row.newName}"',
+        AmbienceImportRow.newEnvironment => 'Environment "${row.newName}"',
+        AmbienceImportRow.skip => 'Leave it out',
+        final id => widget.sounds.where((s) => s.id == id).map((s) => '${s.name} (${s.category})').firstOrNull ?? id,
+      };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -652,22 +744,18 @@ class _ImportDialogState extends State<_ImportDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(row.fileName, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
-                  DropdownButton<String>(
+                  OutlinedButton.icon(
                     key: ValueKey('amb-import-to-${row.fileName}'),
-                    isExpanded: true,
-                    value: row.target,
-                    items: [
-                      DropdownMenuItem(
-                          value: AmbienceImportRow.newSound,
-                          child: Text('New sound "${row.newName}"', overflow: TextOverflow.ellipsis)),
-                      DropdownMenuItem(
-                          value: AmbienceImportRow.newEnvironment,
-                          child: Text('Environment "${row.newName}"', overflow: TextOverflow.ellipsis)),
-                      const DropdownMenuItem(value: AmbienceImportRow.skip, child: Text('Leave it out')),
-                      for (final s in widget.sounds) DropdownMenuItem(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) _choose(row, v);
+                    icon: const Icon(Icons.expand_more_rounded),
+                    label: Text(_labelOf(row), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onPressed: () async {
+                      final target = await showModalBottomSheet<String>(
+                        context: context,
+                        showDragHandle: true,
+                        isScrollControlled: true,
+                        builder: (_) => _TargetSheet(row: row, sounds: widget.sounds),
+                      );
+                      if (target != null && mounted) _choose(row, target);
                     },
                   ),
                   if (replaces)
@@ -847,6 +935,83 @@ class _IconSheetState extends State<_IconSheet> {
                           const SliverToBoxAdapter(child: SizedBox(height: 16)),
                         ],
                       ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Where one imported file can go: a new sound, an environment, nowhere, or one of the sounds (searched
+/// by name). Gives the target.
+class _TargetSheet extends StatefulWidget {
+  const _TargetSheet({required this.row, required this.sounds});
+
+  final AmbienceImportRow row;
+  final List<AmbienceSound> sounds;
+
+  @override
+  State<_TargetSheet> createState() => _TargetSheetState();
+}
+
+class _TargetSheetState extends State<_TargetSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final row = widget.row;
+    final q = _query.trim().toLowerCase();
+    final found = [
+      for (final s in widget.sounds)
+        if (q.isEmpty || s.name.toLowerCase().contains(q) || s.category.toLowerCase().contains(q)) s,
+    ];
+    final fixed = [
+      (AmbienceImportRow.newSound, 'New sound "${row.newName}"', Icons.add_rounded),
+      (AmbienceImportRow.newEnvironment, 'Environment "${row.newName}"', Icons.landscape_rounded),
+      (AmbienceImportRow.skip, 'Leave it out', Icons.block_rounded),
+    ];
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.7,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  key: const Key('amb-target-search'),
+                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Search the sounds', isDense: true),
+                  onChanged: (v) => setState(() => _query = v),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: (q.isEmpty ? fixed.length : 0) + found.length,
+                  itemBuilder: (context, i) {
+                    if (q.isEmpty && i < fixed.length) {
+                      final (target, label, icon) = fixed[i];
+                      return ListTile(
+                        key: ValueKey('amb-target-$target'),
+                        leading: Icon(icon),
+                        title: Text(label),
+                        selected: row.target == target,
+                        onTap: () => Navigator.pop(context, target),
+                      );
+                    }
+                    final sound = found[i - (q.isEmpty ? fixed.length : 0)];
+                    return ListTile(
+                      key: ValueKey('amb-target-${sound.id}'),
+                      leading: AmbiencePicture(ambienceIconName(sound), size: 24),
+                      title: Text(sound.name),
+                      subtitle: Text(sound.available ? '${sound.category} · has a file' : sound.category),
+                      selected: row.target == sound.id,
+                      onTap: () => Navigator.pop(context, sound.id),
+                    );
+                  },
+                ),
               ),
             ],
           ),

@@ -63,10 +63,10 @@ void main() {
   group('importing a folder', () {
     setUp(() => folder = ['/f/Rain.wav', '/f/Campfire.mp3', '/f/Peaceful Lake.mp3', '/f/notes.txt']);
 
-    Future<void> choose(WidgetTester tester, String file, String label) async {
+    Future<void> choose(WidgetTester tester, String file, String target) async {
       await tester.tap(find.byKey(ValueKey('amb-import-to-$file')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(label).last);
+      await tester.tap(find.byKey(ValueKey('amb-target-$target')));
       await tester.pumpAndSettle();
     }
 
@@ -86,8 +86,8 @@ void main() {
     screenTest('a file can be sent elsewhere or left out; a sound takes one file', (tester) async {
       await open(tester);
       await tap(tester, 'amb-import');
-      await choose(tester, 'Peaceful Lake.mp3', 'Rain');
-      await choose(tester, 'Campfire.mp3', 'Leave it out');
+      await choose(tester, 'Peaceful Lake.mp3', 'rain');
+      await choose(tester, 'Campfire.mp3', '+skip');
       expect(find.text('Import 2 sounds'), findsOneWidget);
       await tap(tester, 'amb-import-go');
       expect(c.state.sound('campfire')!.available, isFalse);
@@ -118,13 +118,13 @@ void main() {
     screenTest('environments get their own group, above My sounds, and can be deleted', (tester) async {
       folder = ['/f/water_env_swamp.mp3', '/f/Music Box.mp3'];
       await open(tester);
-      expect(find.text(ambienceEnvironmentCategory), findsNothing);
+      expect(find.byKey(const ValueKey('amb-group-$ambienceEnvironmentCategory')), findsNothing);
       await tap(tester, 'amb-import');
       expect(find.text('Environment "Swamp"'), findsOneWidget);
       await tap(tester, 'amb-import-go');
-      expect(find.text(ambienceEnvironmentCategory), findsOneWidget);
-      expect(tester.getTopLeft(find.text(ambienceEnvironmentCategory)).dy,
-          lessThan(tester.getTopLeft(find.text(ambienceOwnCategory)).dy));
+      expect(find.byKey(const ValueKey('amb-group-$ambienceEnvironmentCategory')), findsOneWidget);
+      expect(tester.getTopLeft(find.byKey(const ValueKey('amb-group-$ambienceEnvironmentCategory'))).dy,
+          lessThan(tester.getTopLeft(find.byKey(const ValueKey('amb-group-$ambienceOwnCategory'))).dy));
       final swamp = c.state.sounds.firstWhere((s) => s.name == 'Swamp');
       expect(swamp.category, ambienceEnvironmentCategory);
       final again = AmbienceController(engine: engine, files: FakeFiles(), store: c.store);
@@ -135,7 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Delete this sound'), findsOneWidget);
       await tap(tester, 'amb-remove');
-      expect(find.text(ambienceEnvironmentCategory), findsNothing);
+      expect(find.byKey(const ValueKey('amb-group-$ambienceEnvironmentCategory')), findsNothing);
     });
 
     screenTest('is not offered from the other phone', (tester) async {
@@ -229,15 +229,56 @@ void main() {
     });
   });
 
-  screenTest('shows the sounds by category, with a plus on those with no file', (tester) async {
+  Future<void> category(WidgetTester tester, String name) async {
+    await tester.ensureVisible(find.byKey(ValueKey('amb-cat-$name')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('amb-cat-$name')));
+    await tester.pumpAndSettle();
+  }
+
+  screenTest('Ready shows what can be played; a category shows all its places', (tester) async {
     await open(tester);
-    for (final heading in ['Rain', 'Water', 'Night', 'Wind and Fire', 'Nature', 'Noise', ambienceOwnCategory]) {
-      expect(find.text(heading), findsWidgets);
-    }
-    expect(find.byKey(const ValueKey('amb-add-rain')), findsOneWidget);
-    expect(find.byKey(const ValueKey('amb-add-white-noise')), findsNothing);
+    expect(find.byKey(const ValueKey('amb-sound-white-noise')), findsOneWidget);
+    expect(find.byKey(const ValueKey('amb-sound-gray-noise')), findsOneWidget);
+    expect(find.byKey(const ValueKey('amb-sound-rain')), findsNothing, reason: 'no file yet');
+    expect(find.byKey(const Key('amb-add-own')), findsOneWidget);
     expect(status(tester), 'Tap a sound to begin');
     expect(tester.widget<IconButton>(find.byKey(const Key('amb-play'))).onPressed, isNull);
+    await category(tester, 'Rain');
+    expect(find.byKey(const ValueKey('amb-add-rain')), findsOneWidget);
+    expect(find.byKey(const ValueKey('amb-sound-umbrella')), findsOneWidget);
+    expect(find.byKey(const ValueKey('amb-sound-white-noise')), findsNothing);
+    await c.addFile('umbrella', '/d/u.mp3');
+    await tester.pumpAndSettle();
+    await category(tester, 'ready');
+    expect(find.byKey(const ValueKey('amb-sound-umbrella')), findsOneWidget);
+    expect(find.text('Rain'), findsWidgets);
+  });
+
+  screenTest('swiping goes from group to group, and the chip follows', (tester) async {
+    await open(tester);
+    bool selected(String name) => tester.widget<ChoiceChip>(find.byKey(ValueKey('amb-cat-$name'))).selected;
+    expect(selected('ready'), isTrue);
+    await tester.fling(find.byKey(const Key('amb-pages')), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(selected('Rain'), isTrue);
+    expect(find.byKey(const ValueKey('amb-sound-umbrella')), findsOneWidget);
+    await tester.fling(find.byKey(const Key('amb-pages')), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(selected('Ocean'), isTrue);
+    expect(find.byKey(const ValueKey('amb-sound-whale')), findsOneWidget);
+    await tester.fling(find.byKey(const Key('amb-pages')), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(selected('Rain'), isTrue);
+  });
+
+  screenTest('a new group appearing does not move you off the one you are on', (tester) async {
+    await open(tester);
+    await category(tester, ambienceOwnCategory);
+    await c.addOwnSound('Swamp', '/d/s.mp3', environment: true);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('amb-group-$ambienceOwnCategory')), findsOneWidget);
+    expect(find.byKey(const ValueKey('amb-group-$ambienceEnvironmentCategory')), findsNothing);
   });
 
   screenTest('a tap switches a sound on, with its volume slider; again switches it off', (tester) async {
@@ -258,6 +299,7 @@ void main() {
 
   screenTest('tapping a sound with no file picks one, and it plays', (tester) async {
     await open(tester);
+    await category(tester, 'Rain');
     await sound(tester, 'rain');
     expect(engine.paths['rain'], '/kept/rain.mp3');
     expect(find.byKey(const ValueKey('amb-add-rain')), findsNothing);
@@ -266,6 +308,7 @@ void main() {
   screenTest('a file of the wrong kind is explained', (tester) async {
     picked = '/down/rain.m4a';
     await open(tester);
+    await category(tester, 'Rain');
     await sound(tester, 'rain');
     expect(find.textContaining('MP3, OGG, WAV or FLAC'), findsOneWidget);
     expect(engine.voices, isEmpty);
@@ -335,7 +378,7 @@ void main() {
     await tap(tester, 'amb-mixes');
     await tester.tap(find.byKey(const ValueKey('amb-mix-sleep')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Playing without Rain'), findsOneWidget);
+    expect(find.textContaining('Playing without Morning Rain'), findsOneWidget);
     expect(engine.voices.keys, {'white-noise'});
   });
 
@@ -357,8 +400,10 @@ void main() {
     await open(tester, owned: false);
     expect(find.byKey(const Key('amb-max')), findsNothing);
     expect(find.byKey(const Key('amb-add-own')), findsNothing);
+    await category(tester, 'Rain');
     await sound(tester, 'rain');
     expect(find.textContaining('on the phone that plays'), findsOneWidget);
+    await category(tester, 'ready');
     await sound(tester, 'white-noise');
     expect(engine.voices.keys, {'white-noise'});
   });

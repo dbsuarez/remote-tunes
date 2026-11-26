@@ -55,5 +55,5 @@ Future<Map<String, dynamic>> runAmbienceCommand(AmbienceControls ambience, Map<S
   } catch (e) {
     bad('$e');
   }
-  return {'state': ambience.state.toJson(), if (missing.isNotEmpty) 'missing': missing};
+  return {'state': ambience.state.toJson(readyOnly: true), if (missing.isNotEmpty) 'missing': missing};
 }
