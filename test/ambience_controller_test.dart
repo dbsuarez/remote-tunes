@@ -56,6 +56,13 @@ class FakeFiles implements AmbienceFiles {
   Future<String> add(String soundId, String sourcePath) async => '/kept/$soundId.${sourcePath.split('.').last}';
   @override
   Future<void> remove(String saved) async => removed.add(saved);
+  final written = <String, Uint8List>{};
+  @override
+  Future<String> write(String name, Uint8List bytes) async {
+    final saved = '$name-${written.length + 1}.png';
+    written[saved] = bytes;
+    return saved;
+  }
 }
 
 class MemoryAmbienceStore implements AmbienceStore {

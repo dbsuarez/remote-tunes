@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,6 +66,15 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     );
   }
 
+  /// One picture, chosen in our own browser. Android shows pictures only with All files access.
+  Future<String?> _pickPicture() => showFileBrowser(
+        context,
+        title: 'Choose a picture',
+        extensions: const {'jpg', 'jpeg', 'png', 'webp'},
+        needsAllFiles: true,
+        systemPicker: () async => (await FilePicker.platform.pickFiles(type: FileType.image))?.files.singleOrNull?.path,
+      );
+
   /// A folder chosen in our own browser: the files in it (not those in folders inside it).
   Future<List<String>?> _pickFolder() async {
     if (!await _mayBrowse() || !mounted) return null;
@@ -98,6 +109,16 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
         pickFolder: _pickFolder,
         setIcon: ambience.setIcon,
         setBoost: ambience.setBoost,
+        banners: AmbienceBanners(
+          of: (group) {
+            final b = ambience.banner(group);
+            return b == null ? null : (image: FileImage(File(b.imagePath)), sourcePath: b.sourcePath, framing: b.framing);
+          },
+          pick: _pickPicture,
+          read: (path) => File(path).readAsBytes(),
+          set: ambience.setBanner,
+          remove: ambience.removeBanner,
+        ),
         watchedFolder: () => ambience.watchedFolder,
         watchFolder: ambience.setWatchedFolder,
         checkFolder: () async {

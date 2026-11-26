@@ -1,12 +1,31 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
+import 'ambience_banner.dart';
 import 'ambience_icons.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
 import 'ambience_style.dart';
+
+/// A group's own banner as the view needs it.
+typedef AmbienceBannerView = ({ImageProvider image, String? sourcePath, BannerFraming framing});
+
+/// Reading and keeping the owner's banner pictures (by group name).
+class AmbienceBanners {
+  const AmbienceBanners({required this.of, required this.pick, required this.read, required this.set, required this.remove});
+
+  final AmbienceBannerView? Function(String group) of;
+
+  /// Gives the path of a picked picture, or null.
+  final Future<String?> Function() pick;
+  final Future<Uint8List> Function(String path) read;
+  final Future<void> Function(String group, Uint8List png, BannerFraming framing, {String? newSource}) set;
+  final Future<void> Function(String group) remove;
+}
 
 /// What only the playing phone can do: give sounds their files and set the loudest allowed.
 class AmbienceOwner {
@@ -19,10 +38,14 @@ class AmbienceOwner {
     this.pickFolder,
     this.setIcon,
     this.setBoost,
+    this.banners,
     this.watchedFolder,
     this.watchFolder,
     this.checkFolder,
   });
+
+  /// Pictures of the owner's own across the top of the groups. Null: not offered.
+  final AmbienceBanners? banners;
 
   /// Makes one sound louder or softer (1 is as it comes). Null: not offered.
   final Future<void> Function(String soundId, double boost)? setBoost;
@@ -414,6 +437,76 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     if (_pages.hasClients) _pages.jumpToPage(pages.indexOf(page));
   }
 
+  /// The banner height set last, offered for the next new picture.
+  double? _lastAspect;
+
+  /// The name a page's banner is kept under.
+  String _groupOf(String? page) => switch (page) { null => 'Ready', _selected => 'Selected', final c => c };
+
+  /// Chooses, moves or takes away the banner picture of a group.
+  Future<void> _editBanner(String group) async {
+    final banners = widget.owner!.banners!;
+    final current = banners.of(group);
+    var choice = 'new';
+    if (current != null) {
+      final picked = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (ctx) => SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (current.sourcePath != null)
+                  ListTile(
+                    key: const Key('banner-move'),
+                    leading: const Icon(Icons.crop_rounded),
+                    title: const Text('Move and zoom this picture'),
+                    onTap: () => Navigator.pop(ctx, 'move'),
+                  ),
+                ListTile(
+                  key: const Key('banner-new'),
+                  leading: const Icon(Icons.image_rounded),
+                  title: const Text('Choose another picture'),
+                  onTap: () => Navigator.pop(ctx, 'new'),
+                ),
+                ListTile(
+                  key: const Key('banner-remove'),
+                  leading: const Icon(Icons.delete_outline_rounded),
+                  title: const Text('Take the picture away'),
+                  onTap: () => Navigator.pop(ctx, 'remove'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (picked == null) return;
+      choice = picked;
+    }
+    await _run(() async {
+      if (choice == 'remove') return banners.remove(group);
+      final path = choice == 'move' ? current!.sourcePath! : await banners.pick();
+      if (path == null) return;
+      final bytes = await banners.read(path);
+      if (!mounted) return;
+      final result = await Navigator.of(context).push<BannerResult>(MaterialPageRoute(
+        builder: (_) => BannerCropScreen(
+          bytes: bytes,
+          group: group,
+          // A new picture keeps the height this banner (or the last one set) has.
+          framing: choice == 'move'
+              ? current!.framing
+              : BannerFraming(aspect: current?.framing.aspect ?? _lastAspect ?? ambienceBannerAspect),
+        ),
+      ));
+      if (result == null) return;
+      _lastAspect = result.framing.aspect;
+      await banners.set(group, result.png, result.framing, newSource: choice == 'move' ? null : path);
+    });
+  }
+
   /// Every page in one list, to jump to.
   Future<void> _groups(List<String?> pages) async {
     final state = _c.state;
@@ -494,7 +587,12 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                     children: [
                       _banner(theme, state, chosen),
                       _dots(pages.length, pages.indexOf(chosen)),
-                      InkWell(
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Balances the picture button, so the title stays in the middle.
+                          if (widget.owner?.banners != null) const SizedBox(width: 48),
+                          Flexible(child: InkWell(
                         key: const Key('amb-title'),
                         borderRadius: BorderRadius.circular(20),
                         onTap: () => _groups(pages),
@@ -514,6 +612,15 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                             ],
                           ),
                         ),
+                      )),
+                          if (widget.owner?.banners != null)
+                            IconButton(
+                              key: const Key('amb-banner-edit'),
+                              tooltip: 'Banner picture',
+                              icon: const Icon(Icons.add_photo_alternate_outlined),
+                              onPressed: widget.enabled ? () => _editBanner(_groupOf(chosen)) : null,
+                            ),
+                        ],
                       ),
                       Expanded(
                         child: PageView.builder(
@@ -548,12 +655,28 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         if (switch (page) { null => s.available, _selected => state.active.containsKey(s.id), final c => s.category == c }) s,
     ].take(5).toList();
     // A short screen keeps only the line of words.
-    final tall = MediaQuery.sizeOf(context).height >= 640;
+    final tall = MediaQuery.sizeOf(context).height >= 700;
+    final own = widget.owner?.banners?.of(_groupOf(page));
     return Column(
       children: [
-        if (tall)
+        if (own != null)
+          LayoutBuilder(
+            builder: (context, box) => SizedBox(
+              key: const Key('amb-banner-picture'),
+              width: double.infinity,
+              // As high as the owner set it, but the sounds always keep most of the screen.
+              height: min(box.maxWidth / own.framing.aspect, MediaQuery.sizeOf(context).height * 0.3),
+              child: Image(
+                image: own.image,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          )
+        else if (tall)
           Container(
-            height: 84,
+            height: 120,
             width: double.infinity,
             color: Colors.white.withValues(alpha: 0.10),
             alignment: Alignment.center,
@@ -566,7 +689,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                     for (var i = 0; i < shown.length; i++)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: AmbiencePicture(ambienceIconName(shown[i]), size: i.isEven ? 48 : 34, color: Colors.white70),
+                        child: AmbiencePicture(ambienceIconName(shown[i]), size: i.isEven ? 64 : 46, color: Colors.white70),
                       ),
                   ],
                 ),

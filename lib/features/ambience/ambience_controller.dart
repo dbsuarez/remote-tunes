@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'ambience_banner.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
 
@@ -43,7 +44,13 @@ abstract class AmbienceFiles {
   /// Keeps a copy of [sourcePath] for the sound, and gives what to remember it by.
   Future<String> add(String soundId, String sourcePath);
   Future<void> remove(String saved);
+
+  /// Keeps [bytes] under a new name that starts with [name], and gives what to remember it by.
+  Future<String> write(String name, Uint8List bytes);
 }
+
+/// A group's own banner: the finished picture, the picture it was cut from, and how.
+typedef AmbienceBanner = ({String imagePath, String? sourcePath, BannerFraming framing});
 
 /// Where the choices are kept between runs.
 abstract class AmbienceStore {
@@ -90,6 +97,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   final Map<String, double> _gain = {}; // sound id -> the measured evening-out of its file
   final Map<String, double> _boost = {}; // sound id -> the owner's louder (above 1) or softer
   String? _folder;
+  final Map<String, ({String file, String? source, BannerFraming framing})> _banners = {}; // by group
+  final Map<String, AmbienceBanner> _bannerPaths = {}; // the same, with where the files are
   final List<AmbienceMix> _mixes = [];
   final Map<String, double> _active = {};
   final Set<String> _voices = {};
@@ -132,6 +141,13 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           if (e.key is String && e.value is num) into[e.key as String] = (e.value as num).toDouble().clamp(0.2, 12.0);
         }
       }
+      for (final e in (j['banners'] is Map ? j['banners'] as Map : const {}).entries) {
+        final v = e.value;
+        if (e.key is String && v is Map && v['file'] is String) {
+          _banners[e.key as String] =
+              (file: v['file'] as String, source: v['source'] is String ? v['source'] as String : null, framing: BannerFraming.fromJson(v));
+        }
+      }
       if (j['folder'] is String) _folder = j['folder'] as String;
       if (j['empty'] is List) _keptEmpty.addAll([for (final id in j['empty'] as List) if (id is String) id]);
       if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
@@ -150,6 +166,9 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     }
     _active.removeWhere((id, _) => !_hasAudio(id));
     _left = (_timer ?? 0) * 60;
+    for (final group in _banners.keys.toList()) {
+      await _findBanner(group);
+    }
     notifyListeners();
   }
 
@@ -161,6 +180,10 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         'env': _environments.toList(),
         'icons': _icons,
         'empty': _keptEmpty.toList(),
+        'banners': {
+          for (final e in _banners.entries)
+            e.key: {'file': e.value.file, if (e.value.source != null) 'source': e.value.source, ...e.value.framing.toJson()},
+        },
         'gain': _gain,
         'boost': _boost,
         if (_folder != null) 'folder': _folder,
@@ -527,6 +550,56 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           _boost[soundId] = v;
         }
         if (_voices.contains(soundId)) await engine.setVolume(soundId, _volumeOf(soundId));
+        notifyListeners();
+        await _save();
+      });
+
+  /// The owner's own banner of a group, or null.
+  AmbienceBanner? banner(String group) => _bannerPaths[group];
+
+  Future<void> _findBanner(String group) async {
+    final b = _banners[group];
+    if (b == null) {
+      _bannerPaths.remove(group);
+      return;
+    }
+    try {
+      final image = await files.pathFor('banner', b.file);
+      final source = b.source == null ? null : await files.pathFor('banner', b.source);
+      if (image == null) {
+        _bannerPaths.remove(group);
+      } else {
+        _bannerPaths[group] = (imagePath: image, sourcePath: source, framing: b.framing);
+      }
+    } catch (_) {
+      _bannerPaths.remove(group);
+    }
+  }
+
+  /// Gives a group its banner: [png] as it will show. [newSource] is the picture it was just cut from
+  /// (null: the one kept already, only framed differently).
+  Future<void> setBanner(String group, Uint8List png, BannerFraming framing, {String? newSource}) => _inTurn(() async {
+        await load();
+        final old = _banners[group];
+        final source = newSource == null ? old?.source : await files.add('bannersrc', newSource);
+        final file = await files.write('banner', png);
+        _banners[group] = (file: file, source: source, framing: framing);
+        await _findBanner(group);
+        if (old != null) {
+          await files.remove(old.file);
+          if (old.source != null && old.source != source) await files.remove(old.source!);
+        }
+        notifyListeners();
+        await _save();
+      });
+
+  Future<void> removeBanner(String group) => _inTurn(() async {
+        await load();
+        final old = _banners.remove(group);
+        _bannerPaths.remove(group);
+        if (old == null) return;
+        await files.remove(old.file);
+        if (old.source != null) await files.remove(old.source!);
         notifyListeners();
         await _save();
       });

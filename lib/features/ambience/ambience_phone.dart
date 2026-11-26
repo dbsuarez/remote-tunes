@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
@@ -187,6 +188,14 @@ class PhoneAmbienceFiles implements AmbienceFiles {
     final name = '${soundId}_${DateTime.now().millisecondsSinceEpoch}$ext';
     await File(sourcePath).copy(p.join(dir.path, name));
     return name;
+  }
+
+  @override
+  Future<String> write(String name, Uint8List bytes) async {
+    final dir = await _dir();
+    final saved = '${name}_${DateTime.now().microsecondsSinceEpoch}.png';
+    await File(p.join(dir.path, saved)).writeAsBytes(bytes, flush: true);
+    return saved;
   }
 
   @override
