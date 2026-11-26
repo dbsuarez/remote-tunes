@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/library_providers.dart';
+import '../ambience/ambience_backup.dart';
+import '../ambience/ambience_controller.dart' show AmbienceException;
 import '../library/folder_browser.dart';
 import '../library/import_actions.dart';
 import '../../providers/providers.dart';
@@ -164,6 +166,45 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           : 'Copied ${r.copied}; ${r.failed} could not be copied.');
     } catch (_) {
       _say("The songs couldn't be copied. Try another folder.");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Ambience goes in a file of its own: its sounds are large.
+  Future<void> _backUpAmbience() async {
+    final folder = await ref.read(backupPickerProvider).pickFolder(context);
+    if (folder == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final ambience = await ref.read(ambienceForBackupProvider)();
+      if (ambience == null) return _say("Ambience isn't available on this phone.");
+      final file = await writeAmbienceBackup(ambience, folder);
+      final size = await file.length();
+      _say('Saved ${file.uri.pathSegments.last} (${_size(size)}).');
+    } catch (_) {
+      _say("Ambience couldn't be saved there. Try the Download folder.");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restoreAmbience() async {
+    final path = await ref.read(ambienceBackupPickerProvider)(context);
+    if (path == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final ambience = await ref.read(ambienceForBackupProvider)();
+      if (ambience == null) return _say("Ambience isn't available on this phone.");
+      final r = await restoreAmbienceBackup(ambience, path);
+      String n(int c, String one) => '$c $one${c == 1 ? '' : 's'}';
+      _say(r.sounds + r.mixes + r.banners == 0
+          ? 'Nothing new: this phone already has what the backup holds.'
+          : 'Added ${n(r.sounds, 'sound')}, ${r.mixes} ${r.mixes == 1 ? 'mix' : 'mixes'} and ${n(r.banners, 'banner')}.');
+    } on AmbienceException catch (e) {
+      _say(e.message);
+    } catch (_) {
+      _say("The Ambience backup couldn't be put back.");
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -521,6 +562,33 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 padding: EdgeInsets.only(top: 16),
                 child: Center(child: CircularProgressIndicator()),
               ),
+            const Divider(height: 40),
+            Text('Ambience', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Your sound files, mixes, volumes, pictures, banners and bedtime schedule, in one file of their own '
+              '(it can be large). Restoring adds what this phone lacks and replaces nothing.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  key: const Key('ambience-backup'),
+                  onPressed: _busy ? null : _backUpAmbience,
+                  icon: const Icon(Icons.save_alt_rounded),
+                  label: const Text('Back up Ambience'),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('ambience-restore'),
+                  onPressed: _busy ? null : _restoreAmbience,
+                  icon: const Icon(Icons.settings_backup_restore_rounded),
+                  label: const Text('Restore Ambience'),
+                ),
+              ],
+            ),
           ],
         ),
       ),

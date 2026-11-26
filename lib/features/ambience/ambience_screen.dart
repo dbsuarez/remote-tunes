@@ -109,6 +109,10 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
         pickFolder: _pickFolder,
         setIcon: ambience.setIcon,
         setBoost: ambience.setBoost,
+        schedule: () => ambience.schedule,
+        setSchedule: ambience.setSchedule,
+        nextStart: () => ambience.nextStart,
+        night: true,
         banners: AmbienceBanners(
           of: (group) {
             final b = ambience.banner(group);

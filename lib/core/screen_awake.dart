@@ -34,3 +34,24 @@ class ScreenAwake {
     }
   }
 }
+
+/// This app's screen brightness, while its window shows (the phone's own setting is not changed).
+class ScreenDim {
+  ScreenDim._();
+
+  static const _channel = MethodChannel('remotetunes/group');
+
+  /// Replaced in tests.
+  static Future<void> Function(double? level) apply = _setNative;
+
+  static Future<void> _setNative(double? level) async {
+    try {
+      await _channel.invokeMethod<void>('brightness', {'level': level ?? -1.0});
+    } catch (_) {
+      // Not on Android, or refused: the screen is black anyway.
+    }
+  }
+
+  /// 0 to 1, or null for the phone's usual brightness.
+  static Future<void> set(double? level) => apply(level);
+}

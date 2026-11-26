@@ -152,6 +152,8 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     },
   );
   ambienceEngine.onMustPause = ambience.pause;
+  // Read now, so a bedtime schedule is watched from the start.
+  unawaited(ambience.load().catchError((Object _) {}));
   final disconnectAmbience = connectAmbience(ambience, localEngine, handler,
       name: () => ref.read(settingsProvider).valueOrNull?.ambienceName ?? AppSettings.defaultAmbienceName);
   ref.onDispose(() {

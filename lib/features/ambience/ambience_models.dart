@@ -174,6 +174,44 @@ class AmbienceState {
   }
 }
 
+/// Starting a mix by itself at a time of day.
+class AmbienceSchedule {
+  const AmbienceSchedule({this.enabled = false, this.hour = 20, this.minute = 0, this.mixId = 'sleep', this.timerMinutes = 60});
+
+  final bool enabled;
+  final int hour;
+  final int minute;
+  final String mixId;
+
+  /// The sleep timer it starts with; null plays until stopped.
+  final int? timerMinutes;
+
+  AmbienceSchedule copyWith({bool? enabled, int? hour, int? minute, String? mixId}) => AmbienceSchedule(
+      enabled: enabled ?? this.enabled,
+      hour: hour ?? this.hour,
+      minute: minute ?? this.minute,
+      mixId: mixId ?? this.mixId,
+      timerMinutes: timerMinutes);
+
+  AmbienceSchedule withTimer(int? minutes) =>
+      AmbienceSchedule(enabled: enabled, hour: hour, minute: minute, mixId: mixId, timerMinutes: minutes);
+
+  Map<String, dynamic> toJson() =>
+      {'on': enabled, 'hour': hour, 'minute': minute, 'mix': mixId, if (timerMinutes != null) 'timer': timerMinutes};
+
+  static AmbienceSchedule fromJson(Object? j) {
+    if (j is! Map) return const AmbienceSchedule();
+    int part(String key, int otherwise, int max) => j[key] is num ? (j[key] as num).toInt().clamp(0, max) : otherwise;
+    return AmbienceSchedule(
+      enabled: j['on'] == true,
+      hour: part('hour', 20, 23),
+      minute: part('minute', 0, 59),
+      mixId: j['mix'] is String ? j['mix'] as String : 'sleep',
+      timerMinutes: j['timer'] is num ? (j['timer'] as num).toInt().clamp(1, 720) : null,
+    );
+  }
+}
+
 /// What the Ambience screen can do, on the playing phone or from the other one. Listen to it to hear of
 /// changes.
 abstract class AmbienceControls implements Listenable {

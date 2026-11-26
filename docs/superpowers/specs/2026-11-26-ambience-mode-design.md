@@ -30,7 +30,7 @@ The repository and releases are public, so no third-party recordings are shipped
 - `AmbienceController` (plain Dart): sounds, mixes, volumes, timer; talks to an `AmbienceEngine` interface so the engine can be swapped and tests need no audio.
 - The existing audio service shows the ambience notification and keeps the app alive; audio focus through `audio_session`.
 - The other phone sends `ambience` commands and reads `getAmbience`; the playing phone enforces the maximum volume.
-- Settings are kept on the playing phone. Not in backups (yet): the sound files would not travel with them.
+- Settings are kept on the playing phone. Not in the ordinary backup: since `v1.0.31` Ambience has a backup file of its own (`.rtambience`) that carries the sound files too.
 
 ## To check on a phone
 Gaps when MP3 files loop, battery over a night with 12 sounds, and that Android keeps it running with the screen off.

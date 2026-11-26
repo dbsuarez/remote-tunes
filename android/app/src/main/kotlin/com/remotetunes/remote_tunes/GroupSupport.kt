@@ -60,6 +60,16 @@ class GroupSupport(
                     }
                     result.success(null)
                 }
+                "brightness" -> {
+                    // This window only; -1 is the phone's usual brightness.
+                    val level = (call.argument<Double>("level") ?: -1.0).toFloat()
+                    activity.runOnUiThread {
+                        val params = activity.window.attributes
+                        params.screenBrightness = level
+                        activity.window.attributes = params
+                    }
+                    result.success(null)
+                }
                 "outputRoute" -> result.success(outputRoute())
                 "outputLatencyMs" -> result.success(outputLatencyMs())
                 else -> result.notImplemented()

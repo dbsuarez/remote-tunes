@@ -9,6 +9,7 @@ import 'ambience_banner.dart';
 import 'ambience_icons.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
+import 'ambience_night.dart';
 import 'ambience_style.dart';
 
 /// A group's own banner as the view needs it.
@@ -39,10 +40,22 @@ class AmbienceOwner {
     this.setIcon,
     this.setBoost,
     this.banners,
+    this.schedule,
+    this.setSchedule,
+    this.nextStart,
+    this.night = false,
     this.watchedFolder,
     this.watchFolder,
     this.checkFolder,
   });
+
+  /// The bedtime schedule (null: not offered).
+  final AmbienceSchedule Function()? schedule;
+  final Future<void> Function(AmbienceSchedule schedule)? setSchedule;
+  final DateTime? Function()? nextStart;
+
+  /// Whether night mode (a nearly black screen) is offered.
+  final bool night;
 
   /// Pictures of the owner's own across the top of the groups. Null: not offered.
   final AmbienceBanners? banners;
@@ -437,6 +450,21 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     if (_pages.hasClients) _pages.jumpToPage(pages.indexOf(page));
   }
 
+  Future<void> _editSchedule() async {
+    final owner = widget.owner!;
+    final chosen = await showDialog<AmbienceSchedule>(
+      context: context,
+      builder: (_) => _ScheduleDialog(initial: owner.schedule!(), state: _c.state),
+    );
+    if (chosen == null) return;
+    await _run(() => owner.setSchedule!(chosen));
+    if (mounted) setState(() {});
+  }
+
+  void _night() => Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(builder: (_) => AmbienceNightScreen(controls: _c, nextStart: widget.owner?.nextStart)),
+      );
+
   /// The banner height set last, offered for the next new picture.
   double? _lastAspect;
 
@@ -826,7 +854,11 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 round('amb-home', 'Ready sounds', Icons.home_rounded, () => _goTo(pages, null)),
-                round('amb-timer', 'Sleep timer', Icons.alarm_rounded, widget.enabled ? _timer : null, lit: timer != null),
+                round('amb-timer', 'Sleep timer', Icons.timer_rounded, widget.enabled ? _timer : null, lit: timer != null),
+                if (widget.owner?.setSchedule != null)
+                  round('amb-schedule', 'Bedtime schedule', Icons.alarm_rounded, _editSchedule,
+                      lit: widget.owner!.schedule!().enabled),
+                if (widget.owner?.night ?? false) round('amb-night', 'Night mode', Icons.bedtime_rounded, _night),
                 round('amb-groups', 'All groups', Icons.dashboard_rounded, () => _groups(pages)),
                 if (widget.owner != null) round('amb-max', 'Maximum volume', Icons.hearing_rounded, _maxVolume),
               ],
@@ -1500,4 +1532,97 @@ class _BoostDialogState extends State<_BoostDialog> {
           FilledButton(key: const Key('amb-boost-save'), onPressed: () => Navigator.pop(context, _value), child: const Text('Save')),
         ],
       );
+}
+
+/// When a mix starts by itself.
+class _ScheduleDialog extends StatefulWidget {
+  const _ScheduleDialog({required this.initial, required this.state});
+
+  final AmbienceSchedule initial;
+  final AmbienceState state;
+
+  @override
+  State<_ScheduleDialog> createState() => _ScheduleDialogState();
+}
+
+class _ScheduleDialogState extends State<_ScheduleDialog> {
+  late AmbienceSchedule _s = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final mixes = widget.state.mixes;
+    // Those that can play now come first.
+    bool playable(AmbienceMix m) => m.layers.keys.any((id) => widget.state.sound(id)?.available ?? false);
+    final ordered = [...mixes.where(playable), ...mixes.where((m) => !playable(m))];
+    final mixId = ordered.any((m) => m.id == _s.mixId) ? _s.mixId : ordered.first.id;
+    final time = TimeOfDay(hour: _s.hour, minute: _s.minute);
+    return AlertDialog(
+      title: const Text('Bedtime schedule'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                key: const Key('sch-on'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Start by itself every day'),
+                value: _s.enabled,
+                onChanged: (v) => setState(() => _s = _s.copyWith(enabled: v)),
+              ),
+              ListTile(
+                key: const Key('sch-time'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('At'),
+                trailing: Text(time.format(context), style: Theme.of(context).textTheme.titleLarge),
+                onTap: () async {
+                  final picked = await showTimePicker(context: context, initialTime: time);
+                  if (picked != null) setState(() => _s = _s.copyWith(hour: picked.hour, minute: picked.minute));
+                },
+              ),
+              const Text('Mix'),
+              DropdownButton<String>(
+                key: const Key('sch-mix'),
+                isExpanded: true,
+                value: mixId,
+                items: [
+                  for (final m in ordered)
+                    DropdownMenuItem(value: m.id, child: Text(playable(m) ? m.name : '${m.name} (needs files)', overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _s = _s.copyWith(mixId: v)),
+              ),
+              const SizedBox(height: 8),
+              const Text('Stop after'),
+              DropdownButton<int>(
+                key: const Key('sch-timer'),
+                isExpanded: true,
+                value: _s.timerMinutes ?? 0,
+                items: [
+                  for (final m in {0, ...ambienceTimers, if (_s.timerMinutes != null) _s.timerMinutes!})
+                    DropdownMenuItem(value: m, child: Text(m == 0 ? 'Until I stop it' : _timerLabel(m))),
+                ],
+                onChanged: (v) => setState(() => _s = _s.withTimer(v == null || v == 0 ? null : v)),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'It can only start while RemoteTunes is running. To be sure: leave it open in night mode '
+                '(the moon button), with the phone charging.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          key: const Key('sch-save'),
+          onPressed: () => Navigator.pop(context, _s.copyWith(mixId: mixId)),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
 }

@@ -65,6 +65,12 @@ class AmbienceException implements Exception {
   String toString() => message;
 }
 
+/// What a restored backup added.
+typedef AmbienceRestore = ({int sounds, int mixes, int banners});
+
+/// A scheduled start still happens this long after its time (the phone may have been busy), not later.
+const ambienceLateStart = Duration(minutes: 10);
+
 /// The file types the player can loop.
 const ambienceExtensions = {'mp3', 'ogg', 'wav', 'flac'};
 
@@ -97,6 +103,9 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   final Map<String, double> _gain = {}; // sound id -> the measured evening-out of its file
   final Map<String, double> _boost = {}; // sound id -> the owner's louder (above 1) or softer
   String? _folder;
+  AmbienceSchedule _schedule = const AmbienceSchedule();
+  String? _ranOn; // the day the schedule last started
+  Timer? _bedtime;
   final Map<String, ({String file, String? source, BannerFraming framing})> _banners = {}; // by group
   final Map<String, AmbienceBanner> _bannerPaths = {}; // the same, with where the files are
   final List<AmbienceMix> _mixes = [];
@@ -148,6 +157,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
               (file: v['file'] as String, source: v['source'] is String ? v['source'] as String : null, framing: BannerFraming.fromJson(v));
         }
       }
+      _schedule = AmbienceSchedule.fromJson(j['schedule']);
+      if (j['ranOn'] is String) _ranOn = j['ranOn'] as String;
       if (j['folder'] is String) _folder = j['folder'] as String;
       if (j['empty'] is List) _keptEmpty.addAll([for (final id in j['empty'] as List) if (id is String) id]);
       if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
@@ -170,6 +181,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       await _findBanner(group);
     }
     notifyListeners();
+    _watchBedtime();
   }
 
   Future<void> _save() async {
@@ -180,6 +192,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         'env': _environments.toList(),
         'icons': _icons,
         'empty': _keptEmpty.toList(),
+        'schedule': _schedule.toJson(),
+        if (_ranOn != null) 'ranOn': _ranOn,
         'banners': {
           for (final e in _banners.entries)
             e.key: {'file': e.value.file, if (e.value.source != null) 'source': e.value.source, ...e.value.framing.toJson()},
@@ -554,6 +568,184 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         await _save();
       });
 
+  // ------------------------------------------------------------- bedtime
+
+  AmbienceSchedule get schedule => _schedule;
+
+  /// When the schedule starts next, or null if it is off.
+  DateTime? get nextStart {
+    if (!_schedule.enabled) return null;
+    final now = _now();
+    var at = DateTime(now.year, now.month, now.day, _schedule.hour, _schedule.minute);
+    if (_ranOn == _day(at) || now.difference(at) >= ambienceLateStart) {
+      at = DateTime(now.year, now.month, now.day + 1, _schedule.hour, _schedule.minute);
+    }
+    return at;
+  }
+
+  static String _day(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+  Future<void> setSchedule(AmbienceSchedule schedule) async {
+    await load();
+    // A new time may be later today: it is allowed to run again.
+    if (schedule.hour != _schedule.hour || schedule.minute != _schedule.minute || !_schedule.enabled) _ranOn = null;
+    _schedule = schedule;
+    // A time that has just passed means tomorrow, not "start now".
+    final now = _now();
+    final at = DateTime(now.year, now.month, now.day, schedule.hour, schedule.minute);
+    if (schedule.enabled && _ranOn == null && !now.isBefore(at)) _ranOn = _day(at);
+    notifyListeners();
+    await _save();
+    _watchBedtime();
+  }
+
+  void _watchBedtime() {
+    _bedtime?.cancel();
+    _bedtime = null;
+    if (!_schedule.enabled) return;
+    _bedtime = Timer.periodic(const Duration(seconds: 15), (_) => unawaited(checkBedtime()));
+    unawaited(checkBedtime());
+  }
+
+  /// Starts the scheduled mix if its time has come (it only can while the app is running).
+  Future<void> checkBedtime() async {
+    if (!_schedule.enabled) return;
+    final now = _now();
+    final at = DateTime(now.year, now.month, now.day, _schedule.hour, _schedule.minute);
+    if (now.isBefore(at) || now.difference(at) >= ambienceLateStart || _ranOn == _day(at)) return;
+    _ranOn = _day(at);
+    await _save();
+    try {
+      await setTimer(_schedule.timerMinutes);
+      await startMix(_schedule.mixId);
+    } catch (e) {
+      _error = 'The bedtime mix could not start: $e';
+      notifyListeners();
+    }
+  }
+
+  // ------------------------------------------------------------- backup
+
+  /// Everything to put in a backup: the choices, and the files they name (name to path).
+  Future<({Map<String, dynamic> data, Map<String, String> files})> exportData() async {
+    await load();
+    await _save();
+    final data = Map<String, dynamic>.from(jsonDecode(await store.read() ?? '{}') as Map)
+      // Where files were on this phone means nothing on another.
+      ..remove('folder')
+      ..remove('ranOn');
+    final paths = <String, String>{};
+    Future<void> add(String id, String saved) async {
+      final path = await files.pathFor(id, saved);
+      if (path != null) paths[saved] = path;
+    }
+
+    for (final e in _saved.entries) {
+      await add(e.key, e.value);
+    }
+    for (final b in _banners.values) {
+      await add('banner', b.file);
+      if (b.source != null) await add('banner', b.source!);
+    }
+    return (data: data, files: paths);
+  }
+
+  /// Adds what a backup holds that this phone lacks. Nothing here is replaced. [backup] maps the names the
+  /// backup uses to where those files are now.
+  Future<AmbienceRestore> importData(Map<String, dynamic> data, Map<String, String> backup) async {
+    await load();
+    var sounds = 0, mixes = 0, banners = 0;
+    final untouched = _saved.isEmpty && _mixes.isEmpty && _active.isEmpty;
+    Map<String, dynamic> map(String key) => data[key] is Map ? Map<String, dynamic>.from(data[key] as Map) : const {};
+    final theirOwn = map('own');
+    final theirEnv = data['env'] is List ? {...(data['env'] as List).whereType<String>()} : <String>{};
+    final renamed = <String, String>{}; // their sound id -> ours
+
+    for (final e in map('files').entries) {
+      var id = e.key;
+      final path = backup[e.value];
+      final own = theirOwn[id];
+      if (own is String) {
+        // A sound of that name already here is the same sound.
+        final same = _own.entries
+            .where((o) => o.value.toLowerCase() == own.toLowerCase() && _environments.contains(o.key) == theirEnv.contains(id))
+            .map((o) => o.key)
+            .firstOrNull;
+        if (same != null) {
+          renamed[id] = same;
+          continue;
+        }
+      } else if (!ambienceCatalog.any((s) => s.id == id)) {
+        continue;
+      }
+      if (_saved.containsKey(id) || path == null) continue;
+      try {
+        _saved[id] = await files.add(id, path);
+      } catch (_) {
+        continue;
+      }
+      if (own is String) {
+        _own[id] = own;
+        if (theirEnv.contains(e.key)) _environments.add(id);
+      }
+      _keptEmpty.remove(id);
+      sounds++;
+      for (final (key, into) in [('gain', _gain), ('boost', _boost)]) {
+        final v = map(key)[e.key];
+        if (v is num) into[id] = v.toDouble().clamp(0.2, 12.0);
+      }
+    }
+    String ours(String id) => renamed[id] ?? id;
+    for (final e in map('icons').entries) {
+      if (e.value is String) _icons.putIfAbsent(ours(e.key), () => e.value as String);
+    }
+    for (final e in map('boost').entries) {
+      if (e.value is num) _boost.putIfAbsent(ours(e.key), () => (e.value as num).toDouble().clamp(0.25, 4.0));
+    }
+    for (final raw in data['mixes'] is List ? data['mixes'] as List : const []) {
+      final mix = AmbienceMix.fromJson(raw);
+      if (mix == null || _mixes.any((m) => m.name.toLowerCase() == mix.name.toLowerCase())) continue;
+      final taken = _mixes.any((m) => m.id == mix.id);
+      _mixes.add(AmbienceMix(
+        id: taken ? 'mix-${_now().microsecondsSinceEpoch}-$mixes' : mix.id,
+        name: mix.name,
+        layers: {for (final l in mix.layers.entries) ours(l.key): l.value},
+      ));
+      mixes++;
+    }
+    for (final e in map('banners').entries) {
+      final v = e.value;
+      if (_banners.containsKey(e.key) || v is! Map) continue;
+      final image = backup[v['file']];
+      if (image == null) continue;
+      try {
+        final file = await files.add('banner', image);
+        final from = backup[v['source']];
+        final source = from == null ? null : await files.add('bannersrc', from);
+        _banners[e.key] = (file: file, source: source, framing: BannerFraming.fromJson(v));
+        await _findBanner(e.key);
+        banners++;
+      } catch (_) {
+        // A picture that cannot be copied is left out.
+      }
+    }
+    // A phone with nothing set up takes the rest too.
+    if (untouched) {
+      _active
+        ..clear()
+        ..addAll({for (final l in readLayers(data['active']).entries) ours(l.key): l.value});
+      if (data['master'] is num) _master = (data['master'] as num).toDouble().clamp(0.0, 1.0);
+      if (data['max'] is num) _max = min(_max, (data['max'] as num).toDouble().clamp(0.0, 1.0));
+      if (data['timer'] is num) _timer = (data['timer'] as num).toInt();
+      _left = (_timer ?? 0) * 60;
+      if (!_schedule.enabled) await setSchedule(AmbienceSchedule.fromJson(data['schedule']));
+    }
+    _active.removeWhere((id, _) => !_hasAudio(id));
+    notifyListeners();
+    await _save();
+    return (sounds: sounds, mixes: mixes, banners: banners);
+  }
+
   /// The owner's own banner of a group, or null.
   AmbienceBanner? banner(String group) => _bannerPaths[group];
 
@@ -647,6 +839,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
 
   @override
   void dispose() {
+    _bedtime?.cancel();
     _tick?.cancel();
     super.dispose();
   }
