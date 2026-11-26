@@ -108,7 +108,12 @@ abstract class MusicSource {
 
 /// Controller side: every call is a protocol request to the Player.
 class RemoteMusicSource implements MusicSource {
-  RemoteMusicSource(this._client);
+  /// The same connection always gives the same source (see `LocalMusicSource`).
+  factory RemoteMusicSource(ControllerClient client) => _made[client] ??= RemoteMusicSource._(client);
+
+  RemoteMusicSource._(this._client);
+
+  static final _made = Expando<RemoteMusicSource>('RemoteMusicSource');
 
   final ControllerClient _client;
 

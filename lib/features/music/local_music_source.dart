@@ -12,7 +12,18 @@ import 'music_source.dart';
 
 /// Player side: direct calls into the library and the engine.
 class LocalMusicSource implements MusicSource {
-  LocalMusicSource(this._library, this._engine);
+  /// The same library and player always give the same source. Screens ask for it on every redraw
+  /// (several times a second while a song plays), and what rows remember (their pictures) belongs to
+  /// the source: a new one each time made them reload and flash.
+  factory LocalMusicSource(PlayerLibrary library, QueueAwareEngine engine) {
+    final known = _made[engine];
+    if (known != null && identical(known._library, library)) return known;
+    return _made[engine] = LocalMusicSource._(library, engine);
+  }
+
+  LocalMusicSource._(this._library, this._engine);
+
+  static final _made = Expando<LocalMusicSource>('LocalMusicSource');
 
   final PlayerLibrary _library;
   final QueueAwareEngine _engine;
