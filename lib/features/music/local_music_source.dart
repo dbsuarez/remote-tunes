@@ -162,7 +162,7 @@ class LocalMusicSource implements MusicSource {
       return;
     }
     final start = startSongId == null
-        ? 0
+        ? null
         : songs.indexWhere((s) => s.id == startSongId).clamp(0, songs.length - 1);
     await _engine.playSongs(songs, startIndex: start);
   }

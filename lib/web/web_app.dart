@@ -446,6 +446,7 @@ class WebCloudPage extends ConsumerWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820),
             child: CloudLibraryView(
+              shuffleOn: () => client.current.playback.shuffleEnabled,
               onOpenSettings: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
               ),

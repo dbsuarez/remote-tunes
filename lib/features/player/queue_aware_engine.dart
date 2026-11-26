@@ -8,7 +8,9 @@ import 'queue/playable_song.dart';
 /// accepting queue commands.
 abstract class QueueAwareEngine implements PlaybackEngine {
   /// Replaces the queue and starts playing [songs] at [startIndex].
-  Future<void> playSongs(List<PlayableSong> songs, {int startIndex = 0});
+  /// [startIndex] is the song picked to start. Null (no song picked, as with *Play all*): the first,
+  /// or any of them when shuffle is on.
+  Future<void> playSongs(List<PlayableSong> songs, {int? startIndex});
 
   /// Plays [songs] now without clearing the queue: they go in right after the
   /// current song, and the first one starts.

@@ -143,7 +143,7 @@ class ControlModeEngine implements QueueAwareEngine, ControlModeCapable, GroupSy
   // ------------------------------------------- queue / library (own player only)
 
   @override
-  Future<void> playSongs(List<PlayableSong> songs, {int startIndex = 0}) =>
+  Future<void> playSongs(List<PlayableSong> songs, {int? startIndex}) =>
       _isExternal ? Future.error(_unavailable()) : _local.playSongs(songs, startIndex: startIndex);
 
   @override

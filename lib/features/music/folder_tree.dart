@@ -113,6 +113,16 @@ class _FolderTreeViewState extends State<FolderTreeView> {
     }
   }
 
+  /// The folder's Play button: no song is picked, so shuffle decides where it starts.
+  Future<void> _playFolder() async {
+    final ready = [for (final s in _songs) if (s.available) s.id];
+    try {
+      await widget.source.playSongs(ready.isEmpty ? [for (final s in _songs) s.id] : ready);
+    } catch (e) {
+      _snack(friendlyError(e));
+    }
+  }
+
   void _snack(String text) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -162,7 +172,7 @@ class _FolderTreeViewState extends State<FolderTreeView> {
                 ),
                 if (_songs.isNotEmpty)
                   TextButton.icon(
-                    onPressed: () => _playFrom(_songs.firstWhere((s) => s.available, orElse: () => _songs.first)),
+                    onPressed: _playFolder,
                     icon: const Icon(Icons.play_arrow_rounded),
                     label: const Text('Play'),
                   ),

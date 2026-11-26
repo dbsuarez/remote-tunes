@@ -233,7 +233,8 @@ class RemoteMusicSource implements MusicSource {
           {int? startSongId, bool keepQueue = false}) =>
       _client.sendCommand(RemoteActions.playSong, {
         'songIds': songIds,
-        'songId': startSongId ?? songIds.first,
+        // Left out when no song was picked: the Player then chooses (any song with shuffle on).
+        if (startSongId != null) 'songId': startSongId,
         if (keepQueue) 'keepQueue': true,
       });
 

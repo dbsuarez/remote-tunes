@@ -1,6 +1,7 @@
 import 'audiobook_tracker.dart';
 import 'playback_log.dart';
 import 'dart:async';
+import 'dart:math';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -911,8 +912,10 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
 
   // ------------------------------------------------------------------- queue
 
+  final _random = Random();
+
   @override
-  Future<void> playSongs(List<PlayableSong> songs, {int startIndex = 0}) =>
+  Future<void> playSongs(List<PlayableSong> songs, {int? startIndex}) =>
       _serial(() async {
         if (songs.isEmpty) {
           throw PlaybackException(
@@ -920,9 +923,20 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
             'There are no songs to play.',
           );
         }
-        _queue.replace(songs, startIndex: startIndex);
+        _queue.replace(songs, startIndex: startIndex ?? _startOfList(songs));
         await _startEntry(_queue.current!, autoplay: true);
       });
+
+  /// Where a list starts when no song was picked: any song that can play with shuffle on, else the
+  /// first. A list of audiobooks starts at the beginning.
+  int _startOfList(List<PlayableSong> songs) {
+    if (!_queue.shuffle || (audiobooks?.isAudiobook(songs.first.id) ?? false)) return 0;
+    final playable = [
+      for (var i = 0; i < songs.length; i++)
+        if (songs[i].isUrl || _fileExists(songs[i].filePath!)) i,
+    ];
+    return playable.isEmpty ? 0 : playable[_random.nextInt(playable.length)];
+  }
 
   @override
   Future<void> playNow(List<PlayableSong> songs) => _serial(() async {

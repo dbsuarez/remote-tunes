@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../core/utils/shuffle_start.dart';
 import '../../core/widgets/default_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,7 @@ class OnlineLibraryView extends ConsumerStatefulWidget {
   const OnlineLibraryView({
     super.key,
     required this.onTrack,
+    this.shuffleOn,
     this.history,
     this.enabled = true,
     this.suggestions = false,
@@ -43,6 +45,9 @@ class OnlineLibraryView extends ConsumerStatefulWidget {
 
   /// False while the Controller is reconnecting.
   final bool enabled;
+
+  /// Whether the player is shuffling now (then *Play all* and *Add all* start on any track).
+  final bool Function()? shuffleOn;
 
   @override
   ConsumerState<OnlineLibraryView> createState() => _OnlineLibraryViewState();
@@ -212,8 +217,12 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> with Widg
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// Plays the first track and queues the rest.
-  Future<void> _playAll(List<JamendoTrack> tracks) async {
+  List<JamendoTrack> _ordered(List<JamendoTrack> tracks) =>
+      startAnywhere(tracks, shuffle: widget.shuffleOn?.call() ?? false);
+
+  /// Plays the first track (any track with shuffle on) and queues the rest.
+  Future<void> _playAll(List<JamendoTrack> list) async {
+    final tracks = _ordered(list);
     try {
       for (var i = 0; i < tracks.length; i++) {
         await widget.onTrack(tracks[i], queue: i > 0);
@@ -224,7 +233,8 @@ class _OnlineLibraryViewState extends ConsumerState<OnlineLibraryView> with Widg
     }
   }
 
-  Future<void> _queueAll(List<JamendoTrack> tracks) async {
+  Future<void> _queueAll(List<JamendoTrack> list) async {
+    final tracks = _ordered(list);
     try {
       for (final t in tracks) {
         await widget.onTrack(t, queue: true);

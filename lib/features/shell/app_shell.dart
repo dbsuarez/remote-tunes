@@ -430,6 +430,7 @@ class _Active {
           icon: Icons.public_rounded,
           color: RtColors.violet,
           builder: (_) => OnlineLibraryView(
+            shuffleOn: () => client.current.playback.shuffleEnabled,
             suggestions: suggestions,
             enabled: enabled,
             history: ClientHistorySource(client),
@@ -468,6 +469,7 @@ class _Active {
           icon: Icons.cloud_rounded,
           color: const Color(0xFF64B5F6),
           builder: (ctx) => CloudLibraryView(
+            shuffleOn: () => client.current.playback.shuffleEnabled,
             enabled: enabled,
             onOpenSettings: () => Navigator.of(ctx).push(
               MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
@@ -542,6 +544,7 @@ class _Active {
           icon: Icons.public_rounded,
           color: RtColors.violet,
           builder: (_) => OnlineLibraryView(
+            shuffleOn: () => core.engine.state.shuffleEnabled,
             suggestions: suggestions,
             onTrack: (t, {required queue}) async {
               if (queue) {
@@ -583,6 +586,7 @@ class _Active {
           icon: Icons.cloud_rounded,
           color: const Color(0xFF64B5F6),
           builder: (ctx) => CloudLibraryView(
+            shuffleOn: () => core.engine.state.shuffleEnabled,
             onOpenSettings: () => Navigator.of(ctx).push(
               MaterialPageRoute<void>(builder: (_) => const CloudSettingsScreen()),
             ),

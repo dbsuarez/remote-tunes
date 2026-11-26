@@ -1505,7 +1505,7 @@ class PlayerServer {
         }
         final startId = p['songId'] is num ? (p['songId'] as num).toInt() : null;
         final start = startId == null
-            ? 0
+            ? null
             : songs.indexWhere((s) => s.id == startId).clamp(0, songs.length - 1);
         await _queueEngine.playSongs(songs, startIndex: start);
       case RemoteActions.queueSong:

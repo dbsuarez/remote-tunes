@@ -284,6 +284,7 @@ class ControllerDashboard extends StatelessWidget {
                   child: p.isExternal
                       ? _ExternalNotice(app: p.externalApp)
                       : OnlineLibraryView(
+                          shuffleOn: () => client.current.playback.shuffleEnabled,
                           enabled: enabled,
                           history: ClientHistorySource(client),
                           // The Player streams the track itself: only the link

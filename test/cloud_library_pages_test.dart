@@ -312,6 +312,50 @@ void main() {
     });
   });
 
+  group('shuffle', () {
+    Future<Set<String>> firsts(WidgetTester tester, {required bool shuffle, required String button, int tries = 40}) async {
+      tester.view.physicalSize = const Size(500, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          cloudConfigStoreProvider.overrideWithValue(MemoryCloudStore(config)),
+          cloudServiceFactoryProvider.overrideWithValue((c) => CloudLibraryService(c, client: MockClient((r) async => r2.handle(r)))),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: CloudLibraryView(
+              shuffleOn: () => shuffle,
+              onTrack: (s, url, image, {required queue}) async => played.add(s.title),
+            ),
+          ),
+        ),
+      ));
+      await settle(tester);
+      final seen = <String>{};
+      for (var i = 0; i < tries; i++) {
+        played.clear();
+        await tester.tap(find.byKey(Key(button)));
+        await tester.pump();
+        expect(played.toSet(), hasLength(4), reason: 'every song once');
+        seen.add(played.first);
+      }
+      return seen;
+    }
+
+    for (final button in ['cloud-play-all', 'cloud-queue-all']) {
+      screenTest('$button starts on any song with shuffle on', (tester) async {
+        usual();
+        expect(await firsts(tester, shuffle: true, button: button), hasLength(greaterThan(1)));
+      });
+
+      screenTest('$button starts on the first with shuffle off', (tester) async {
+        usual();
+        expect(await firsts(tester, shuffle: false, button: button, tries: 5), {'Alpha Song'});
+      });
+    }
+  });
+
   group('without the keys', () {
     const readOnly = CloudConfig(publicUrl: 'https://pub-123.r2.dev');
 

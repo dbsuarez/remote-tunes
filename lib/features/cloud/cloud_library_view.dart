@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/shuffle_start.dart';
 import '../../core/widgets/default_art.dart';
 import '../../core/widgets/playback_widgets.dart' show formatDuration;
 import '../music/music_source.dart' show friendlyError;
@@ -30,7 +31,11 @@ class _Page {
 /// and queue. A device with the keys can also edit a song's details, make playlists and delete songs.
 /// Songs are put up from the Library (select songs, then Upload to cloud) or from the web page.
 class CloudLibraryView extends ConsumerStatefulWidget {
-  const CloudLibraryView({super.key, required this.onTrack, this.enabled = true, this.onOpenSettings, this.onUpload});
+  const CloudLibraryView(
+      {super.key, required this.onTrack, this.enabled = true, this.onOpenSettings, this.onUpload, this.shuffleOn});
+
+  /// Whether the player is shuffling now (then *Play all* and *Add all* start on any song).
+  final bool Function()? shuffleOn;
 
   /// Starts an upload of songs picked here (the web page; the phone uploads from the Library). Null: not offered.
   final Future<void> Function()? onUpload;
@@ -157,8 +162,11 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     }
   }
 
-  /// The first plays, the rest are queued.
-  Future<void> _playAll(List<CloudSong> songs) async {
+  List<CloudSong> _ordered(List<CloudSong> songs) => startAnywhere(songs, shuffle: widget.shuffleOn?.call() ?? false);
+
+  /// The first plays (any song with shuffle on), the rest are queued.
+  Future<void> _playAll(List<CloudSong> list) async {
+    final songs = _ordered(list);
     final config = ref.read(cloudConfigProvider).valueOrNull;
     if (config == null || songs.isEmpty) return;
     try {
@@ -172,7 +180,8 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     }
   }
 
-  Future<void> _queueAll(List<CloudSong> songs) async {
+  Future<void> _queueAll(List<CloudSong> list) async {
+    final songs = _ordered(list);
     final config = ref.read(cloudConfigProvider).valueOrNull;
     if (config == null || songs.isEmpty) return;
     try {
