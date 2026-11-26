@@ -8,6 +8,7 @@ import '../../core/permissions.dart';
 import '../../providers/connection_providers.dart' show playerCoreProvider;
 import '../../providers/library_providers.dart';
 import '../music/music_source.dart';
+import 'folder_browser.dart';
 import 'folder_choice.dart';
 import 'import_service.dart';
 
@@ -50,13 +51,8 @@ Future<bool> pickAndImportFolder(BuildContext context, WidgetRef ref) async {
     return false;
   }
 
-  final String? folder;
-  try {
-    folder = await FilePicker.platform.getDirectoryPath();
-  } catch (_) {
-    if (context.mounted) _snack(context, "Couldn't open the folder picker.");
-    return false;
-  }
+  final folder = await showFolderBrowser(context,
+      title: 'Add a music folder', systemPicker: () => FilePicker.platform.getDirectoryPath());
   if (folder == null || !context.mounted) return false;
 
   final service = await ref.read(importServiceProvider.future);
@@ -76,7 +72,7 @@ Future<bool> pickAndImportFolder(BuildContext context, WidgetRef ref) async {
   var removeExisting = false;
   if (scan.folders.isNotEmpty || stored.isNotEmpty || scan.files.length > 1) {
     final existing = (await ref.read(libraryRepositoryProvider).localSongFiles())
-        .where((s) => p.isWithin(folder!, s.path))
+        .where((s) => p.isWithin(folder, s.path))
         .length;
     if (!context.mounted) return false;
     final choice = await showFolderChoice(context,
@@ -88,7 +84,7 @@ Future<bool> pickAndImportFolder(BuildContext context, WidgetRef ref) async {
   if (!context.mounted) return false;
   return _runImport(
       context,
-      (onProgress) => service.importFolder(folder!,
+      (onProgress) => service.importFolder(folder,
           exclude: exclude, removeExcluded: removeExisting, onProgress: onProgress));
 }
 
@@ -269,19 +265,14 @@ Future<bool> pickAndImportAudiobookFolder(BuildContext context, WidgetRef ref) a
     await _explainPermission(context, permissions, permanent: access == PermissionOutcome.permanentlyDenied);
     return false;
   }
-  final String? folder;
-  try {
-    folder = await FilePicker.platform.getDirectoryPath();
-  } catch (_) {
-    if (context.mounted) _snack(context, "Couldn't open the folder picker.");
-    return false;
-  }
+  final folder = await showFolderBrowser(context,
+      title: 'Add an audiobook folder', systemPicker: () => FilePicker.platform.getDirectoryPath());
   if (folder == null || !context.mounted) return false;
   final service = await ref.read(importServiceProvider.future);
   if (!context.mounted) return false;
   final result = await _runJob(
     context,
-    (onProgress) => service.importFolder(folder!, audiobooks: true, onProgress: onProgress),
+    (onProgress) => service.importFolder(folder, audiobooks: true, onProgress: onProgress),
     title: 'Adding audiobooks',
   );
   await _refreshAudiobooks(ref);
