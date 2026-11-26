@@ -162,8 +162,8 @@ class _AmbienceViewState extends State<AmbienceView> {
             if (owner.setIcon != null)
               ListTile(
                 key: const Key('amb-icon'),
-                leading: Icon(ambienceIcon(s)),
-                title: Text('Change the icon of ${s.name}'),
+                leading: AmbiencePicture(ambienceIconName(s), size: 24),
+                title: Text('Change the picture of ${s.name}'),
                 onTap: () => Navigator.pop(ctx, 'icon'),
               ),
             if (!noise) ListTile(
@@ -335,7 +335,7 @@ class _AmbienceViewState extends State<AmbienceView> {
                         if (widget.owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
                           Padding(
                             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                            child: Text('Hold a sound to change its icon.', style: Theme.of(context).textTheme.bodySmall),
+                            child: Text('Hold a sound to change its picture.', style: Theme.of(context).textTheme.bodySmall),
                           ),
                         Wrap(
                           children: [
@@ -386,9 +386,8 @@ class _AmbienceViewState extends State<AmbienceView> {
                   _square(
                     theme,
                     color: on ? colors.primary : colors.surfaceContainerHighest,
-                    child: Icon(ambienceIcon(s),
-                        size: 30,
-                        color: on ? colors.onPrimary : colors.onSurfaceVariant.withValues(alpha: s.available ? 1 : 0.35)),
+                    child: AmbiencePicture(ambienceIconName(s),
+                        color: on ? colors.onPrimary : colors.onSurfaceVariant, faded: !s.available),
                   ),
                   if (!s.available)
                     Positioned(
@@ -694,51 +693,160 @@ class _ImportDialogState extends State<_ImportDialog> {
   }
 }
 
-/// The icon library, to choose a sound's icon from.
-class _IconSheet extends StatelessWidget {
+/// The picture library, to choose a sound's emoji or icon from, with a search.
+class _IconSheet extends StatefulWidget {
   const _IconSheet({required this.sound});
 
   final AmbienceSound sound;
 
   @override
+  State<_IconSheet> createState() => _IconSheetState();
+}
+
+class _IconSheetState extends State<_IconSheet> {
+  String _query = '';
+  bool _emoji = true;
+
+  /// The groups to show: name and (kept value, label) pairs.
+  List<({String group, List<({String value, String label})> pictures})> _groups() {
+    final q = _query.trim().toLowerCase();
+    final out = <({String group, List<({String value, String label})> pictures})>[];
+    // An emoji typed or pasted into the search is offered as it is.
+    if (q.isNotEmpty && q.runes.first > 0x2000 && q.length < 12) {
+      final typed = _query.trim();
+      out.add((group: 'Yours', pictures: [(value: '$ambienceEmojiPrefix$typed', label: typed)]));
+    }
+    // A search looks through both kinds.
+    if (_emoji || q.isNotEmpty) {
+      for (final g in ambienceEmoji.entries) {
+        final found = <({String value, String label})>[];
+        for (final entry in g.value) {
+          final space = entry.indexOf(' ');
+          final picture = entry.substring(0, space);
+          final words = entry.substring(space + 1);
+          if (q.isEmpty || words.contains(q) || g.key.toLowerCase().contains(q)) {
+            found.add((value: '$ambienceEmojiPrefix$picture', label: words));
+          }
+        }
+        if (found.isNotEmpty) out.add((group: g.key, pictures: found));
+      }
+    }
+    if (!_emoji || q.isNotEmpty) {
+      for (final g in ambienceIconGroups.entries) {
+        final found = [
+          for (final name in g.value.keys)
+            if (q.isEmpty || name.contains(q) || g.key.toLowerCase().contains(q)) (value: name, label: name.replaceAll('-', ' ')),
+        ];
+        if (found.isNotEmpty) out.add((group: q.isEmpty ? g.key : '${g.key} (icons)', pictures: found));
+      }
+    }
+    return out;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final current = ambienceIconName(sound);
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.7),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final current = ambienceIconName(widget.sound);
+    final groups = _groups();
+    return Padding(
+      // Above the keyboard while searching.
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.7,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Icon for ${sound.name}', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (final e in ambienceIconLibrary.entries)
-                    IconButton(
-                      key: ValueKey('amb-icon-${e.key}'),
-                      tooltip: e.key,
-                      iconSize: 28,
-                      isSelected: e.key == current,
-                      style: IconButton.styleFrom(
-                        backgroundColor: e.key == current ? colors.primary : colors.surfaceContainerHighest,
-                        foregroundColor: e.key == current ? colors.onPrimary : colors.onSurfaceVariant,
-                      ),
-                      icon: Icon(e.value),
-                      onPressed: () => Navigator.pop(context, (icon: e.key)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Picture for ${widget.sound.name}',
+                              maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium),
+                        ),
+                        TextButton(
+                          key: const Key('amb-icon-usual'),
+                          onPressed: () => Navigator.pop(context, (icon: null)),
+                          child: const Text('Use the usual'),
+                        ),
+                      ],
                     ),
-                ],
+                    TextField(
+                      key: const Key('amb-icon-search'),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'Search (frog, rain...) or type an emoji',
+                        isDense: true,
+                      ),
+                      onChanged: (v) => setState(() => _query = v),
+                    ),
+                    if (_query.trim().isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            ChoiceChip(
+                              key: const Key('amb-icon-tab-emoji'),
+                              label: const Text('Emoji'),
+                              selected: _emoji,
+                              onSelected: (_) => setState(() => _emoji = true),
+                            ),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              key: const Key('amb-icon-tab-icons'),
+                              label: const Text('Icons'),
+                              selected: !_emoji,
+                              onSelected: (_) => setState(() => _emoji = false),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                key: const Key('amb-icon-usual'),
-                onPressed: () => Navigator.pop(context, (icon: null)),
-                child: const Text('Use the usual icon'),
+              Expanded(
+                child: groups.isEmpty
+                    ? const Center(child: Text('Nothing found. Try another word, or type an emoji.'))
+                    : CustomScrollView(
+                        key: ValueKey('amb-icons-$_emoji'),
+                        slivers: [
+                          for (final g in groups) ...[
+                            SliverToBoxAdapter(child: _Heading(g.group)),
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              sliver: SliverGrid.builder(
+                                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                    maxCrossAxisExtent: 60, mainAxisSpacing: 6, crossAxisSpacing: 6),
+                                itemCount: g.pictures.length,
+                                itemBuilder: (context, i) {
+                                  final picture = g.pictures[i];
+                                  final chosen = picture.value == current;
+                                  return Tooltip(
+                                    message: picture.label,
+                                    child: Material(
+                                      color: chosen ? colors.primary : colors.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: InkWell(
+                                        key: ValueKey('amb-icon-${picture.value}'),
+                                        borderRadius: BorderRadius.circular(14),
+                                        onTap: () => Navigator.pop(context, (icon: picture.value)),
+                                        child: Center(
+                                          child: AmbiencePicture(picture.value,
+                                              size: 28, color: chosen ? colors.onPrimary : colors.onSurfaceVariant),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                        ],
+                      ),
               ),
             ],
           ),

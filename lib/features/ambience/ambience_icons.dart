@@ -2,67 +2,250 @@ import 'package:flutter/material.dart';
 
 import 'ambience_models.dart';
 
-/// The icons a sound can be given. Kept by name, so the choice reads the same on the other phone.
-const ambienceIconLibrary = <String, IconData>{
-  // weather and sky
+/// The pictures a sound can be given: emoji (colorful, and there is one for nearly everything) and line
+/// icons. A choice is kept as text, so it reads the same on the other phone: an icon by its name, an
+/// emoji as `emoji:` and the emoji.
+const ambienceEmojiPrefix = 'emoji:';
+
+/// Emoji by group, each "picture words".
+const ambienceEmoji = <String, List<String>>{
+  'Weather and sky': [
+    '🌧️ rain cloud', '🌦️ light rain sun', '⛈️ thunderstorm storm', '🌩️ lightning', '⚡ bolt thunder', '☔ umbrella rain',
+    '💧 drop water', '💦 splash drops', '❄️ snow flake cold', '🌨️ snowfall', '⛄ snowman', '🌬️ wind blow', '🌪️ tornado',
+    '🌫️ fog mist', '☁️ cloud', '⛅ partly cloudy', '☀️ sun', '🌤️ sunny', '🌈 rainbow', '🌙 moon crescent night',
+    '🌕 full moon', '🌛 moon face', '⭐ star', '🌟 glowing star', '✨ sparkles', '🌠 shooting star', '🌌 galaxy milky way',
+    '🌅 sunrise', '🌇 sunset', '🌃 night city', '☄️ comet', '🪐 planet space',
+    '🌡️ thermometer', '🌖 moon', '🌒 crescent moon', '🌚 new moon face', '🌞 sun face', '💨 gust dash',
+  ],
+  'Water': [
+    '🌊 wave ocean sea', '🏖️ beach', '🏝️ island', '⛵ sailboat', '🚤 speedboat', '🛶 canoe', '🚢 ship', '⚓ anchor',
+    '🐚 shell', '🫧 bubbles', '⛲ fountain', '🚿 shower', '🛁 bath', '🏊 swim pool', '🤿 diving', '🧊 ice', '🌀 swirl',
+  ],
+  'Land and plants': [
+    '🏞️ national park river', '⛰️ mountain', '🏔️ snowy mountain', '🌋 volcano', '🏜️ desert', '🪨 rock stone cave',
+    '🌲 pine tree forest', '🌳 tree', '🌴 palm', '🎋 bamboo', '🌿 herb leaves', '🍃 leaf wind', '🍂 autumn leaves',
+    '🍁 maple', '🌾 rice field grass', '🌱 sprout', '🌵 cactus', '🌸 blossom flower', '🌼 daisy', '🌻 sunflower',
+    '🌷 tulip', '🌺 hibiscus', '🪷 lotus lake', '🍄 mushroom', '🪵 wood log',
+  ],
+  'Animals': [
+    '🐦 bird', '🐤 chick', '🦉 owl', '🦅 eagle', '🕊️ dove', '🦆 duck', '🦢 swan', '🐓 rooster', '🐔 hen', '🦜 parrot',
+    '🐧 penguin', '🦩 flamingo', '🐸 frog swamp', '🦗 cricket', '🐝 bee', '🦋 butterfly', '🐞 ladybug', '🐛 caterpillar',
+    '🐜 ant', '🪰 fly', '🦟 mosquito', '🐌 snail', '🐠 fish', '🐟 fish', '🐡 puffer', '🐬 dolphin', '🐳 whale', '🐋 whale',
+    '🦈 shark', '🐙 octopus', '🦀 crab', '🦞 lobster', '🐢 turtle', '🐊 crocodile', '🐍 snake', '🦎 lizard', '🦕 dinosaur',
+    '🦖 trex dinosaur', '🐶 dog', '🐕 dog', '🐺 wolf', '🦊 fox', '🐱 cat purr', '🐈 cat', '🦁 lion', '🐯 tiger',
+    '🐴 horse', '🦄 unicorn', '🐮 cow', '🐷 pig', '🐑 sheep', '🐐 goat', '🐘 elephant', '🦒 giraffe', '🦓 zebra',
+    '🐒 monkey', '🐻 bear', '🐼 panda', '🐨 koala', '🐰 rabbit', '🐿️ squirrel', '🦔 hedgehog', '🐭 mouse', '🦇 bat',
+    '🐾 paw',
+    '🦥 sloth', '🦦 otter', '🦫 beaver', '🦭 seal', '🐆 leopard', '🐫 camel', '🦘 kangaroo', '🦌 deer', '🐗 boar', '🐹 hamster', '🦤 dodo', '🐦‍⬛ blackbird crow', '🪿 goose', '🐜 ants', '🪲 beetle', '🕷️ spider', '🪱 worm', '🪼 jellyfish',
+  ],
+  'Fire and places': [
+    '🔥 fire campfire', '🕯️ candle', '🏕️ camping', '⛺ tent', '🪔 lamp', '🏮 lantern', '🏠 house home', '🛖 hut cabin',
+    '🏡 garden house', '🏰 castle', '⛩️ shrine temple', '🛕 temple', '⛪ church', '🏙️ city', '🌉 bridge night',
+    '🎡 ferris wheel', '🎠 carousel', '🛝 playground', '🏫 school', '☕ coffee cafe', '🍵 tea', '🫖 kettle teapot',
+    '🍳 cooking', '📚 books library', '🕰️ clock', '⏰ alarm clock',
+  ],
+  'Travel and machines': [
+    '🚗 car ride', '🚙 car', '🚕 taxi', '🚌 bus', '🚚 truck', '🚜 tractor', '🚂 train steam', '🚆 train', '🚇 subway',
+    '✈️ airplane', '🚁 helicopter', '🚀 rocket space', '🛸 ufo', '🚲 bicycle', '🌀 fan', '🧺 laundry', '🧹 broom',
+    '💻 computer', '📻 radio', '⌨️ keyboard',
+  ],
+  'Sleep and play': [
+    '😴 sleep', '💤 zzz sleeping', '🛌 bed', '🛏️ bedroom', '👶 baby', '🧒 child', '🤱 mother', '🧸 teddy bear toy',
+    '🪀 yoyo', '🪁 kite', '🎈 balloon', '🎀 ribbon', '🎁 gift', '🧩 puzzle', '🎨 paint', '🖍️ crayon', '🪆 doll',
+    '🤖 robot', '👻 ghost', '🧚 fairy', '🧜 mermaid', '🐉 dragon', '👑 crown', '💖 heart', '❤️ heart', '💙 blue heart',
+    '💜 purple heart', '🙏 pray', '🧘 meditate calm', '😊 happy', '🥰 love',
+    '🌜 moon face goodnight', '🧦 socks', '🎪 circus tent', '⚽ ball', '🎯 target', '🫶 heart hands', '🍼 baby bottle', '🧁 cupcake',
+  ],
+  'Music': [
+    '🎵 note music', '🎶 notes', '🎼 score', '🎹 piano', '🎸 guitar', '🎻 violin', '🪕 banjo', '🎺 trumpet', '🎷 saxophone',
+    '🪈 flute', '🥁 drum', '🪘 long drum', '🔔 bell', '🎐 wind chime', '🎤 microphone sing', '🎧 headphones',
+  ],
+};
+
+/// Line icons by group, by name.
+const _weatherIcons = <String, IconData>{
   'drop': Icons.water_drop_rounded,
   'drizzle': Icons.grain_rounded,
   'storm': Icons.thunderstorm_rounded,
   'bolt': Icons.bolt_rounded,
   'cloud': Icons.cloud_rounded,
+  'cloud-open': Icons.cloud_queue_rounded,
+  'foggy': Icons.foggy,
   'umbrella': Icons.umbrella_rounded,
   'snow': Icons.ac_unit_rounded,
+  'snowing': Icons.snowing,
   'wind': Icons.air_rounded,
   'windmill': Icons.wind_power_rounded,
+  'cyclone': Icons.cyclone_rounded,
+  'tornado': Icons.tornado_rounded,
   'sun': Icons.wb_sunny_rounded,
+  'bright': Icons.light_mode_rounded,
   'sunset': Icons.wb_twilight_rounded,
+  'cloudy-sun': Icons.wb_cloudy_rounded,
   'moon': Icons.nightlight_round,
   'night': Icons.dark_mode_rounded,
+  'bedtime': Icons.bedtime_rounded,
   'stars': Icons.auto_awesome_rounded,
-  // water
+  'star': Icons.star_rounded,
+  'planet': Icons.public_rounded,
+  'thermostat': Icons.thermostat_rounded,
+  'flood': Icons.flood_rounded,
+};
+
+const _waterIcons = <String, IconData>{
   'waves': Icons.waves_rounded,
   'river': Icons.water_rounded,
+  'water-damage': Icons.water_damage_rounded,
   'pool': Icons.pool_rounded,
   'boat': Icons.sailing_rounded,
   'ship': Icons.directions_boat_rounded,
+  'kayak': Icons.kayaking_rounded,
+  'surf': Icons.surfing_rounded,
+  'dive': Icons.scuba_diving_rounded,
   'beach': Icons.beach_access_rounded,
   'shower': Icons.shower_rounded,
-  // land and living things
+  'bath': Icons.bathtub_rounded,
+  'bubbles': Icons.bubble_chart_rounded,
+  'anchor': Icons.anchor_rounded,
+  'tsunami': Icons.tsunami_rounded,
+};
+
+const _natureIcons = <String, IconData>{
   'landscape': Icons.landscape_rounded,
   'mountain': Icons.terrain_rounded,
+  'filter-hdr': Icons.filter_hdr_rounded,
+  'volcano': Icons.volcano_rounded,
   'tree': Icons.park_rounded,
   'forest': Icons.forest_rounded,
+  'nature-walk': Icons.nature_people_rounded,
   'grass': Icons.grass_rounded,
+  'yard': Icons.yard_rounded,
   'flower': Icons.local_florist_rounded,
+  'vintage-flower': Icons.filter_vintage_rounded,
   'leaf': Icons.eco_rounded,
+  'compost': Icons.compost_rounded,
   'nature': Icons.emoji_nature_rounded,
   'paw': Icons.pets_rounded,
   'rabbit': Icons.cruelty_free_rounded,
   'bird': Icons.flutter_dash,
   'bug': Icons.bug_report_rounded,
-  // fire and places
+  'hive': Icons.hive_rounded,
+  'egg': Icons.egg_rounded,
+};
+
+const _placeIcons = <String, IconData>{
   'fire': Icons.local_fire_department_rounded,
   'fireplace': Icons.fireplace_rounded,
+  'candle': Icons.candlestick_chart_rounded,
+  'lamp': Icons.light_rounded,
+  'bulb': Icons.lightbulb_rounded,
   'home': Icons.home_rounded,
+  'cottage': Icons.cottage_rounded,
   'cabin': Icons.cabin_rounded,
+  'house': Icons.house_rounded,
   'castle': Icons.castle_rounded,
+  'church': Icons.church_rounded,
+  'temple': Icons.temple_buddhist_rounded,
   'city': Icons.location_city_rounded,
+  'apartment': Icons.apartment_rounded,
+  'school': Icons.school_rounded,
+  'library': Icons.local_library_rounded,
+  'book': Icons.menu_book_rounded,
   'cafe': Icons.local_cafe_rounded,
-  // travel
+  'tea': Icons.emoji_food_beverage_rounded,
+  'kitchen': Icons.kitchen_rounded,
+  'store': Icons.storefront_rounded,
+  'attractions': Icons.attractions_rounded,
+  'playground': Icons.park_outlined,
+  'camp': Icons.holiday_village_rounded,
+  'clock': Icons.access_time_filled_rounded,
+  'hourglass': Icons.hourglass_bottom_rounded,
+};
+
+const _machineIcons = <String, IconData>{
   'car': Icons.directions_car_rounded,
+  'bus': Icons.directions_bus_rounded,
+  'truck': Icons.local_shipping_rounded,
   'train': Icons.train_rounded,
+  'tram': Icons.tram_rounded,
   'plane': Icons.flight_rounded,
-  // rest and play
+  'rocket': Icons.rocket_launch_rounded,
+  'bike': Icons.pedal_bike_rounded,
+  'motorbike': Icons.two_wheeler_rounded,
+  'tractor': Icons.agriculture_rounded,
+  'laundry': Icons.local_laundry_service_rounded,
+  'vacuum': Icons.cleaning_services_rounded,
+  'air-conditioner': Icons.heat_pump_rounded,
+  'microwave': Icons.microwave_rounded,
+  'computer': Icons.computer_rounded,
+  'keyboard': Icons.keyboard_rounded,
+  'radio': Icons.radio_rounded,
+  'tv': Icons.tv_rounded,
+};
+
+const _restIcons = <String, IconData>{
   'bed': Icons.bed_rounded,
+  'king-bed': Icons.king_bed_rounded,
+  'crib': Icons.crib_rounded,
+  'chair': Icons.chair_rounded,
   'baby': Icons.child_care_rounded,
+  'child': Icons.child_friendly_rounded,
+  'family': Icons.family_restroom_rounded,
   'toy': Icons.toys_rounded,
+  'toy-blocks': Icons.extension_rounded,
+  'robot': Icons.smart_toy_rounded,
+  'games': Icons.sports_esports_rounded,
+  'cake': Icons.cake_rounded,
+  'celebrate': Icons.celebration_rounded,
+  'gift': Icons.card_giftcard_rounded,
+  'palette': Icons.palette_rounded,
+  'brush': Icons.brush_rounded,
   'heart': Icons.favorite_rounded,
+  'hands': Icons.volunteer_activism_rounded,
+  'smile': Icons.sentiment_very_satisfied_rounded,
+  'face': Icons.face_rounded,
   'spa': Icons.spa_rounded,
   'calm': Icons.self_improvement_rounded,
-  'bell': Icons.notifications_rounded,
+  'mind': Icons.psychology_rounded,
+  'shield': Icons.shield_moon_rounded,
+};
+
+const _musicIcons = <String, IconData>{
   'note': Icons.music_note_rounded,
+  'queue-music': Icons.queue_music_rounded,
+  'library-music': Icons.library_music_rounded,
   'piano': Icons.piano_rounded,
+  'bell': Icons.notifications_rounded,
+  'chime': Icons.doorbell_rounded,
+  'mic': Icons.mic_rounded,
+  'headphones': Icons.headphones_rounded,
+  'speaker': Icons.speaker_rounded,
+  'album': Icons.album_rounded,
   'noise': Icons.graphic_eq_rounded,
+  'surround': Icons.surround_sound_rounded,
+  'voice': Icons.record_voice_over_rounded,
+  'hearing': Icons.hearing_rounded,
+};
+
+const ambienceIconGroups = <String, Map<String, IconData>>{
+  'Weather and sky': _weatherIcons,
+  'Water': _waterIcons,
+  'Land and animals': _natureIcons,
+  'Fire and places': _placeIcons,
+  'Travel and machines': _machineIcons,
+  'Sleep and play': _restIcons,
+  'Music': _musicIcons,
+};
+
+/// Every line icon by name.
+const ambienceIconLibrary = <String, IconData>{
+  ..._weatherIcons,
+  ..._waterIcons,
+  ..._natureIcons,
+  ..._placeIcons,
+  ..._machineIcons,
+  ..._restIcons,
+  ..._musicIcons,
 };
 
 const _usual = {
@@ -84,11 +267,40 @@ const _usual = {
   'brown-noise': 'noise',
 };
 
-/// The name of the icon a sound shows: the one chosen, else its usual one.
+/// The picture a sound shows: the one chosen (an icon's name, or `emoji:` and an emoji), else its usual
+/// icon's name.
 String ambienceIconName(AmbienceSound s) {
   final chosen = s.icon;
-  if (chosen != null && ambienceIconLibrary.containsKey(chosen)) return chosen;
+  if (chosen != null) {
+    if (ambienceIconLibrary.containsKey(chosen)) return chosen;
+    if (chosen.startsWith(ambienceEmojiPrefix) && chosen.length > ambienceEmojiPrefix.length && chosen.length < 40) return chosen;
+  }
   return _usual[s.id] ?? (s.category == ambienceEnvironmentCategory ? 'landscape' : 'note');
 }
 
-IconData ambienceIcon(AmbienceSound s) => ambienceIconLibrary[ambienceIconName(s)]!;
+/// Draws a picture by name. [color] is for line icons (emoji keep their own); [faded] shows it is not
+/// ready yet.
+class AmbiencePicture extends StatelessWidget {
+  const AmbiencePicture(this.name, {super.key, this.size = 30, this.color, this.faded = false});
+
+  final String name;
+  final double size;
+  final Color? color;
+  final bool faded;
+
+  @override
+  Widget build(BuildContext context) {
+    if (name.startsWith(ambienceEmojiPrefix)) {
+      return Opacity(
+        opacity: faded ? 0.35 : 1,
+        child: Text(
+          name.substring(ambienceEmojiPrefix.length),
+          textScaler: TextScaler.noScaling,
+          style: TextStyle(fontSize: size, height: 1.1),
+        ),
+      );
+    }
+    final c = color ?? IconTheme.of(context).color;
+    return Icon(ambienceIconLibrary[name] ?? Icons.music_note_rounded, size: size, color: faded ? c?.withValues(alpha: 0.35) : c);
+  }
+}

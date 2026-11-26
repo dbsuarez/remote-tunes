@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_tunes/features/ambience/ambience_controller.dart';
+import 'package:remote_tunes/features/ambience/ambience_icons.dart';
 import 'package:remote_tunes/features/ambience/ambience_models.dart';
 import 'package:remote_tunes/features/ambience/ambience_view.dart';
 
@@ -157,10 +158,12 @@ void main() {
       await tester.pumpAndSettle();
       final id = c.state.sounds.last.id;
       expect(onTile(id, Icons.music_note_rounded), findsOneWidget);
-      expect(find.text('Hold a sound to change its icon.'), findsOneWidget);
+      expect(find.text('Hold a sound to change its picture.'), findsOneWidget);
       await hold(tester, id);
       await tap(tester, 'amb-icon');
-      await tester.ensureVisible(find.byKey(const ValueKey('amb-icon-toy')));
+      await tap(tester, 'amb-icon-tab-icons');
+      await tester.enterText(find.byKey(const Key('amb-icon-search')), 'toy');
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('amb-icon-toy')));
       await tester.pumpAndSettle();
       expect(onTile(id, Icons.toys_rounded), findsOneWidget);
@@ -171,12 +174,44 @@ void main() {
       again.dispose();
       await hold(tester, id);
       await tap(tester, 'amb-icon');
-      await tester.ensureVisible(find.byKey(const Key('amb-icon-usual')));
       await tap(tester, 'amb-icon-usual');
       expect(onTile(id, Icons.music_note_rounded), findsOneWidget);
     });
 
-    screenTest('a built-in noise offers only the icon', (tester) async {
+    screenTest('an emoji can be found by a word and used', (tester) async {
+      await open(tester);
+      await hold(tester, 'white-noise');
+      await tap(tester, 'amb-icon');
+      await tester.enterText(find.byKey(const Key('amb-icon-search')), 'frog');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('amb-icon-emoji:🐸')));
+      await tester.pumpAndSettle();
+      expect(c.state.sound('white-noise')!.icon, 'emoji:🐸');
+      expect(find.descendant(of: find.byKey(const ValueKey('amb-sound-white-noise')), matching: find.text('🐸')), findsOneWidget);
+    });
+
+    screenTest('any emoji typed into the search can be used; nonsense finds nothing', (tester) async {
+      await open(tester);
+      await hold(tester, 'white-noise');
+      await tap(tester, 'amb-icon');
+      await tester.enterText(find.byKey(const Key('amb-icon-search')), 'qqqq');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Nothing found'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('amb-icon-search')), '🦥');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('amb-icon-emoji:🦥')));
+      await tester.pumpAndSettle();
+      expect(c.state.sound('white-noise')!.icon, 'emoji:🦥');
+    });
+
+    test('every emoji entry has a picture and words, and there are plenty', () {
+      final all = [for (final g in ambienceEmoji.values) ...g];
+      expect(all.every((e) => e.indexOf(' ') > 0 && e.substring(e.indexOf(' ') + 1).trim().isNotEmpty), isTrue);
+      expect(all.length, greaterThan(250));
+      expect(ambienceIconLibrary.length, greaterThan(130));
+    });
+
+    screenTest('a built-in noise offers only the picture', (tester) async {
       await open(tester);
       await hold(tester, 'white-noise');
       expect(find.byKey(const Key('amb-icon')), findsOneWidget);
