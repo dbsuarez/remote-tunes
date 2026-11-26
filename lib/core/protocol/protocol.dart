@@ -97,6 +97,14 @@ class RemoteActions {
   static const setSpeed = 'setSpeed';
   static const getArt = 'getArt';
 
+  /// `{"action":"getAmbience"}` -> {state: AmbienceState json}. The Player's ambience sounds.
+  static const getAmbience = 'getAmbience';
+
+  /// `{"action":"ambience","op":...}` -> {state}. Ops: toggle {id, on}, volume {id, volume}, master
+  /// {volume}, play, pause, stop, timer {minutes, 0 = none}, mix {id} (also {missing}), saveMix {name},
+  /// deleteMix {id}. The loudest allowed can only be set on the Player.
+  static const ambience = 'ambience';
+
   /// `{"action":"getLyrics","songId":n}` -> {lyrics: RemoteLyrics json}.
   static const getLyrics = 'getLyrics';
 

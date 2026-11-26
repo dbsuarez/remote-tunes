@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../../ambience/ambience_commands.dart';
+import '../../ambience/ambience_models.dart';
 import '../sleep_timer.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -201,6 +203,7 @@ class PlayerServer {
     this.store,
     this.advertiser,
     this.library,
+    this.ambience,
     this.enableLocal = true,
     this.continueWithoutLocal = false,
     this.pairingTtl = AppConstants.pairingCodeTtl,
@@ -239,6 +242,9 @@ class PlayerServer {
 
   /// Music library for `library_request` and song-based commands (Phase 2).
   final PlayerLibrary? library;
+
+  /// Ambience on this phone, for Controllers (null: not offered).
+  final AmbienceControls? ambience;
 
   /// False for "Online only": no local server is opened on the network.
   final bool enableLocal;
@@ -1384,6 +1390,13 @@ class PlayerServer {
         final bytes =
             await _library.artThumbnail(_requiredInt(p, 'songId'), size: size);
         return bytes == null ? const {} : {'art': base64Encode(bytes)};
+      case RemoteActions.getAmbience:
+      case RemoteActions.ambience:
+        final sounds = ambience;
+        if (sounds == null) {
+          throw PlaybackException(ErrorCodes.invalidAction, "This Player can't play ambience.");
+        }
+        return runAmbienceCommand(sounds, action == RemoteActions.ambience ? p : const {});
       case RemoteActions.toggle:
         await engine.toggle();
       case RemoteActions.next:

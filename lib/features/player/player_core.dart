@@ -1,3 +1,4 @@
+import '../ambience/ambience_controller.dart';
 import 'audiobook_tracker.dart';
 import '../external/control_mode_engine.dart';
 import 'audio/player_audio_handler.dart';
@@ -19,6 +20,7 @@ class PlayerCore {
     required this.equalizer,
     this.audioHandler,
     this.audiobooks,
+    this.ambience,
   });
 
   /// Which songs are audiobooks and where they were left (null in tests).
@@ -36,6 +38,9 @@ class PlayerCore {
   /// The equalizer of this phone's own player.
   final EqualizerController equalizer;
   final RemoteTunesAudioHandler? audioHandler;
+
+  /// Ambience Mode (null where it is not set up, as in some tests).
+  final AmbienceController? ambience;
 
   Future<void> dispose() async {
     audioHandler?.detach();

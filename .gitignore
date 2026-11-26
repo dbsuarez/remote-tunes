@@ -57,3 +57,6 @@ docs/jamendo.json
 
 # Cloudflare R2 keys (never commit)
 docs/cloudflare_r2.txt
+
+# Screenshots of another app, kept for reference only
+docs/ambiance/

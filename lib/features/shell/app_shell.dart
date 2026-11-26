@@ -28,6 +28,7 @@ import '../../providers/connection_providers.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/providers.dart';
 import '../../providers/shell_providers.dart';
+import '../ambience/ambience_screen.dart';
 import '../controller/controller_client.dart';
 import '../controller/remote_session.dart';
 import '../group/group_card.dart';
@@ -243,6 +244,9 @@ class _AppShellState extends ConsumerState<AppShell> {
         onHelp: () => context.push(AppRoutes.help),
         onSkins: () => context.push(AppRoutes.skins),
         onInsights: remote ? null : () => context.push(AppRoutes.insights),
+        onAmbience: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => AmbienceScreen(remote: remote)),
+        ),
       ),
       appBar: AppBar(
         titleSpacing: 12,

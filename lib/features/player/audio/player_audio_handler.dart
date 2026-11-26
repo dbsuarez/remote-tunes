@@ -7,6 +7,23 @@ import '../../../core/protocol/protocol.dart';
 import '../playback_engine.dart';
 import '../queue_aware_engine.dart';
 
+/// What the notification shows while ambience has the sound, and what its buttons do.
+class AmbienceNotice {
+  const AmbienceNotice({
+    required this.subtitle,
+    required this.playing,
+    required this.play,
+    required this.pause,
+    required this.stop,
+  });
+
+  final String subtitle;
+  final bool playing;
+  final Future<void> Function() play;
+  final Future<void> Function() pause;
+  final Future<void> Function() stop;
+}
+
 /// Bridges the Player's [PlaybackEngine] to Android's media session, so the
 /// notification, lock screen and headset buttons control the same engine that
 /// Controllers and the on-screen buttons use.
@@ -34,6 +51,31 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
     _keepAlive = value;
     final e = _engine;
     if (e != null) _publish(e.state);
+  }
+
+  AmbienceNotice? _ambience;
+
+  /// While set, the notification and headset buttons are ambience's; null gives them back to the music.
+  set ambience(AmbienceNotice? notice) {
+    _ambience = notice;
+    _lastKey = null;
+    if (notice != null) {
+      mediaItem.add(svc.MediaItem(id: 'remotetunes.ambience', title: 'RemoteTunes Ambience', artist: notice.subtitle));
+      playbackState.add(svc.PlaybackState(
+        controls: [if (notice.playing) svc.MediaControl.pause else svc.MediaControl.play, svc.MediaControl.stop],
+        systemActions: const {svc.MediaAction.play, svc.MediaAction.pause},
+        androidCompactActionIndices: const [0, 1],
+        processingState: svc.AudioProcessingState.ready,
+        playing: notice.playing,
+      ));
+      return;
+    }
+    final e = _engine;
+    if (e != null) {
+      _publish(e.state);
+    } else {
+      detach();
+    }
   }
 
   static const _idleItem = svc.MediaItem(
@@ -74,6 +116,7 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   double _lastSpeed = 1.0;
 
   void _publish(PlaybackState s) {
+    if (_ambience != null) return;
     final songId = s.songId;
     final hasHeart = isFavorite != null && setFavorite != null && songId != null && songId > 0;
     final favorite = hasHeart && isFavorite!(songId);
@@ -154,6 +197,16 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   // Commands arriving from the notification / headset buttons.
 
   @override
+  Future<void> click([svc.MediaButton button = svc.MediaButton.media]) async {
+    final ambience = _ambience;
+    if (ambience != null && button == svc.MediaButton.media) {
+      await (ambience.playing ? ambience.pause() : ambience.play());
+      return;
+    }
+    await super.click(button);
+  }
+
+  @override
   Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
     if (name != 'favorite') return super.customAction(name, extras);
     final e = _engine;
@@ -183,13 +236,13 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
   }
 
   @override
-  Future<void> play() => _run((e) => e.play());
+  Future<void> play() => _ambience?.play() ?? _run((e) => e.play());
 
   @override
-  Future<void> pause() => _run((e) => e.pause());
+  Future<void> pause() => _ambience?.pause() ?? _run((e) => e.pause());
 
   @override
-  Future<void> stop() => _run((e) => e.pause());
+  Future<void> stop() => _ambience?.stop() ?? _run((e) => e.pause());
 
   @override
   Future<void> seek(Duration position) =>
@@ -218,11 +271,16 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
         if (e is QueueAwareEngine) await e.setSpeed(speed.clamp(0.5, 2.0));
       });
 
+  // A headset's skip button must not start the music over the ambience.
   @override
-  Future<void> skipToNext() => _run((e) => e.next());
+  Future<void> skipToNext() async {
+    if (_ambience == null) await _run((e) => e.next());
+  }
 
   @override
-  Future<void> skipToPrevious() => _run((e) => e.previous());
+  Future<void> skipToPrevious() async {
+    if (_ambience == null) await _run((e) => e.previous());
+  }
 }
 
 /// Starts the Android media service once per process.

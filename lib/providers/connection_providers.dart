@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +8,9 @@ import '../core/online/room_code.dart';
 import '../core/protocol/protocol.dart';
 import '../core/transport/local_websocket_transport.dart';
 import '../data/repositories/drift_queue_store.dart';
+import '../features/ambience/ambience_controller.dart';
+import '../features/ambience/ambience_phone.dart';
+import '../features/ambience/ambience_session.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../features/group/group_native.dart';
@@ -135,7 +139,27 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   // that, then applies the saved settings.
   unawaited(equalizer.init());
 
+  // Ambience Mode: nothing is loaded until it is used.
+  final ambienceEngine = SoLoudAmbienceEngine();
+  final ambience = AmbienceController(
+    engine: ambienceEngine,
+    files: PhoneAmbienceFiles(() async => Directory('${(await getApplicationDocumentsDirectory()).path}/ambience')),
+    store: SettingsAmbienceStore(settingsRepo),
+    pauseMusic: () async {
+      try {
+        if (localEngine.state.isPlaying) await localEngine.pause();
+      } catch (_) {}
+    },
+  );
+  ambienceEngine.onMustPause = ambience.pause;
+  final disconnectAmbience = connectAmbience(ambience, localEngine, handler);
+  ref.onDispose(() {
+    disconnectAmbience();
+    unawaited(ambience.stop().whenComplete(ambience.dispose));
+  });
+
   final core = PlayerCore(
+    ambience: ambience,
     equalizer: equalizer,
     engine: engine,
     localEngine: localEngine,
@@ -169,6 +193,7 @@ final playerHostProvider = FutureProvider.autoDispose<PlayerHost>((ref) async {
     store: DriftPairedControllersStore(ref.watch(databaseProvider)),
     advertiser: plan.runLocal ? BonsoirPlayerAdvertiser() : null,
     library: core.library,
+    ambience: core.ambience,
     // Where group play's Auto-align click track is written.
     scratchDir: await getTemporaryDirectory(),
     enableLocal: plan.runLocal,
