@@ -2,7 +2,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/permissions.dart';
 import '../../providers/connection_providers.dart';
+import '../../providers/library_providers.dart' show permissionsProvider;
+import '../library/folder_browser.dart';
+import 'ambience_controller.dart' show AmbienceException;
 import 'ambience_remote.dart';
 import 'ambience_view.dart';
 
@@ -40,6 +44,18 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     super.dispose();
   }
 
+  /// A folder chosen in our own browser: the files in it (not those in folders inside it).
+  Future<List<String>?> _pickFolder() async {
+    final permissions = ref.read(permissionsProvider);
+    if (await permissions.ensureMusicAccess() != PermissionOutcome.granted) {
+      throw const AmbienceException('To import a folder, allow RemoteTunes to read music and audio in the phone\'s settings.');
+    }
+    if (!mounted) return null;
+    final folder = await showFolderBrowser(context, title: 'Import sounds', action: 'Import from this folder');
+    if (folder == null) return null;
+    return (await ref.read(folderSourceProvider).list(folder)).songs;
+  }
+
   Widget _body() {
     final remote = _remote;
     if (remote != null) return AmbienceView(controls: remote);
@@ -59,6 +75,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
         addOwnSound: ambience.addOwnSound,
         removeFile: ambience.removeFile,
         setMaxVolume: ambience.setMaxVolume,
+        pickFolder: _pickFolder,
       ),
     );
   }

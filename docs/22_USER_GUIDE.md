@@ -83,6 +83,7 @@ The first time, add your music folder once with **Add folder**; it is remembered
   - *Covers and order* (with the keys): a song's menu > **Change cover** picks a JPG or PNG (up to 3 MB) for the whole album or just that song. In a playlist, **Reorder**, drag the handles, *Save*.
 - **Ambience** (menu > Ambience): calming sounds layered together, for sleep or quiet time.
   - *Sounds:* tap to switch one on or off; each has its own volume. White, pink and brown noise are ready. For the others, tap the sound and pick your own audio file (MP3, OGG, WAV or FLAC; the app keeps a copy). *Add a sound* makes one with any name. Long-press a sound to change or remove its file.
+  - *Import a folder:* put your sound files in one folder (not inside your music folders, or a rescan would add them as songs), tap *Import a folder* and pick it. Files named like a sound ("Light Rain.wav") go to it; the others become your own sounds. Check the list, change any, then *Import*.
   - *Mixes* (heart button): ready-made ones, and *Save what is on as a mix* for your own.
   - *Timer:* 15 minutes to 2 hours; the sound fades out over the last 5 minutes.
   - *Maximum volume* (ear button, on the playing phone): the ambience never plays louder than this, even from the other phone. The phone's volume buttons still apply.

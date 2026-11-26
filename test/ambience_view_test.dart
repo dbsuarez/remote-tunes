@@ -10,6 +10,7 @@ void main() {
   late FakeEngine engine;
   late AmbienceController c;
   String? picked;
+  List<String>? folder;
 
   setUp(() {
     engine = FakeEngine();
@@ -18,6 +19,7 @@ void main() {
   });
 
   AmbienceOwner owner() => AmbienceOwner(
+        pickFolder: () async => folder,
         pickFile: () async => picked,
         addFile: c.addFile,
         addOwnSound: c.addOwnSound,
@@ -55,6 +57,67 @@ void main() {
   }
 
   String status(WidgetTester tester) => tester.widget<Text>(find.byKey(const Key('amb-status'))).data!;
+
+  group('importing a folder', () {
+    setUp(() => folder = ['/f/Rain.wav', '/f/Campfire.mp3', '/f/Peaceful Lake.mp3', '/f/notes.txt']);
+
+    Future<void> choose(WidgetTester tester, String file, String label) async {
+      await tester.tap(find.byKey(ValueKey('amb-import-to-$file')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    screenTest('fills the matching sounds and makes the rest your own', (tester) async {
+      await open(tester);
+      await tap(tester, 'amb-import');
+      expect(find.text('Import 3 sounds'), findsOneWidget);
+      expect(find.text('notes.txt'), findsNothing);
+      await tap(tester, 'amb-import-go');
+      expect(c.state.sound('rain')!.available, isTrue);
+      expect(c.state.sound('campfire')!.available, isTrue);
+      expect(c.state.sounds.last.name, 'Peaceful Lake');
+      expect(engine.voices, isEmpty, reason: 'importing plays nothing');
+      expect(find.textContaining('Added 3 sounds'), findsOneWidget);
+    });
+
+    screenTest('a file can be sent elsewhere or left out; a sound takes one file', (tester) async {
+      await open(tester);
+      await tap(tester, 'amb-import');
+      await choose(tester, 'Peaceful Lake.mp3', 'Rain');
+      await choose(tester, 'Campfire.mp3', 'Leave it out');
+      expect(find.text('Import 2 sounds'), findsOneWidget);
+      await tap(tester, 'amb-import-go');
+      expect(c.state.sound('campfire')!.available, isFalse);
+      expect(c.state.sound('rain')!.available, isTrue);
+      expect(c.state.sounds.last.name, 'Rain', reason: 'the file that had Rain became a new sound');
+    });
+
+    screenTest('says which would replace a file, and Cancel changes nothing', (tester) async {
+      await open(tester);
+      await c.addFile('rain', '/old/rain.mp3');
+      await tester.pump();
+      await tap(tester, 'amb-import');
+      expect(find.text('Replaces the file it has now'), findsOneWidget);
+      await tap(tester, 'amb-import-cancel');
+      expect(c.state.sound('campfire')!.available, isFalse);
+    });
+
+    screenTest('a folder with no sound files says so; choosing none does nothing', (tester) async {
+      folder = ['/f/song.m4a'];
+      await open(tester);
+      await tap(tester, 'amb-import');
+      expect(find.textContaining('No MP3, OGG, WAV or FLAC files'), findsOneWidget);
+      folder = null;
+      await tap(tester, 'amb-import');
+      expect(find.byKey(const Key('amb-import-go')), findsNothing);
+    });
+
+    screenTest('is not offered from the other phone', (tester) async {
+      await open(tester, owned: false);
+      expect(find.byKey(const Key('amb-import')), findsNothing);
+    });
+  });
 
   screenTest('shows the sounds by category, with a plus on those with no file', (tester) async {
     await open(tester);

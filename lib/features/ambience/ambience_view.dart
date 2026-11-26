@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'ambience_import.dart';
 import 'ambience_models.dart';
 
 /// What only the playing phone can do: give sounds their files and set the loudest allowed.
@@ -12,7 +13,11 @@ class AmbienceOwner {
     required this.addOwnSound,
     required this.removeFile,
     required this.setMaxVolume,
+    this.pickFolder,
   });
+
+  /// Lets the owner choose a folder and gives the files in it, or null. Null: importing is not offered.
+  final Future<List<String>?> Function()? pickFolder;
 
   /// Gives the path of a picked sound file, or null.
   final Future<String?> Function() pickFile;
@@ -118,6 +123,40 @@ class _AmbienceViewState extends State<AmbienceView> {
         );
         if (name == null) return;
         await widget.owner!.addOwnSound(name, path);
+      });
+
+  /// Picks a folder, shows which sound each file would go to, and adds the ones agreed.
+  Future<void> _importFolder() => _run(() async {
+        final owner = widget.owner!;
+        final paths = await owner.pickFolder!();
+        if (paths == null || !mounted) return;
+        final rows = planImport(paths, _c.state.sounds);
+        if (rows.isEmpty) {
+          _snack('No MP3, OGG, WAV or FLAC files in that folder.');
+          return;
+        }
+        final agreed = await showDialog<bool>(
+          context: context,
+          builder: (_) => _ImportDialog(rows: rows, sounds: importTargets(_c.state.sounds)),
+        );
+        if (agreed != true || !mounted) return;
+        final chosen = [for (final r in rows) if (r.target != AmbienceImportRow.skip) r];
+        _snack('Adding ${chosen.length} sound${chosen.length == 1 ? '' : 's'}…');
+        var added = 0;
+        final failed = <String>[];
+        for (final row in chosen) {
+          try {
+            if (row.target == AmbienceImportRow.newSound) {
+              await owner.addOwnSound(row.newName, row.path);
+            } else {
+              await owner.addFile(row.target, row.path);
+            }
+            added++;
+          } catch (_) {
+            failed.add(row.fileName);
+          }
+        }
+        _snack('Added $added sound${added == 1 ? '' : 's'}.${failed.isEmpty ? '' : " Couldn't add ${failed.join(', ')}."}');
       });
 
   Future<void> _fileMenu(AmbienceSound s) async {
@@ -277,6 +316,16 @@ class _AmbienceViewState extends State<AmbienceView> {
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     children: [
+                      if (widget.owner?.pickFolder != null)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            key: const Key('amb-import'),
+                            onPressed: widget.enabled ? _importFolder : null,
+                            icon: const Icon(Icons.drive_folder_upload_rounded),
+                            label: const Text('Import a folder'),
+                          ),
+                        ),
                       for (final c in categories) ...[
                         _Heading(c),
                         Wrap(
@@ -538,4 +587,96 @@ class _MaxDialogState extends State<_MaxDialog> {
           FilledButton(key: const Key('amb-max-save'), onPressed: () => Navigator.pop(context, _value), child: const Text('Save')),
         ],
       );
+}
+
+/// Which sound each file of a folder goes to; each can be changed or left out.
+class _ImportDialog extends StatefulWidget {
+  const _ImportDialog({required this.rows, required this.sounds});
+
+  final List<AmbienceImportRow> rows;
+  final List<AmbienceSound> sounds;
+
+  @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  /// Gives [row] a new destination. A sound takes one file: whoever had it becomes a new sound.
+  void _choose(AmbienceImportRow row, String target) => setState(() {
+        if (target != AmbienceImportRow.newSound && target != AmbienceImportRow.skip) {
+          for (final other in widget.rows) {
+            if (other != row && other.target == target) other.target = AmbienceImportRow.newSound;
+          }
+        }
+        row.target = target;
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final count = widget.rows.where((r) => r.target != AmbienceImportRow.skip).length;
+    return Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            key: const Key('amb-import-cancel'),
+            tooltip: 'Cancel',
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('Import sounds'),
+        ),
+        body: ListView.builder(
+          itemCount: widget.rows.length + 1,
+          itemBuilder: (context, i) {
+            if (i == 0) {
+              return const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text('Each file was matched by its name. Check them, and change any that is wrong.'),
+              );
+            }
+            final row = widget.rows[i - 1];
+            final replaces = widget.sounds.any((s) => s.id == row.target && s.available);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(row.fileName, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
+                  DropdownButton<String>(
+                    key: ValueKey('amb-import-to-${row.fileName}'),
+                    isExpanded: true,
+                    value: row.target,
+                    items: [
+                      DropdownMenuItem(
+                          value: AmbienceImportRow.newSound,
+                          child: Text('New sound "${row.newName}"', overflow: TextOverflow.ellipsis)),
+                      const DropdownMenuItem(value: AmbienceImportRow.skip, child: Text('Leave it out')),
+                      for (final s in widget.sounds) DropdownMenuItem(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) _choose(row, v);
+                    },
+                  ),
+                  if (replaces)
+                    Text('Replaces the file it has now',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.tertiary)),
+                ],
+              ),
+            );
+          },
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: FilledButton(
+              key: const Key('amb-import-go'),
+              onPressed: count == 0 ? null : () => Navigator.pop(context, true),
+              child: Text('Import $count sound${count == 1 ? '' : 's'}'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
