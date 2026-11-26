@@ -20,6 +20,7 @@ void main() {
 
   AmbienceOwner owner() => AmbienceOwner(
         pickFolder: () async => folder,
+        setIcon: c.setIcon,
         pickFile: () async => picked,
         addFile: c.addFile,
         addOwnSound: c.addOwnSound,
@@ -113,9 +114,83 @@ void main() {
       expect(find.byKey(const Key('amb-import-go')), findsNothing);
     });
 
+    screenTest('environments get their own group, above My sounds, and can be deleted', (tester) async {
+      folder = ['/f/water_env_swamp.mp3', '/f/Music Box.mp3'];
+      await open(tester);
+      expect(find.text(ambienceEnvironmentCategory), findsNothing);
+      await tap(tester, 'amb-import');
+      expect(find.text('Environment "Swamp"'), findsOneWidget);
+      await tap(tester, 'amb-import-go');
+      expect(find.text(ambienceEnvironmentCategory), findsOneWidget);
+      expect(tester.getTopLeft(find.text(ambienceEnvironmentCategory)).dy,
+          lessThan(tester.getTopLeft(find.text(ambienceOwnCategory)).dy));
+      final swamp = c.state.sounds.firstWhere((s) => s.name == 'Swamp');
+      expect(swamp.category, ambienceEnvironmentCategory);
+      final again = AmbienceController(engine: engine, files: FakeFiles(), store: c.store);
+      await again.load();
+      expect(again.state.sound(swamp.id)!.category, ambienceEnvironmentCategory);
+      again.dispose();
+      await tester.longPress(find.byKey(ValueKey('amb-sound-${swamp.id}')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete this sound'), findsOneWidget);
+      await tap(tester, 'amb-remove');
+      expect(find.text(ambienceEnvironmentCategory), findsNothing);
+    });
+
     screenTest('is not offered from the other phone', (tester) async {
       await open(tester, owned: false);
       expect(find.byKey(const Key('amb-import')), findsNothing);
+    });
+  });
+
+  group('icons', () {
+    Future<void> hold(WidgetTester tester, String id) async {
+      await tester.longPress(find.byKey(ValueKey('amb-sound-$id')));
+      await tester.pumpAndSettle();
+    }
+
+    Finder onTile(String id, IconData icon) => find.descendant(of: find.byKey(ValueKey('amb-sound-$id')), matching: find.byIcon(icon));
+
+    screenTest('a sound of your own can be given any icon, and it is remembered', (tester) async {
+      await open(tester);
+      await c.addOwnSound('Box', '/d/box.wav');
+      await tester.pumpAndSettle();
+      final id = c.state.sounds.last.id;
+      expect(onTile(id, Icons.music_note_rounded), findsOneWidget);
+      expect(find.text('Hold a sound to change its icon.'), findsOneWidget);
+      await hold(tester, id);
+      await tap(tester, 'amb-icon');
+      await tester.ensureVisible(find.byKey(const ValueKey('amb-icon-toy')));
+      await tester.tap(find.byKey(const ValueKey('amb-icon-toy')));
+      await tester.pumpAndSettle();
+      expect(onTile(id, Icons.toys_rounded), findsOneWidget);
+      final again = AmbienceController(engine: engine, files: FakeFiles(), store: c.store);
+      await again.load();
+      expect(again.state.sound(id)!.icon, 'toy');
+      expect(AmbienceState.fromJson(again.state.toJson()).sound(id)!.icon, 'toy', reason: 'the other phone sees it');
+      again.dispose();
+      await hold(tester, id);
+      await tap(tester, 'amb-icon');
+      await tester.ensureVisible(find.byKey(const Key('amb-icon-usual')));
+      await tap(tester, 'amb-icon-usual');
+      expect(onTile(id, Icons.music_note_rounded), findsOneWidget);
+    });
+
+    screenTest('a built-in noise offers only the icon', (tester) async {
+      await open(tester);
+      await hold(tester, 'white-noise');
+      expect(find.byKey(const Key('amb-icon')), findsOneWidget);
+      expect(find.byKey(const Key('amb-replace')), findsNothing);
+      expect(find.byKey(const Key('amb-remove')), findsNothing);
+    });
+
+    screenTest('the library fits a narrow phone', (tester) async {
+      await open(tester, size: const Size(320, 600));
+      await c.addFile('rain', '/d/rain.mp3');
+      await tester.pumpAndSettle();
+      await hold(tester, 'rain');
+      await tap(tester, 'amb-icon');
+      expect(tester.takeException(), isNull);
     });
   });
 

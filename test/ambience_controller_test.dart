@@ -187,6 +187,14 @@ void main() {
     });
   });
 
+  test('sounds added in the same instant are still separate', () async {
+    final c = make(now: () => DateTime(2026));
+    await c.addOwnSound('One', '/d/1.wav');
+    await c.addOwnSound('Two', '/d/2.wav', environment: true);
+    await c.addOwnSound('Three', '/d/3.wav');
+    expect([for (final s in c.state.sounds.skip(ambienceCatalog.length)) s.name], ['Two', 'One', 'Three']);
+  });
+
   group('mixes', () {
     test('a preset plays what it has and names what is missing', () async {
       final c = make();

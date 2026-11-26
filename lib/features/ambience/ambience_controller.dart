@@ -65,6 +65,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
 
   final Map<String, String> _saved = {}; // sound id -> the file kept for it
   final Map<String, String> _own = {}; // id -> name, sounds the owner added by name
+  final Set<String> _environments = {}; // which of those are whole environments
+  final Map<String, String> _icons = {}; // sound id -> the icon the owner chose
   final List<AmbienceMix> _mixes = [];
   final Map<String, double> _active = {};
   final Set<String> _voices = {};
@@ -99,6 +101,10 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       for (final e in (j['own'] is Map ? j['own'] as Map : const {}).entries) {
         if (e.key is String && e.value is String) _own[e.key as String] = e.value as String;
       }
+      for (final e in (j['icons'] is Map ? j['icons'] as Map : const {}).entries) {
+        if (e.key is String && e.value is String) _icons[e.key as String] = e.value as String;
+      }
+      if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
       if (j['mixes'] is List) {
         for (final m in j['mixes'] as List) {
           if (AmbienceMix.fromJson(m) case final mix?) _mixes.add(mix);
@@ -122,6 +128,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       await store.write(jsonEncode({
         'files': _saved,
         'own': _own,
+        'env': _environments.toList(),
+        'icons': _icons,
         'mixes': [for (final m in _mixes) m.toJson()],
         'active': _active,
         'master': _master,
@@ -136,9 +144,18 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   bool _hasAudio(String id) => _saved.containsKey(id) || _isBuiltInNoise(id);
 
   List<AmbienceSound> get _sounds => [
-        for (final s in ambienceCatalog) s.copyWith(available: _hasAudio(s.id)),
-        for (final e in _own.entries)
-          AmbienceSound(id: e.key, name: e.value, category: ambienceOwnCategory, available: _hasAudio(e.key)),
+        for (final s in ambienceCatalog) s.copyWith(available: _hasAudio(s.id), icon: _icons[s.id]),
+        // Environments first, then the owner's other sounds.
+        for (final environment in [true, false])
+          for (final e in _own.entries)
+            if (_environments.contains(e.key) == environment)
+              AmbienceSound(
+                id: e.key,
+                name: e.value,
+                category: environment ? ambienceEnvironmentCategory : ambienceOwnCategory,
+                available: _hasAudio(e.key),
+                icon: _icons[e.key],
+              ),
       ];
 
   @override
@@ -412,17 +429,23 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         await _save();
       });
 
-  /// Makes a sound of the owner's own, with its file.
-  Future<void> addOwnSound(String name, String sourcePath) async {
+  /// Makes a sound of the owner's own, with its file; [environment] puts it with the environments.
+  Future<void> addOwnSound(String name, String sourcePath, {bool environment = false}) async {
     await load();
     final clean = name.trim();
     if (clean.isEmpty) throw const AmbienceException('Give the sound a name.');
-    final id = 'own-${_now().microsecondsSinceEpoch}';
+    // Several can be added in the same instant (importing a folder), so the clock alone is not enough.
+    var id = 'own-${_now().microsecondsSinceEpoch}';
+    for (var n = 2; _own.containsKey(id); n++) {
+      id = 'own-${_now().microsecondsSinceEpoch}-$n';
+    }
     _own[id] = clean.length > 30 ? clean.substring(0, 30) : clean;
+    if (environment) _environments.add(id);
     try {
       await addFile(id, sourcePath);
     } catch (_) {
       _own.remove(id);
+      _environments.remove(id);
       rethrow;
     }
   }
@@ -437,7 +460,21 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           if (_active.isEmpty) await _stopNow();
         }
         _own.remove(soundId);
+        _environments.remove(soundId);
+        if (!ambienceCatalog.any((s) => s.id == soundId)) _icons.remove(soundId);
         if (saved != null) await files.remove(saved);
+        notifyListeners();
+        await _save();
+      });
+
+  /// The icon a sound shows (a name from the icon library); null gives it its usual one.
+  Future<void> setIcon(String soundId, String? icon) => _inTurn(() async {
+        await load();
+        if (icon == null) {
+          _icons.remove(soundId);
+        } else {
+          _icons[soundId] = icon;
+        }
         notifyListeners();
         await _save();
       });

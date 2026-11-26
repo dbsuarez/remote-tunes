@@ -7,23 +7,32 @@ import 'package:flutter/foundation.dart';
 /// A sound that can be layered. It can be played once it has audio: built-in noise always has, the
 /// others after a file is added on the playing phone.
 class AmbienceSound {
-  const AmbienceSound({required this.id, required this.name, required this.category, this.available = false});
+  const AmbienceSound({required this.id, required this.name, required this.category, this.available = false, this.icon});
 
   final String id;
   final String name;
   final String category;
   final bool available;
 
-  AmbienceSound copyWith({bool? available}) =>
-      AmbienceSound(id: id, name: name, category: category, available: available ?? this.available);
+  /// The icon the owner chose (a name from the icon library), or null for the usual one.
+  final String? icon;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'category': category, 'available': available};
+  AmbienceSound copyWith({bool? available, String? icon}) => AmbienceSound(
+      id: id, name: name, category: category, available: available ?? this.available, icon: icon ?? this.icon);
+
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'name': name, 'category': category, 'available': available, if (icon != null) 'icon': icon};
 
   static AmbienceSound? fromJson(Object? j) {
     if (j is! Map) return null;
     final id = j['id'], name = j['name'], category = j['category'];
     if (id is! String || id.isEmpty || name is! String || category is! String) return null;
-    return AmbienceSound(id: id, name: name, category: category, available: j['available'] == true);
+    return AmbienceSound(
+        id: id,
+        name: name,
+        category: category,
+        available: j['available'] == true,
+        icon: j['icon'] is String ? j['icon'] as String : null);
   }
 }
 
@@ -199,6 +208,12 @@ const ambienceCatalog = [
 
 /// The category of sounds the owner names themselves.
 const ambienceOwnCategory = 'My sounds';
+
+/// The category of the owner's whole soundscapes (a place with its sounds already in it).
+const ambienceEnvironmentCategory = 'Environment';
+
+/// Whether a sound was made by the owner (so it can be deleted altogether).
+bool isOwnAmbienceSound(AmbienceSound s) => s.category == ambienceOwnCategory || s.category == ambienceEnvironmentCategory;
 
 const ambiencePresets = [
   AmbienceMix(id: 'rainy-night', name: 'Rainy Night', builtIn: true, layers: {'rain': 0.6, 'distant-thunder': 0.25}),

@@ -11,6 +11,9 @@ class AmbienceImportRow {
   /// Make a sound of the owner's own for it.
   static const newSound = '+new';
 
+  /// Make it one of the owner's environments.
+  static const newEnvironment = '+env';
+
   /// Leave it out.
   static const skip = '+skip';
 
@@ -20,7 +23,7 @@ class AmbienceImportRow {
   /// The name it gets as a new sound.
   final String newName;
 
-  /// A sound's id, [newSound] or [skip].
+  /// A sound's id, [newSound], [newEnvironment] or [skip].
   String target;
 }
 
@@ -32,6 +35,20 @@ List<AmbienceSound> importTargets(List<AmbienceSound> sounds) {
 
 List<String> _words(String text) => text.toLowerCase().split(RegExp(r'[^a-z0-9]+')).where((w) => w.isNotEmpty).toList();
 
+/// Words in a file name that say it is a whole environment (some packs misspell it).
+const _environmentWords = {'env', 'environment', 'environments', 'enviroment', 'enviroments'};
+
+/// The name of an environment file: what follows the word that marks it ("water_env_peaceful_lake" is
+/// "Peaceful Lake"). Null if the name has no such word.
+String? _environmentName(String bareName) {
+  final parts = bareName.split(RegExp(r'[_\s-]+')).where((w) => w.isNotEmpty).toList();
+  final at = parts.indexWhere((w) => _environmentWords.contains(w.toLowerCase()));
+  if (at < 0) return null;
+  final rest = parts.sublist(at + 1);
+  final named = rest.isEmpty ? parts.sublist(0, at) : rest;
+  return [for (final w in named) w[0].toUpperCase() + w.substring(1)].join(' ');
+}
+
 /// The audio files among [paths], each matched to a sound by its name. A file named like the sound wins
 /// ("Light Rain.wav"); otherwise one whose name holds all the sound's words ("weather_light_rain"), the
 /// longest sound name first. Two files never get the same sound; the rest become new sounds.
@@ -42,6 +59,16 @@ List<AmbienceImportRow> planImport(List<String> paths, List<AmbienceSound> sound
     final dot = file.lastIndexOf('.');
     if (dot <= 0 || !ambienceExtensions.contains(file.substring(dot + 1).toLowerCase())) continue;
     var name = file.substring(0, dot).trim();
+    final environment = _environmentName(name);
+    if (environment != null && environment.isNotEmpty) {
+      rows.add(AmbienceImportRow(
+        path: path,
+        fileName: file,
+        newName: environment.length > 30 ? environment.substring(0, 30).trim() : environment,
+        target: AmbienceImportRow.newEnvironment,
+      ));
+      continue;
+    }
     // Pack files often carry the pack's name first: what follows the last underscore says what it is.
     if (name.length > 30 && name.contains('_') && name.split('_').last.trim().length >= 3) name = name.split('_').last.trim();
     name = name.replaceAll('_', ' ').trim();
@@ -50,11 +77,12 @@ List<AmbienceImportRow> planImport(List<String> paths, List<AmbienceSound> sound
 
   final targets = importTargets(sounds)..sort((a, b) => _words(b.name).length.compareTo(_words(a.name).length));
   final taken = <String>{};
-  void give(bool Function(AmbienceImportRow row, AmbienceSound sound) matches) {
+  // Environments are whole places: they never fill a single sound's slot.
+  void give(bool Function(AmbienceImportRow row, AmbienceSound sound) matches, {String of = AmbienceImportRow.newSound}) {
     for (final sound in targets) {
       if (taken.contains(sound.id)) continue;
       for (final row in rows) {
-        if (row.target == AmbienceImportRow.newSound && matches(row, sound)) {
+        if (row.target == of && matches(row, sound)) {
           row.target = sound.id;
           taken.add(sound.id);
           break;
@@ -70,6 +98,8 @@ List<AmbienceImportRow> planImport(List<String> paths, List<AmbienceSound> sound
     return _words(sound.name).every(have.contains);
   });
   // A new sound named like one of the owner's own would be a second copy: it replaces that one.
-  give((row, sound) => sound.category == ambienceOwnCategory && sound.name.toLowerCase() == row.newName.toLowerCase());
+  bool sameName(AmbienceImportRow row, AmbienceSound sound) => sound.name.toLowerCase() == row.newName.toLowerCase();
+  give((row, sound) => sound.category == ambienceOwnCategory && sameName(row, sound));
+  give((row, sound) => sound.category == ambienceEnvironmentCategory && sameName(row, sound), of: AmbienceImportRow.newEnvironment);
   return rows;
 }

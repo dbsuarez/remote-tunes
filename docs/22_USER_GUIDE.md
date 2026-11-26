@@ -84,6 +84,8 @@ The first time, add your music folder once with **Add folder**; it is remembered
 - **Ambience** (menu > Ambience): calming sounds layered together, for sleep or quiet time.
   - *Sounds:* tap to switch one on or off; each has its own volume. White, pink and brown noise are ready. For the others, tap the sound and pick your own audio file (MP3, OGG, WAV or FLAC; the app keeps a copy). *Add a sound* makes one with any name. Long-press a sound to change or remove its file.
   - *Import a folder:* put your sound files in one folder (not inside your music folders, or a rescan would add them as songs), tap *Import a folder* and pick it. Files named like a sound ("Light Rain.wav") go to it; the others become your own sounds. Check the list, change any, then *Import*.
+  - *Environments:* whole soundscapes get their own **Environment** group. A file with *env* in its name ("water_env_swamp.mp3" becomes *Swamp*) goes there when imported; in the import list you can also choose *Environment* for any file.
+  - *Icons:* hold a sound and choose *Change the icon* to pick one from the library.
   - *Mixes* (heart button): ready-made ones, and *Save what is on as a mix* for your own.
   - *Timer:* 15 minutes to 2 hours; the sound fades out over the last 5 minutes.
   - *Maximum volume* (ear button, on the playing phone): the ambience never plays louder than this, even from the other phone. The phone's volume buttons still apply.

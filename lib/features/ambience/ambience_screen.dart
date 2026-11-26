@@ -76,6 +76,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
         removeFile: ambience.removeFile,
         setMaxVolume: ambience.setMaxVolume,
         pickFolder: _pickFolder,
+        setIcon: ambience.setIcon,
       ),
     );
   }

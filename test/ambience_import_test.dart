@@ -28,10 +28,10 @@ void main() {
 
   test('names that hold the words match, the more exact sound first', () {
     expect(
-      plan(['weather_light_rain.mp3', 'water_env_ocean_waves.mp3', 'fire_campfire.mp3', 'weather_winter_wind.mp3', 'nature_birds.mp3']),
+      plan(['weather_light_rain.mp3', 'water_ocean_waves.mp3', 'fire_campfire.mp3', 'weather_winter_wind.mp3', 'nature_birds.mp3']),
       {
         'weather_light_rain.mp3': 'light-rain',
-        'water_env_ocean_waves.mp3': 'ocean',
+        'water_ocean_waves.mp3': 'ocean',
         'fire_campfire.mp3': 'campfire',
         'weather_winter_wind.mp3': 'wind',
         'nature_birds.mp3': 'birds',
@@ -40,8 +40,31 @@ void main() {
   });
 
   test('part of a word is not a match, and the rest become new sounds', () {
-    expect(plan(['weather_heavy_thunderstorm.mp3', 'Rainforest Canopy.mp3', 'water_env_swamp.mp3']),
-        {'weather_heavy_thunderstorm.mp3': fresh, 'Rainforest Canopy.mp3': fresh, 'water_env_swamp.mp3': fresh});
+    expect(plan(['weather_heavy_thunderstorm.mp3', 'Rainforest Canopy.mp3', 'envelope.mp3']),
+        {'weather_heavy_thunderstorm.mp3': fresh, 'Rainforest Canopy.mp3': fresh, 'envelope.mp3': fresh});
+  });
+
+  test('files marked "env" are environments, named after what follows, and take no slot', () {
+    final rows = planImport([
+      for (final f in [
+        'water_env_mountain_stream.mp3',
+        'water_env_ocean_waves.mp3',
+        'water_env_peaceful_lake .mp3',
+        'water_env_swamp.mp3',
+        'water_env_underground_river .mp3',
+        'AMB_Nature Pack Vol 1_Forest Enviroments_Forest Night.mp3',
+      ])
+        '/f/$f',
+    ], ambienceCatalog);
+    expect({for (final r in rows) r.target}, {AmbienceImportRow.newEnvironment});
+    expect([for (final r in rows) r.newName],
+        ['Mountain Stream', 'Ocean Waves', 'Peaceful Lake', 'Swamp', 'Underground River', 'Forest Night']);
+  });
+
+  test('importing an environment again replaces it, and not a sound of your own with that name', () {
+    const mine = AmbienceSound(id: 'own-1', name: 'Swamp', category: ambienceOwnCategory, available: true);
+    const place = AmbienceSound(id: 'own-2', name: 'Swamp', category: ambienceEnvironmentCategory, available: true);
+    expect(plan(['water_env_swamp.mp3'], [...ambienceCatalog, mine, place]), {'water_env_swamp.mp3': 'own-2'});
   });
 
   test('two files never share a sound; the one named exactly wins', () {

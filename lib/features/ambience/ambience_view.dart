@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'ambience_icons.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
 
@@ -14,7 +15,11 @@ class AmbienceOwner {
     required this.removeFile,
     required this.setMaxVolume,
     this.pickFolder,
+    this.setIcon,
   });
+
+  /// Gives a sound an icon from the library (null: its usual one). Null: not offered.
+  final Future<void> Function(String soundId, String? icon)? setIcon;
 
   /// Lets the owner choose a folder and gives the files in it, or null. Null: importing is not offered.
   final Future<List<String>?> Function()? pickFolder;
@@ -22,28 +27,10 @@ class AmbienceOwner {
   /// Gives the path of a picked sound file, or null.
   final Future<String?> Function() pickFile;
   final Future<void> Function(String soundId, String path) addFile;
-  final Future<void> Function(String name, String path) addOwnSound;
+  final Future<void> Function(String name, String path, {bool environment}) addOwnSound;
   final Future<void> Function(String soundId) removeFile;
   final Future<void> Function(double volume) setMaxVolume;
 }
-
-IconData ambienceIcon(AmbienceSound s) => switch (s.id) {
-      'rain' => Icons.water_drop_rounded,
-      'light-rain' => Icons.grain_rounded,
-      'thunder' => Icons.thunderstorm_rounded,
-      'distant-thunder' => Icons.bolt_rounded,
-      'ocean' => Icons.waves_rounded,
-      'seagulls' => Icons.flutter_dash,
-      'stream' => Icons.water_rounded,
-      'crickets' => Icons.nightlight_round,
-      'owls' => Icons.dark_mode_rounded,
-      'frogs' => Icons.pets_rounded,
-      'campfire' => Icons.local_fire_department_rounded,
-      'wind' => Icons.air_rounded,
-      'birds' => Icons.park_rounded,
-      'white-noise' || 'pink-noise' || 'brown-noise' => Icons.graphic_eq_rounded,
-      _ => Icons.music_note_rounded,
-    };
 
 String _timerLabel(int minutes) => minutes < 60 ? '$minutes min' : '${minutes ~/ 60} hour${minutes >= 120 ? 's' : ''}';
 
@@ -146,8 +133,8 @@ class _AmbienceViewState extends State<AmbienceView> {
         final failed = <String>[];
         for (final row in chosen) {
           try {
-            if (row.target == AmbienceImportRow.newSound) {
-              await owner.addOwnSound(row.newName, row.path);
+            if (row.target == AmbienceImportRow.newSound || row.target == AmbienceImportRow.newEnvironment) {
+              await owner.addOwnSound(row.newName, row.path, environment: row.target == AmbienceImportRow.newEnvironment);
             } else {
               await owner.addFile(row.target, row.path);
             }
@@ -163,7 +150,8 @@ class _AmbienceViewState extends State<AmbienceView> {
     final owner = widget.owner;
     if (owner == null || !s.available) return;
     final noise = ambienceCatalog.any((x) => x.id == s.id && x.available);
-    if (noise) return;
+    // A built-in noise has no file to change.
+    if (noise && owner.setIcon == null) return;
     final choice = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -171,23 +159,39 @@ class _AmbienceViewState extends State<AmbienceView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
+            if (owner.setIcon != null)
+              ListTile(
+                key: const Key('amb-icon'),
+                leading: Icon(ambienceIcon(s)),
+                title: Text('Change the icon of ${s.name}'),
+                onTap: () => Navigator.pop(ctx, 'icon'),
+              ),
+            if (!noise) ListTile(
               key: const Key('amb-replace'),
               leading: const Icon(Icons.swap_horiz_rounded),
               title: Text('Choose another file for ${s.name}'),
               onTap: () => Navigator.pop(ctx, 'replace'),
             ),
-            ListTile(
+            if (!noise) ListTile(
               key: const Key('amb-remove'),
               leading: const Icon(Icons.delete_outline_rounded),
-              title: Text(s.category == ambienceOwnCategory ? 'Delete this sound' : 'Take its file away'),
+              title: Text(isOwnAmbienceSound(s) ? 'Delete this sound' : 'Take its file away'),
               onTap: () => Navigator.pop(ctx, 'remove'),
             ),
           ],
         ),
       ),
     );
-    if (choice == 'replace') {
+    if (choice == 'icon') {
+      if (!mounted) return;
+      final picked = await showModalBottomSheet<({String? icon})>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (_) => _IconSheet(sound: s),
+      );
+      if (picked != null) await _run(() => owner.setIcon!(s.id, picked.icon));
+    } else if (choice == 'replace') {
       await _run(() async {
         final path = await owner.pickFile();
         if (path != null) await owner.addFile(s.id, path);
@@ -328,6 +332,11 @@ class _AmbienceViewState extends State<AmbienceView> {
                         ),
                       for (final c in categories) ...[
                         _Heading(c),
+                        if (widget.owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                            child: Text('Hold a sound to change its icon.', style: Theme.of(context).textTheme.bodySmall),
+                          ),
                         Wrap(
                           children: [
                             for (final s in state.sounds.where((s) => s.category == c))
@@ -603,7 +612,8 @@ class _ImportDialog extends StatefulWidget {
 class _ImportDialogState extends State<_ImportDialog> {
   /// Gives [row] a new destination. A sound takes one file: whoever had it becomes a new sound.
   void _choose(AmbienceImportRow row, String target) => setState(() {
-        if (target != AmbienceImportRow.newSound && target != AmbienceImportRow.skip) {
+        // Only a sound itself takes one file; any number can be new, or left out.
+        if (!target.startsWith('+')) {
           for (final other in widget.rows) {
             if (other != row && other.target == target) other.target = AmbienceImportRow.newSound;
           }
@@ -651,6 +661,9 @@ class _ImportDialogState extends State<_ImportDialog> {
                       DropdownMenuItem(
                           value: AmbienceImportRow.newSound,
                           child: Text('New sound "${row.newName}"', overflow: TextOverflow.ellipsis)),
+                      DropdownMenuItem(
+                          value: AmbienceImportRow.newEnvironment,
+                          child: Text('Environment "${row.newName}"', overflow: TextOverflow.ellipsis)),
                       const DropdownMenuItem(value: AmbienceImportRow.skip, child: Text('Leave it out')),
                       for (final s in widget.sounds) DropdownMenuItem(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
                     ],
@@ -674,6 +687,60 @@ class _ImportDialogState extends State<_ImportDialog> {
               onPressed: count == 0 ? null : () => Navigator.pop(context, true),
               child: Text('Import $count sound${count == 1 ? '' : 's'}'),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The icon library, to choose a sound's icon from.
+class _IconSheet extends StatelessWidget {
+  const _IconSheet({required this.sound});
+
+  final AmbienceSound sound;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final current = ambienceIconName(sound);
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.7),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Icon for ${sound.name}', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  for (final e in ambienceIconLibrary.entries)
+                    IconButton(
+                      key: ValueKey('amb-icon-${e.key}'),
+                      tooltip: e.key,
+                      iconSize: 28,
+                      isSelected: e.key == current,
+                      style: IconButton.styleFrom(
+                        backgroundColor: e.key == current ? colors.primary : colors.surfaceContainerHighest,
+                        foregroundColor: e.key == current ? colors.onPrimary : colors.onSurfaceVariant,
+                      ),
+                      icon: Icon(e.value),
+                      onPressed: () => Navigator.pop(context, (icon: e.key)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                key: const Key('amb-icon-usual'),
+                onPressed: () => Navigator.pop(context, (icon: null)),
+                child: const Text('Use the usual icon'),
+              ),
+            ],
           ),
         ),
       ),
