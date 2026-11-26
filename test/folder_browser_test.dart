@@ -180,6 +180,50 @@ void main() {
     expect(chosen, '/elsewhere');
   });
 
+  group('choosing a file', () {
+    Future<void> openFiles(WidgetTester tester, {Set<String> types = const {'mp3', 'wav'}}) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [folderSourceProvider.overrideWithValue(folders)],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  chosen = await showFileBrowser(context, title: 'Choose a sound', extensions: types);
+                  answered = true;
+                },
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a tap on a file gives it; there is no folder button', (tester) async {
+      folders.tree['/phone/Music'] = ['Rock', 'one.mp3', 'two.m4a', 'three.wav'];
+      await openFiles(tester);
+      await into(tester, 'Music');
+      expect(find.byKey(const Key('browser-choose')), findsNothing);
+      expect(find.text('two.m4a'), findsNothing, reason: 'not a type that can be chosen');
+      expect(find.byKey(const ValueKey('browser-folder-Rock')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('browser-file-three.wav')));
+      await tester.pumpAndSettle();
+      expect(chosen, '/phone/Music/three.wav');
+    });
+
+    testWidgets('a folder with nothing of those types says which', (tester) async {
+      await openFiles(tester, types: const {'flac'});
+      await into(tester, 'Podcasts');
+      expect(find.text('No folders or FLAC files here.'), findsOneWidget);
+    });
+  });
+
   test('the phone source lists folders and songs by name, without hidden ones', () async {
     final root = await Directory.systemTemp.createTemp('rt_browser_');
     addTearDown(() => root.delete(recursive: true));

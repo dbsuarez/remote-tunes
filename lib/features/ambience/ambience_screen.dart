@@ -6,15 +6,9 @@ import '../../core/permissions.dart';
 import '../../providers/connection_providers.dart';
 import '../../providers/library_providers.dart' show permissionsProvider;
 import '../library/folder_browser.dart';
-import 'ambience_controller.dart' show AmbienceException;
+import 'ambience_controller.dart' show AmbienceException, ambienceExtensions;
 import 'ambience_remote.dart';
 import 'ambience_view.dart';
-
-/// Picks one sound file and gives its path.
-Future<String?> _pickSoundFile() async {
-  final r = await FilePicker.platform.pickFiles(type: FileType.audio);
-  return r?.files.singleOrNull?.path;
-}
 
 /// Ambience: this phone's own, or the other phone's while controlling it.
 class AmbienceScreen extends ConsumerStatefulWidget {
@@ -44,13 +38,29 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     super.dispose();
   }
 
-  /// A folder chosen in our own browser: the files in it (not those in folders inside it).
-  Future<List<String>?> _pickFolder() async {
+  /// Our browser reads the storage itself, so it needs the music permission.
+  Future<bool> _mayBrowse() async {
     final permissions = ref.read(permissionsProvider);
     if (await permissions.ensureMusicAccess() != PermissionOutcome.granted) {
-      throw const AmbienceException('To import a folder, allow RemoteTunes to read music and audio in the phone\'s settings.');
+      throw const AmbienceException('To add sounds, allow RemoteTunes to read music and audio in the phone\'s settings.');
     }
-    if (!mounted) return null;
+    return mounted;
+  }
+
+  /// One sound file, chosen in our own browser.
+  Future<String?> _pickSoundFile() async {
+    if (!await _mayBrowse() || !mounted) return null;
+    return showFileBrowser(
+      context,
+      title: 'Choose a sound',
+      extensions: ambienceExtensions,
+      systemPicker: () async => (await FilePicker.platform.pickFiles(type: FileType.audio))?.files.singleOrNull?.path,
+    );
+  }
+
+  /// A folder chosen in our own browser: the files in it (not those in folders inside it).
+  Future<List<String>?> _pickFolder() async {
+    if (!await _mayBrowse() || !mounted) return null;
     final folder = await showFolderBrowser(context, title: 'Import sounds', action: 'Import from this folder');
     if (folder == null) return null;
     return (await ref.read(folderSourceProvider).list(folder)).songs;

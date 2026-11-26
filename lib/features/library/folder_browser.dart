@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import 'metadata_extractor.dart' show isSupportedAudio;
+import 'metadata_extractor.dart' show extensionOf, isSupportedAudio;
 
 /// A place to start browsing: the phone's own storage, or an SD card.
 class StorageRoot {
@@ -89,8 +89,22 @@ Future<String?> showFolderBrowser(
       MaterialPageRoute(builder: (_) => FolderBrowser(title: title, action: action, systemPicker: systemPicker)),
     );
 
+/// The same browser, to choose one file: a tap on a file of one of [extensions] gives its path.
+Future<String?> showFileBrowser(
+  BuildContext context, {
+  required String title,
+  required Set<String> extensions,
+  Future<String?> Function()? systemPicker,
+}) =>
+    Navigator.of(context, rootNavigator: true).push<String>(
+      MaterialPageRoute(builder: (_) => FolderBrowser(title: title, fileTypes: extensions, systemPicker: systemPicker)),
+    );
+
 class FolderBrowser extends ConsumerStatefulWidget {
-  const FolderBrowser({super.key, required this.title, this.action = 'Add this folder', this.systemPicker});
+  const FolderBrowser({super.key, required this.title, this.action = 'Add this folder', this.systemPicker, this.fileTypes});
+
+  /// Choosing a file of these types (extensions, lower case); null: choosing a folder.
+  final Set<String>? fileTypes;
 
   final String title;
   final String action;
@@ -244,7 +258,7 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
                 ),
               ),
             Expanded(child: _list(theme, path, contents)),
-            if (path != null)
+            if (path != null && widget.fileTypes == null)
               SafeArea(
                 top: false,
                 child: Padding(
@@ -285,17 +299,37 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
     }
     if (_error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!)));
     if (contents == null) return const Center(child: CircularProgressIndicator());
-    if (contents.folders.isEmpty && contents.songs.isEmpty) {
-      return const Center(child: Text('No folders or songs here.'));
+    final types = widget.fileTypes;
+    // Choosing a file: only the ones that can be chosen are listed.
+    final songs = types == null ? contents.songs : [for (final s in contents.songs) if (types.contains(extensionOf(s))) s];
+    if (contents.folders.isEmpty && songs.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            types == null ? 'No folders or songs here.' : 'No folders or ${types.map((t) => t.toUpperCase()).join(', ')} files here.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
     }
     final folders = contents.folders;
     final muted = theme.colorScheme.onSurfaceVariant;
     return ListView.builder(
       key: ValueKey('browser-list-$path'),
-      itemCount: folders.length + contents.songs.length,
+      itemCount: folders.length + songs.length,
       itemBuilder: (context, i) {
         if (i >= folders.length) {
-          final song = contents.songs[i - folders.length];
+          final song = songs[i - folders.length];
+          if (types != null) {
+            return ListTile(
+              key: ValueKey('browser-file-${p.basename(song)}'),
+              minTileHeight: 56,
+              leading: Icon(Icons.audio_file_rounded, color: theme.colorScheme.primary),
+              title: Text(p.basename(song), maxLines: 2, overflow: TextOverflow.ellipsis),
+              onTap: () => Navigator.of(context).pop(song),
+            );
+          }
           return ListTile(
             dense: true,
             leading: Icon(Icons.music_note_rounded, color: muted),
