@@ -40,3 +40,22 @@ Future<Uint8List> _read(web.File f) async {
   final buffer = await f.arrayBuffer().toDart;
   return buffer.toDart.asUint8List();
 }
+
+/// Opens the browser's file chooser for one picture. Gives null if nothing was chosen.
+Future<Uint8List?> pickCoverFromComputer() {
+  final done = Completer<Uint8List?>();
+  final input = web.HTMLInputElement()
+    ..type = 'file'
+    ..accept = 'image/jpeg,image/png,.jpg,.jpeg,.png';
+
+  void finish() {
+    if (done.isCompleted) return;
+    final f = input.files?.item(0);
+    done.complete(f == null ? null : _read(f));
+  }
+
+  input.addEventListener('change', ((web.Event _) => finish()).toJS);
+  input.addEventListener('cancel', ((web.Event _) => finish()).toJS);
+  input.click();
+  return done.future;
+}

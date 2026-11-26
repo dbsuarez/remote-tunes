@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A file chosen to upload: its name, its size, and a way to read it (called when it is uploaded, so
@@ -29,3 +31,6 @@ final cloudNotesPickerProvider = Provider<Future<String?> Function()?>((ref) => 
 /// Lets the user pick songs to upload (the web page provides one; the phone uploads from the Library).
 /// An empty list means nothing was picked.
 final cloudSongPickerProvider = Provider<Future<List<PickedFile>> Function()?>((ref) => null);
+
+/// Lets the user pick a picture to use as a cover (null: not offered here). Gives null if nothing was picked.
+final cloudCoverPickerProvider = Provider<Future<Uint8List?> Function()?>((ref) => null);

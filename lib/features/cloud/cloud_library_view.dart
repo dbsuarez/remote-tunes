@@ -1,12 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/album_name.dart';
 import '../../core/utils/shuffle_start.dart';
 import '../../core/widgets/default_art.dart';
 import '../../core/widgets/playback_widgets.dart' show formatDuration;
 import '../music/music_source.dart' show friendlyError;
 import 'cloud_config_store.dart';
+import 'cloud_history.dart';
 import 'cloud_models.dart';
+import 'cloud_pickers.dart';
 import 'cloud_service.dart';
 import 'r2_client.dart';
 
@@ -28,7 +33,8 @@ class _Page {
 
 /// The Cloud Library: your own songs in your own R2 bucket. Browse by song, artist, album or playlist,
 /// search by words, filter by genre, play on this phone (or on the Player when controlling another phone)
-/// and queue. A device with the keys can also edit a song's details, make playlists and delete songs.
+/// and queue; sort the songs, or list the ones started here lately; pick several at once. A device with the
+/// keys can also edit songs' details and covers, make and reorder playlists, and delete songs.
 /// Songs are put up from the Library (select songs, then Upload to cloud) or from the web page.
 class CloudLibraryView extends ConsumerStatefulWidget {
   const CloudLibraryView(
@@ -68,11 +74,60 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
   _Tab _tab = _Tab.songs;
   _Page? _page;
   int _generation = 0;
+  CloudSort _sort = CloudSort.title;
+  List<String> _recent = const [];
+
+  /// The ids of the songs picked, while picking several; null otherwise.
+  Set<String>? _selected;
+
+  /// The new order of a playlist's songs, while reordering it; null otherwise.
+  List<String>? _order;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _remembered();
+  }
+
+  Future<void> _remembered() async {
+    final store = ref.read(cloudHistoryStoreProvider);
+    final sort = await store.sort();
+    final recent = await store.recent();
+    if (!mounted) return;
+    setState(() {
+      _sort = sort;
+      // Songs started while this was being read come first.
+      _recent = [..._recent, ...recent.where((id) => !_recent.contains(id))];
+    });
+  }
+
+  /// Notes that [s] was started from this screen.
+  void _noteStarted(CloudSong s) {
+    if (!mounted) return;
+    final next = CloudHistoryStore.played(_recent, s.id);
+    setState(() => _recent = next);
+    ref.read(cloudHistoryStoreProvider).saveRecent(next);
+  }
+
+  /// Leaves a page, picking or reordering.
+  void _show({_Tab? tab, _Page? page}) => setState(() {
+        if (tab != null) _tab = tab;
+        _page = page;
+        _selected = null;
+        _order = null;
+      });
+
+  /// One step back: out of picking or reordering first, then out of the page.
+  void _back() {
+    if (_selected != null || _order != null) {
+      setState(() {
+        _selected = null;
+        _order = null;
+      });
+    } else {
+      setState(() => _page = null);
+    }
   }
 
   @override
@@ -156,6 +211,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     if (config == null) return;
     try {
       await widget.onTrack(s, config.urlFor(s.audioKey), s.artKey == null ? null : config.urlFor(s.artKey!), queue: queue);
+      if (!queue) _noteStarted(s);
       _snack(queue ? 'Added to the queue' : 'Playing "${s.title}"');
     } catch (e) {
       _snack(friendlyError(e));
@@ -173,6 +229,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
       for (var i = 0; i < songs.length; i++) {
         final s = songs[i];
         await widget.onTrack(s, config.urlFor(s.audioKey), s.artKey == null ? null : config.urlFor(s.artKey!), queue: i > 0);
+        if (i == 0) _noteStarted(s);
       }
       _snack('Playing ${songs.length} song${songs.length == 1 ? '' : 's'}');
     } catch (e) {
@@ -226,6 +283,52 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     await _change((service) => service.updateSong(edited), done: 'Saved');
   }
 
+  Future<void> _editSeveral(List<CloudSong> songs) async {
+    final changes = await showDialog<_Shared>(context: context, builder: (_) => _EditSeveralDialog(count: songs.length));
+    if (changes == null || !mounted) return;
+    final saved = await _change(
+      (service) => service.updateSongs([for (final s in songs) s.id],
+          artist: changes.artist, album: changes.album, genre: changes.genre, year: changes.year),
+      done: 'Saved ${_count(songs.length, 'song')}',
+    );
+    if (saved && mounted) setState(() => _selected = null);
+  }
+
+  Future<void> _changeCover(CloudSong s) async {
+    final pick = ref.read(cloudCoverPickerProvider);
+    final catalog = _catalog;
+    if (pick == null || catalog == null) return;
+    final Uint8List? bytes;
+    try {
+      bytes = await pick();
+    } catch (_) {
+      _snack("That picture couldn't be opened.");
+      return;
+    }
+    if (bytes == null || !mounted) return;
+    if (CloudLibraryService.coverType(bytes) == null) {
+      _snack('Pick a JPG or PNG picture.');
+      return;
+    }
+    // The other songs of its album (a song with no album has none).
+    final album = isRealAlbum(s.album)
+        ? catalog.songsOfAlbum(CloudAlbum(title: s.album, artist: s.artist, songs: 0))
+        : <CloudSong>[s];
+    final ids = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _CoverDialog(bytes: bytes!, song: s, albumIds: [for (final x in album) x.id]),
+    );
+    if (ids == null || !mounted) return;
+    await _change((service) => service.setCover(ids, bytes!), done: 'Cover changed');
+  }
+
+  Future<void> _saveOrder(CloudPlaylist p) async {
+    final order = _order;
+    if (order == null) return;
+    final saved = await _change((service) => service.reorderPlaylist(p.id, order), done: 'Order saved');
+    if (saved && mounted) setState(() => _order = null);
+  }
+
   Future<String?> _askName(String title, {String initial = ''}) => showDialog<String>(
         context: context,
         builder: (_) => _NameDialog(title: title, initial: initial),
@@ -237,10 +340,10 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     await _change((service) async => (await service.createPlaylist(name)).catalog, done: 'Playlist made');
   }
 
-  /// Asks which playlist, then adds [songs] to it (or to a new one).
-  Future<void> _addToPlaylist(List<CloudSong> songs) async {
+  /// Asks which playlist, then adds [songs] to it (or to a new one). True once they are in it.
+  Future<bool> _addToPlaylist(List<CloudSong> songs) async {
     final catalog = _catalog;
-    if (catalog == null || songs.isEmpty) return;
+    if (catalog == null || songs.isEmpty) return false;
     final choice = await showModalBottomSheet<({CloudPlaylist? playlist})>(
       context: context,
       showDragHandle: true,
@@ -266,17 +369,16 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
         ),
       ),
     );
-    if (choice == null || !mounted) return;
+    if (choice == null || !mounted) return false;
     final ids = [for (final s in songs) s.id];
     final p = choice.playlist;
     if (p == null) {
       final name = await _askName('New playlist');
-      if (name == null || !mounted) return;
-      await _change((service) async => (await service.createPlaylist(name, ids)).catalog, done: 'Added to "${name.trim()}"');
-      return;
+      if (name == null || !mounted) return false;
+      return _change((service) async => (await service.createPlaylist(name, ids)).catalog, done: 'Added to "${name.trim()}"');
     }
     final already = ids.every(p.songIds.contains);
-    await _change(
+    return _change(
       (service) => service.addToPlaylist(p.id, ids),
       done: already ? 'Already in "${p.name}"' : 'Added to "${p.name}"',
     );
@@ -302,7 +404,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     );
     if (ok != true || !mounted) return;
     final gone = await _change((service) => service.deletePlaylist(p.id), done: 'Playlist deleted');
-    if (gone && mounted) setState(() => _page = null);
+    if (gone && mounted) _show();
   }
 
   // -------------------------------------------------------------------- build
@@ -329,9 +431,9 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     final catalog = _catalog;
     // The phone's Back button closes an artist, album or playlist page first.
     return PopScope(
-      canPop: _page == null,
+      canPop: _page == null && _selected == null,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && mounted) setState(() => _page = null);
+        if (!didPop && mounted) _back();
       },
       child: Column(
         children: [
@@ -456,7 +558,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                       _Tab.playlists => 'Playlists',
                     }),
                     selected: _tab == t,
-                    onSelected: (_) => setState(() => _tab = t),
+                    onSelected: (_) => _show(tab: t),
                   ),
                 ],
               ],
@@ -528,42 +630,97 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
               ],
             ),
           ),
-        Expanded(child: _songList(theme, muted, config, catalog.search(_query, genre: _genre), emptyText: 'No songs match.')),
+        Expanded(
+          child: _songList(
+            theme,
+            muted,
+            config,
+            sortCloudSongs(catalog.search(_query, genre: _genre), _sort, _recent),
+            sortable: true,
+            emptyText: _sort == CloudSort.recent && _query.isEmpty && _genre == null
+                ? 'Nothing yet. Songs you start from this screen show up here.'
+                : 'No songs match.',
+          ),
+        ),
       ],
     );
   }
 
-  /// The play buttons and the rows for [songs]. With a [playlist], rows can be taken out of it.
+  /// The buttons and the rows for [songs]. With a [playlist], rows can be taken out of it and reordered.
+  /// [sortable]: the sort button is offered.
   Widget _songList(ThemeData theme, TextStyle? muted, CloudConfig config, List<CloudSong> songs,
-      {required String emptyText, CloudPlaylist? playlist}) {
+      {required String emptyText, CloudPlaylist? playlist, bool sortable = false}) {
     final rows = songs.take(CloudLibraryView.maxRows).toList();
+    final selected = _selected;
     return Column(
       children: [
-        if (songs.isNotEmpty)
+        if (selected != null)
+          _selectionBar(theme, config, songs, selected, playlist)
+        else if (songs.isNotEmpty || sortable)
           Align(
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  TextButton.icon(
-                    key: const Key('cloud-play-all'),
-                    onPressed: widget.enabled ? () => _playAll(songs.take(200).toList()) : null,
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text('Play all (${songs.length > 200 ? '200' : songs.length})'),
-                  ),
-                  TextButton.icon(
-                    key: const Key('cloud-queue-all'),
-                    onPressed: widget.enabled ? () => _queueAll(songs.take(200).toList()) : null,
-                    icon: const Icon(Icons.queue_music_rounded),
-                    label: const Text('Add all'),
-                  ),
-                  if (config.canWrite && playlist == null)
+                  if (songs.isNotEmpty) ...[
                     TextButton.icon(
-                      key: const Key('cloud-all-to-playlist'),
-                      onPressed: () => _addToPlaylist(songs),
-                      icon: const Icon(Icons.playlist_add_rounded),
-                      label: const Text('To a playlist'),
+                      key: const Key('cloud-play-all'),
+                      onPressed: widget.enabled ? () => _playAll(songs.take(200).toList()) : null,
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: Text('Play all (${songs.length > 200 ? '200' : songs.length})'),
+                    ),
+                    TextButton.icon(
+                      key: const Key('cloud-queue-all'),
+                      onPressed: widget.enabled ? () => _queueAll(songs.take(200).toList()) : null,
+                      icon: const Icon(Icons.queue_music_rounded),
+                      label: const Text('Add all'),
+                    ),
+                    if (config.canWrite && playlist == null)
+                      TextButton.icon(
+                        key: const Key('cloud-all-to-playlist'),
+                        onPressed: () => _addToPlaylist(songs),
+                        icon: const Icon(Icons.playlist_add_rounded),
+                        label: const Text('To a playlist'),
+                      ),
+                    TextButton.icon(
+                      key: const Key('cloud-select'),
+                      onPressed: () => setState(() => _selected = {}),
+                      icon: const Icon(Icons.checklist_rounded),
+                      label: const Text('Select'),
+                    ),
+                    if (config.canWrite && playlist != null && songs.length > 1)
+                      TextButton.icon(
+                        key: const Key('cloud-reorder'),
+                        onPressed: () => setState(() => _order = [for (final s in songs) s.id]),
+                        icon: const Icon(Icons.swap_vert_rounded),
+                        label: const Text('Reorder'),
+                      ),
+                  ],
+                  if (sortable)
+                    PopupMenuButton<CloudSort>(
+                      key: const Key('cloud-sort'),
+                      tooltip: 'Sort',
+                      initialValue: _sort,
+                      onSelected: (v) {
+                        setState(() => _sort = v);
+                        ref.read(cloudHistoryStoreProvider).saveSort(v);
+                      },
+                      itemBuilder: (_) => [
+                        for (final v in CloudSort.values) PopupMenuItem(value: v, child: Text(v.label)),
+                      ],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.sort_rounded, size: 18, color: theme.colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Text(_sort.label, style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+                          ],
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -585,6 +742,125 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                     return _row(theme, config, rows[i], playlist: playlist);
                   },
                 ),
+        ),
+      ],
+    );
+  }
+
+  /// What can be done with the picked songs. They keep the order of the list.
+  Widget _selectionBar(
+      ThemeData theme, CloudConfig config, List<CloudSong> songs, Set<String> selected, CloudPlaylist? playlist) {
+    final picked = [for (final s in songs) if (selected.contains(s.id)) s];
+    final any = picked.isNotEmpty;
+    void leave() => setState(() => _selected = null);
+    Widget action(String key, IconData icon, String label, VoidCallback? onPressed) =>
+        TextButton.icon(key: Key(key), onPressed: onPressed, icon: Icon(icon), label: Text(label));
+    return Material(
+      color: theme.colorScheme.surfaceContainerHigh,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(key: const Key('cloud-select-done'), tooltip: 'Stop selecting', icon: const Icon(Icons.close_rounded), onPressed: leave),
+              Expanded(child: Text('${picked.length} selected', key: const Key('cloud-select-count'), style: theme.textTheme.titleSmall)),
+              TextButton(
+                key: const Key('cloud-select-all'),
+                onPressed: () => setState(() => _selected = picked.length == songs.length ? {} : {for (final s in songs) s.id}),
+                child: Text(songs.isNotEmpty && picked.length == songs.length ? 'Select none' : 'Select all'),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Wrap(
+                children: [
+                  action('cloud-sel-play', Icons.play_arrow_rounded, 'Play', any && widget.enabled
+                      ? () {
+                          leave();
+                          _playAll(picked.take(200).toList());
+                        }
+                      : null),
+                  action('cloud-sel-queue', Icons.queue_music_rounded, 'Queue', any && widget.enabled
+                      ? () {
+                          leave();
+                          _queueAll(picked.take(200).toList());
+                        }
+                      : null),
+                  if (config.canWrite) ...[
+                    action('cloud-sel-playlist', Icons.playlist_add_rounded, 'To a playlist', any
+                        ? () async {
+                            if (await _addToPlaylist(picked) && mounted) leave();
+                          }
+                        : null),
+                    action('cloud-sel-edit', Icons.edit_rounded, 'Edit info', any ? () => _editSeveral(picked) : null),
+                    if (playlist != null)
+                      action('cloud-sel-unlist', Icons.playlist_remove_rounded, 'Remove', any
+                          ? () async {
+                              final done = await _change(
+                                (service) => service.removeFromPlaylist(playlist.id, [for (final s in picked) s.id]),
+                                done: 'Taken out of "${playlist.name}"',
+                              );
+                              if (done && mounted) leave();
+                            }
+                          : null),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A playlist's songs with handles to drag them into a new order.
+  Widget _reorderList(ThemeData theme, CloudConfig config, CloudCatalog catalog, CloudPlaylist playlist, List<String> order) {
+    final songs = [
+      for (final id in order)
+        if (catalog.songById(id) case final s?) s,
+    ];
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+          child: Row(
+            children: [
+              Expanded(child: Text('Drag the songs into order', style: theme.textTheme.bodySmall)),
+              TextButton(key: const Key('cloud-order-cancel'), onPressed: () => setState(() => _order = null), child: const Text('Cancel')),
+              FilledButton(key: const Key('cloud-order-save'), onPressed: () => _saveOrder(playlist), child: const Text('Save')),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            itemCount: songs.length,
+            onReorder: (from, to) => setState(() {
+              final ids = [for (final s in songs) s.id];
+              final moved = ids.removeAt(from);
+              ids.insert(to > from ? to - 1 : to, moved);
+              _order = ids;
+            }),
+            itemBuilder: (context, i) {
+              final s = songs[i];
+              return ListTile(
+                key: ValueKey('cloud-order-${s.id}'),
+                minTileHeight: 64,
+                leading: _cover(config, s.artKey),
+                title: Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: s.artist.isEmpty ? null : Text(s.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: ReorderableDragStartListener(
+                  index: i,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Icon(Icons.drag_handle_rounded, key: ValueKey('cloud-drag-${s.id}')),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ],
     );
@@ -612,6 +888,24 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
   }
 
   Widget _row(ThemeData theme, CloudConfig config, CloudSong s, {CloudPlaylist? playlist}) {
+    final selected = _selected;
+    if (selected != null) {
+      final on = selected.contains(s.id);
+      return ListTile(
+        key: ValueKey('cloud-song-${s.id}'),
+        minTileHeight: 64,
+        selected: on,
+        selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+        leading: _cover(config, s.artKey),
+        title: Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text([if (s.artist.isNotEmpty) s.artist, if (s.album.isNotEmpty) s.album].join(' · '),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Icon(on ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+            color: on ? theme.colorScheme.primary : null),
+        onTap: () => setState(() => _selected = on ? ({...selected}..remove(s.id)) : {...selected, s.id}),
+      );
+    }
+    final canCover = ref.read(cloudCoverPickerProvider) != null;
     return ListTile(
       key: ValueKey('cloud-song-${s.id}'),
       minTileHeight: 64,
@@ -641,6 +935,8 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                   _change((service) => service.removeFromPlaylist(from.id, [s.id]), done: 'Taken out of "${from.name}"');
                 case 'edit':
                   _editInfo(s);
+                case 'cover':
+                  _changeCover(s);
                 case 'delete':
                   _delete(s);
               }
@@ -652,6 +948,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                 const PopupMenuItem(value: 'playlist', child: Text('Add to playlist')),
                 if (playlist != null) const PopupMenuItem(value: 'unlist', child: Text('Remove from this playlist')),
                 const PopupMenuItem(value: 'edit', child: Text('Edit info')),
+                if (canCover) const PopupMenuItem(value: 'cover', child: Text('Change cover')),
                 const PopupMenuItem(value: 'delete', child: Text('Delete from the cloud')),
               ],
             ],
@@ -679,7 +976,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
           title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text([_count(a.songs, 'song'), if (a.albums > 0) _count(a.albums, 'album')].join(' · ')),
           trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => setState(() => _page = _Page(_PageKind.artist, a.name, a.name)),
+          onTap: () => _show(page: _Page(_PageKind.artist, a.name, a.name)),
         );
       },
     );
@@ -703,7 +1000,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
             overflow: TextOverflow.ellipsis,
           ),
           trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => setState(() => _page = _Page(_PageKind.album, a.key, a.title)),
+          onTap: () => _show(page: _Page(_PageKind.album, a.key, a.title)),
         );
       },
     );
@@ -746,7 +1043,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                       title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: Text(_count(catalog.songsOfPlaylist(p).length, 'song')),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => setState(() => _page = _Page(_PageKind.playlist, p.id, p.name)),
+                      onTap: () => _show(page: _Page(_PageKind.playlist, p.id, p.name)),
                     );
                   },
                 ),
@@ -775,6 +1072,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
         }
     }
     final list = playlist;
+    final order = _order;
     return Column(
       children: [
         Padding(
@@ -785,7 +1083,7 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
                 key: const Key('cloud-back'),
                 tooltip: 'Back',
                 icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () => setState(() => _page = null),
+                onPressed: () => _show(),
               ),
               Expanded(
                 child: Text(title,
@@ -805,16 +1103,18 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
           ),
         ),
         Expanded(
-          child: _songList(
-            theme,
-            muted,
-            config,
-            songs,
-            playlist: list,
-            emptyText: page.kind == _PageKind.playlist
-                ? 'This playlist is empty. Open a song\'s menu and tap Add to playlist.'
-                : 'No songs here any more.',
-          ),
+          child: list != null && order != null
+              ? _reorderList(theme, config, catalog, list, order)
+              : _songList(
+                  theme,
+                  muted,
+                  config,
+                  songs,
+                  playlist: list,
+                  emptyText: page.kind == _PageKind.playlist
+                      ? 'This playlist is empty. Open a song\'s menu and tap Add to playlist.'
+                      : 'No songs here any more.',
+                ),
         ),
       ],
     );
@@ -966,4 +1266,136 @@ class _EditSongDialogState extends State<_EditSongDialog> {
       ],
     );
   }
+}
+
+/// The details given to several songs at once (null: leave as it is).
+typedef _Shared = ({String? artist, String? album, String? genre, int? year});
+
+/// Edits what several songs can share. Only what is typed is changed.
+class _EditSeveralDialog extends StatefulWidget {
+  const _EditSeveralDialog({required this.count});
+
+  final int count;
+
+  @override
+  State<_EditSeveralDialog> createState() => _EditSeveralDialogState();
+}
+
+class _EditSeveralDialogState extends State<_EditSeveralDialog> {
+  final _artist = TextEditingController();
+  final _album = TextEditingController();
+  final _genre = TextEditingController();
+  final _year = TextEditingController();
+  String? _problem;
+
+  @override
+  void dispose() {
+    for (final c in [_artist, _album, _genre, _year]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    String? typed(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+    final yearText = typed(_year);
+    final year = yearText == null ? null : int.tryParse(yearText);
+    if (yearText != null && (year == null || year < 1000 || year > 2999)) {
+      setState(() => _problem = 'The year is four digits, like 1999.');
+      return;
+    }
+    final changes = (artist: typed(_artist), album: typed(_album), genre: typed(_genre), year: year);
+    if (changes.artist == null && changes.album == null && changes.genre == null && year == null) {
+      setState(() => _problem = 'Type something to change.');
+      return;
+    }
+    Navigator.pop(context, changes);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget field(String key, String label, TextEditingController c, {TextInputType? type}) => TextField(
+          key: Key(key),
+          controller: c,
+          keyboardType: type,
+          decoration: InputDecoration(labelText: label, hintText: 'Unchanged', floatingLabelBehavior: FloatingLabelBehavior.always, isDense: true),
+        );
+    return AlertDialog(
+      title: Text('Edit ${widget.count} song${widget.count == 1 ? '' : 's'}'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              const Text('Only what you type is changed.'),
+              field('cloud-many-artist', 'Artist', _artist),
+              field('cloud-many-album', 'Album', _album),
+              field('cloud-many-genre', 'Genre', _genre),
+              field('cloud-many-year', 'Year', _year, type: TextInputType.number),
+              if (_problem != null)
+                Text(_problem!, key: const Key('cloud-many-problem'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(key: const Key('cloud-many-save'), onPressed: _save, child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+/// Shows the picked picture and asks who gets it: the whole album, or only the song. Gives their ids.
+class _CoverDialog extends StatefulWidget {
+  const _CoverDialog({required this.bytes, required this.song, required this.albumIds});
+
+  final Uint8List bytes;
+  final CloudSong song;
+  final List<String> albumIds;
+
+  @override
+  State<_CoverDialog> createState() => _CoverDialogState();
+}
+
+class _CoverDialogState extends State<_CoverDialog> {
+  late bool _wholeAlbum = widget.albumIds.length > 1;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Use this cover?'),
+        content: SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 180,
+                  height: 180,
+                  child: Image.memory(widget.bytes, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
+                ),
+                if (widget.albumIds.length > 1)
+                  CheckboxListTile(
+                    key: const Key('cloud-cover-album'),
+                    contentPadding: EdgeInsets.zero,
+                    value: _wholeAlbum,
+                    onChanged: (v) => setState(() => _wholeAlbum = v ?? false),
+                    title: Text('All ${widget.albumIds.length} songs of "${widget.song.album}"'),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            key: const Key('cloud-cover-save'),
+            onPressed: () => Navigator.pop(context, _wholeAlbum ? widget.albumIds : [widget.song.id]),
+            child: const Text('Use it'),
+          ),
+        ],
+      );
 }

@@ -26,6 +26,7 @@ void main() {
       overrides: [
         // The Cloud Library settings can be filled from a notes file picked on the phone.
         cloudNotesPickerProvider.overrideWithValue(pickNotesFile),
+        cloudCoverPickerProvider.overrideWithValue(pickCoverFile),
         // Recent links live in the phone's database.
         recentLinksStoreProvider.overrideWith(
           (ref) => DriftRecentLinksStore(ref.watch(recentUrlsRepositoryProvider)),

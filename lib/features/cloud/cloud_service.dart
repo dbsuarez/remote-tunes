@@ -152,6 +152,8 @@ class CloudLibraryService {
     final pending = <CloudSong>[];
     final artDone = <String>{};
     CloudCatalog? known;
+    final albumArt = <String, String>{};
+    String albumOf(String artist, String album) => '${artist.toLowerCase().trim()}|${album.toLowerCase().trim()}';
 
     Future<void> flush() async {
       if (pending.isEmpty) return;
@@ -163,6 +165,9 @@ class CloudLibraryService {
     try {
       known = await _fresh();
       artDone.addAll([for (final s in known.songs) if (s.artKey != null) s.artKey!]);
+      for (final s in known.songs) {
+        if (s.artKey != null && isRealAlbum(s.album)) albumArt.putIfAbsent(albumOf(s.artist, s.album), () => s.artKey!);
+      }
       for (var i = 0; i < items.length; i++) {
         if (cancelled?.call() ?? false) break;
         final it = items[i];
@@ -174,7 +179,10 @@ class CloudLibraryService {
           await _r2.putStream(audioKey, it.open(), it.length, contentType: _contentTypes[ext] ?? 'application/octet-stream');
           String? artKey;
           final art = it.art;
-          if (art != null && art.isNotEmpty) {
+          final present = isRealAlbum(it.album) ? albumArt[albumOf(it.artist, it.album)] : null;
+          if (present != null) {
+            artKey = present;
+          } else if (art != null && art.isNotEmpty) {
             // One cover per album; a song with no album has its own.
             final key = isRealAlbum(it.album)
                 ? artKeyFor(it.artist, it.album, it.artExt)
@@ -248,6 +256,70 @@ class CloudLibraryService {
     if (title.isEmpty) throw const R2Exception('A song needs a title.');
     return _edit((c) => c.songById(edited.id) == null ? c : c.withSong(edited));
   }
+
+  /// Gives several songs the same details in one save. A null value leaves that detail as it is.
+  Future<CloudCatalog> updateSongs(Iterable<String> songIds, {String? artist, String? album, String? genre, int? year}) {
+    final ids = songIds.toSet();
+    return _edit((c) => CloudCatalog([
+          for (final s in c.songs)
+            ids.contains(s.id) ? s.copyWith(artist: artist, album: album, genre: genre, year: year) : s,
+        ], c.playlists));
+  }
+
+  /// The largest picture accepted as a cover.
+  static const maxCoverBytes = 3 * 1024 * 1024;
+
+  /// `jpg` or `png` by what the file really is, else null.
+  static String? coverType(List<int> b) {
+    if (b.length > 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return 'jpg';
+    if (b.length > 4 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) return 'png';
+    return null;
+  }
+
+  /// Makes [bytes] the cover of these songs. A cover no song uses any more is removed.
+  Future<CloudCatalog> setCover(Iterable<String> songIds, Uint8List bytes) async {
+    if (!config.canWrite) throw const R2Exception('Add your R2 keys in Settings first.');
+    final type = coverType(bytes);
+    if (type == null) throw const R2Exception('Pick a JPG or PNG picture.');
+    if (bytes.length > maxCoverBytes) throw const R2Exception('That picture is larger than 3 MB. Pick a smaller one.');
+    final ids = songIds.toSet();
+    // A new name each time, so no phone keeps showing the old picture it already has.
+    final key = 'artwork/${_newId()}.$type';
+    await _r2.putBytes(key, bytes, contentType: type == 'png' ? 'image/png' : 'image/jpeg');
+    final old = <String>{};
+    final next = await _edit((c) => CloudCatalog([
+          for (final s in c.songs)
+            if (ids.contains(s.id)) () {
+              final was = s.artKey;
+              if (was != null) old.add(was);
+              return s.copyWith(artKey: key);
+            }() else s,
+        ], c.playlists));
+    final used = {for (final s in next.songs) if (s.artKey != null) s.artKey!};
+    for (final k in old.difference(used)) {
+      try {
+        await _r2.delete(k);
+      } on R2Exception {
+        // Only wasted space.
+      }
+    }
+    return next;
+  }
+
+  /// Puts a playlist's songs in [order]. Songs the order does not name (added elsewhere meanwhile) stay
+  /// at the end.
+  Future<CloudCatalog> reorderPlaylist(String playlistId, List<String> order) => _edit((c) => c.withPlaylists([
+        for (final p in c.playlists)
+          if (p.id == playlistId)
+            p.copyWith(songIds: [
+              for (final id in order.toSet())
+                if (p.songIds.contains(id)) id,
+              for (final id in p.songIds)
+                if (!order.contains(id)) id,
+            ])
+          else
+            p,
+      ]));
 
   static String _cleanName(String name) {
     final n = name.trim();

@@ -109,7 +109,17 @@ class CloudSong {
   final DateTime? added;
 
   /// This song with other details (the file, cover and size stay as they were).
-  CloudSong copyWith({String? title, String? artist, String? album, String? genre, int? year, int? track, bool clearYear = false, bool clearTrack = false}) => CloudSong(
+  CloudSong copyWith(
+          {String? title,
+          String? artist,
+          String? album,
+          String? genre,
+          int? year,
+          int? track,
+          String? artKey,
+          bool clearYear = false,
+          bool clearTrack = false}) =>
+      CloudSong(
         id: id,
         title: title ?? this.title,
         artist: artist ?? this.artist,
@@ -119,7 +129,7 @@ class CloudSong {
         track: clearTrack ? null : (track ?? this.track),
         durationSeconds: durationSeconds,
         audioKey: audioKey,
-        artKey: artKey,
+        artKey: artKey ?? this.artKey,
         sizeBytes: sizeBytes,
         added: added,
       );
@@ -170,6 +180,61 @@ class CloudSong {
       added: when,
     );
   }
+}
+
+/// How the songs of the Cloud Library are listed. [recent] shows only songs started on this device,
+/// the latest first.
+enum CloudSort { title, artist, newest, oldest, longest, recent }
+
+extension CloudSortX on CloudSort {
+  String get label => switch (this) {
+        CloudSort.title => 'Title',
+        CloudSort.artist => 'Artist',
+        CloudSort.newest => 'Newest added',
+        CloudSort.oldest => 'Oldest added',
+        CloudSort.longest => 'Longest',
+        CloudSort.recent => 'Recently played',
+      };
+}
+
+/// [songs] in the order [sort] asks for. [recentIds] are the songs started here, the latest first.
+List<CloudSong> sortCloudSongs(List<CloudSong> songs, CloudSort sort, [List<String> recentIds = const []]) {
+  int text(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
+  int byTitle(CloudSong a, CloudSong b) => text(a.title, b.title);
+  // Songs with no date go last either way.
+  int byDate(CloudSong a, CloudSong b, int direction) {
+    final x = a.added, y = b.added;
+    if (x == null || y == null) return x == null ? (y == null ? byTitle(a, b) : 1) : -1;
+    final d = x.compareTo(y) * direction;
+    return d != 0 ? d : byTitle(a, b);
+  }
+
+  if (sort == CloudSort.recent) {
+    final byId = {for (final s in songs) s.id: s};
+    return [
+      for (final id in recentIds)
+        if (byId[id] case final s?) s,
+    ];
+  }
+  return [...songs]..sort(switch (sort) {
+      CloudSort.artist => (a, b) {
+          // Songs with no artist go last.
+          if (a.artist.isEmpty != b.artist.isEmpty) return a.artist.isEmpty ? 1 : -1;
+          final d = text(a.artist, b.artist);
+          if (d != 0) return d;
+          final album = text(a.album, b.album);
+          if (album != 0) return album;
+          final track = (a.track ?? 9999).compareTo(b.track ?? 9999);
+          return track != 0 ? track : byTitle(a, b);
+        },
+      CloudSort.newest => (a, b) => byDate(a, b, -1),
+      CloudSort.oldest => (a, b) => byDate(a, b, 1),
+      CloudSort.longest => (a, b) {
+          final d = b.durationSeconds.compareTo(a.durationSeconds);
+          return d != 0 ? d : byTitle(a, b);
+        },
+      _ => byTitle,
+    });
 }
 
 /// A playlist of cloud songs (kept in the catalog file, so every phone and the web page see it).
