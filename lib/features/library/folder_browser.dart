@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import 'metadata_extractor.dart' show extensionOf, isSupportedAudio;
+import '../../core/file_access.dart';
+import 'metadata_extractor.dart' show extensionOf, supportedAudioExtensions;
 
 /// A place to start browsing: the phone's own storage, or an SD card.
 class StorageRoot {
@@ -14,11 +15,11 @@ class StorageRoot {
   final String path;
 }
 
-/// What one folder holds: its folders and its songs (full paths, by name).
+/// What one folder holds: its folders and its files (full paths, by name).
 class FolderContents {
-  const FolderContents(this.folders, this.songs);
+  const FolderContents(this.folders, this.files);
   final List<String> folders;
-  final List<String> songs;
+  final List<String> files;
 }
 
 abstract class FolderSource {
@@ -55,7 +56,7 @@ class PhoneFolderSource implements FolderSource {
   @override
   Future<FolderContents> list(String path) async {
     final folders = <String>[];
-    final songs = <String>[];
+    final files = <String>[];
     await for (final e in Directory(path).list(followLinks: false)) {
       final name = p.basename(e.path);
       if (name.startsWith('.')) continue;
@@ -63,58 +64,89 @@ class PhoneFolderSource implements FolderSource {
         // Other apps' private files: nothing to add there.
         if (name == 'Android' && path.startsWith('/storage/') && path.split('/').length <= 4) continue;
         folders.add(e.path);
-      } else if (e is File && isSupportedAudio(e.path)) {
-        songs.add(e.path);
+      } else if (e is File) {
+        files.add(e.path);
       }
     }
     int byName(String a, String b) => p.basename(a).toLowerCase().compareTo(p.basename(b).toLowerCase());
-    return FolderContents(folders..sort(byName), songs..sort(byName));
+    return FolderContents(folders..sort(byName), files..sort(byName));
   }
 }
 
 final folderSourceProvider = Provider<FolderSource>((ref) => PhoneFolderSource());
 
-/// Where the browser was last, so adding the next folder starts there.
+/// Android's "All files access" (replaced in tests).
+final fileAccessProvider = Provider<FileAccess>((ref) => const FileAccess());
+
+/// Where the browser was last, so the next time starts there.
 final lastBrowsedFolderProvider = StateProvider<String?>((ref) => null);
 
-/// Opens the app's own folder browser and gives the folder chosen, or null. [systemPicker] is offered in
-/// the menu for the rare place the browser cannot reach.
+enum _Mode { folder, file, files }
+
+Future<T?> _push<T>(BuildContext context, FolderBrowser browser) =>
+    Navigator.of(context, rootNavigator: true).push<T>(MaterialPageRoute(builder: (_) => browser));
+
+/// Opens the app's own browser to choose a folder, and gives it (or null). Files of [showTypes]
+/// (audio, unless said otherwise) show inside. [systemPicker] is offered in the menu for the rare place
+/// the browser cannot reach.
 Future<String?> showFolderBrowser(
   BuildContext context, {
   required String title,
   String action = 'Add this folder',
+  Set<String>? showTypes,
   Future<String?> Function()? systemPicker,
 }) =>
-    Navigator.of(context, rootNavigator: true).push<String>(
-      MaterialPageRoute(builder: (_) => FolderBrowser(title: title, action: action, systemPicker: systemPicker)),
-    );
+    _push<String>(context,
+        FolderBrowser._(title: title, mode: _Mode.folder, action: action, types: showTypes, systemPicker: systemPicker));
 
 /// The same browser, to choose one file: a tap on a file of one of [extensions] gives its path.
+/// [needsAllFiles]: Android hides these files without "All files access" (anything that is not audio).
 Future<String?> showFileBrowser(
   BuildContext context, {
   required String title,
   required Set<String> extensions,
+  bool needsAllFiles = false,
   Future<String?> Function()? systemPicker,
 }) =>
-    Navigator.of(context, rootNavigator: true).push<String>(
-      MaterialPageRoute(builder: (_) => FolderBrowser(title: title, fileTypes: extensions, systemPicker: systemPicker)),
-    );
+    _push<String>(context,
+        FolderBrowser._(title: title, mode: _Mode.file, types: extensions, needsAllFiles: needsAllFiles, systemPicker: systemPicker));
+
+/// The same browser, to choose several files, from one folder or more.
+Future<List<String>?> showFilesBrowser(
+  BuildContext context, {
+  required String title,
+  required Set<String> extensions,
+  Future<List<String>?> Function()? systemPicker,
+}) =>
+    _push<List<String>>(
+        context, FolderBrowser._(title: title, mode: _Mode.files, types: extensions, systemPicker: systemPicker));
 
 class FolderBrowser extends ConsumerStatefulWidget {
-  const FolderBrowser({super.key, required this.title, this.action = 'Add this folder', this.systemPicker, this.fileTypes});
-
-  /// Choosing a file of these types (extensions, lower case); null: choosing a folder.
-  final Set<String>? fileTypes;
+  const FolderBrowser._({
+    required this.title,
+    required _Mode mode,
+    this.action = 'Add this folder',
+    this.types,
+    this.needsAllFiles = false,
+    this.systemPicker,
+  }) : _mode = mode;
 
   final String title;
+  final _Mode _mode;
   final String action;
-  final Future<String?> Function()? systemPicker;
+
+  /// The file types (extensions, lower case) listed; null: audio.
+  final Set<String>? types;
+  final bool needsAllFiles;
+
+  /// Android's own screen, giving what this one would: a path, or (choosing several) a list of paths.
+  final Future<Object?> Function()? systemPicker;
 
   @override
   ConsumerState<FolderBrowser> createState() => _FolderBrowserState();
 }
 
-class _FolderBrowserState extends ConsumerState<FolderBrowser> {
+class _FolderBrowserState extends ConsumerState<FolderBrowser> with WidgetsBindingObserver {
   List<StorageRoot> _roots = const [];
 
   /// The folder shown; null while the list of storages shows.
@@ -123,15 +155,51 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
   String? _error;
   int _request = 0;
 
+  /// Whether Android may be hiding files from the list.
+  bool _hidden = false;
+
+  /// The files picked, when choosing several (kept while moving between folders).
+  final Set<String> _picked = {};
+
   /// What each folder in the list holds, once looked at.
   final Map<String, Future<FolderContents?>> _inside = {};
 
   FolderSource get _source => ref.read(folderSourceProvider);
+  Set<String> get _types => widget.types ?? supportedAudioExtensions;
+  List<String> _shown(FolderContents c) => [for (final f in c.files) if (_types.contains(extensionOf(f))) f];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAccess();
+      _start();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Back from the phone's settings: the files may show now.
+    if (state == AppLifecycleState.resumed && widget.needsAllFiles) _checkAccess(reload: true);
+  }
+
+  Future<void> _checkAccess({bool reload = false}) async {
+    if (!widget.needsAllFiles) return;
+    final all = await ref.read(fileAccessProvider).canWriteAll();
+    if (!mounted) return;
+    final changed = _hidden == all;
+    setState(() => _hidden = !all);
+    if (reload && changed) {
+      _inside.clear();
+      await _open(_path);
+    }
   }
 
   Future<void> _start() async {
@@ -186,7 +254,7 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
   }
 
   Future<void> _useSystemPicker() async {
-    String? chosen;
+    Object? chosen;
     try {
       chosen = await widget.systemPicker!();
     } catch (_) {
@@ -206,6 +274,9 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
     final path = _path;
     final up = _up;
     final contents = _contents;
+    final several = widget._mode == _Mode.files;
+    final here = contents == null ? const <String>[] : _shown(contents);
+    final allHere = here.isNotEmpty && here.every(_picked.contains);
     return PopScope(
       canPop: up == null,
       onPopInvokedWithResult: (didPop, _) {
@@ -231,6 +302,23 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
         ),
         body: Column(
           children: [
+            if (_hidden)
+              Material(
+                color: theme.colorScheme.secondaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(child: Text('Android hides these files unless All files access is on.')),
+                      TextButton(
+                        key: const Key('browser-allow'),
+                        onPressed: () => ref.read(fileAccessProvider).openSettings(),
+                        child: const Text('Allow'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (path != null)
               Material(
                 color: theme.colorScheme.surfaceContainerHigh,
@@ -252,33 +340,46 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
                           child: Text(_trail(path), key: const Key('browser-trail'), style: theme.textTheme.titleSmall),
                         ),
                       ),
+                      if (several && here.isNotEmpty)
+                        TextButton(
+                          key: const Key('browser-select-all'),
+                          onPressed: () => setState(() => allHere ? _picked.removeAll(here) : _picked.addAll(here)),
+                          child: Text(allHere ? 'None' : 'All'),
+                        ),
                       const SizedBox(width: 12),
                     ],
                   ),
                 ),
               ),
             Expanded(child: _list(theme, path, contents)),
-            if (path != null && widget.fileTypes == null)
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      key: const Key('browser-choose'),
-                      onPressed: contents == null ? null : () => Navigator.of(context).pop(path),
-                      icon: const Icon(Icons.check_rounded),
-                      label: Text(widget.action),
-                    ),
-                  ),
-                ),
+            if (widget._mode == _Mode.folder && path != null)
+              _bottom(
+                const Key('browser-choose'),
+                widget.action,
+                contents == null ? null : () => Navigator.of(context).pop(path),
+              ),
+            if (several)
+              _bottom(
+                const Key('browser-add'),
+                _picked.isEmpty ? 'Tap the files to add' : 'Add ${_count(_picked.length, 'file')}',
+                _picked.isEmpty ? null : () => Navigator.of(context).pop(_picked.toList()),
               ),
           ],
         ),
       ),
     );
   }
+
+  Widget _bottom(Key key, String label, VoidCallback? onPressed) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(key: key, onPressed: onPressed, icon: const Icon(Icons.check_rounded), label: Text(label)),
+          ),
+        ),
+      );
 
   Widget _list(ThemeData theme, String? path, FolderContents? contents) {
     if (path == null) {
@@ -299,43 +400,26 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
     }
     if (_error != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!)));
     if (contents == null) return const Center(child: CircularProgressIndicator());
-    final types = widget.fileTypes;
-    // Choosing a file: only the ones that can be chosen are listed.
-    final songs = types == null ? contents.songs : [for (final s in contents.songs) if (types.contains(extensionOf(s))) s];
-    if (contents.folders.isEmpty && songs.isEmpty) {
+    final folders = contents.folders;
+    final files = _shown(contents);
+    final audio = widget.types == null;
+    if (folders.isEmpty && files.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            types == null ? 'No folders or songs here.' : 'No folders or ${types.map((t) => t.toUpperCase()).join(', ')} files here.',
+            audio ? 'No folders or songs here.' : 'No folders or ${_types.map((t) => t.toUpperCase()).join(', ')} files here.',
             textAlign: TextAlign.center,
           ),
         ),
       );
     }
-    final folders = contents.folders;
     final muted = theme.colorScheme.onSurfaceVariant;
     return ListView.builder(
       key: ValueKey('browser-list-$path'),
-      itemCount: folders.length + songs.length,
+      itemCount: folders.length + files.length,
       itemBuilder: (context, i) {
-        if (i >= folders.length) {
-          final song = songs[i - folders.length];
-          if (types != null) {
-            return ListTile(
-              key: ValueKey('browser-file-${p.basename(song)}'),
-              minTileHeight: 56,
-              leading: Icon(Icons.audio_file_rounded, color: theme.colorScheme.primary),
-              title: Text(p.basename(song), maxLines: 2, overflow: TextOverflow.ellipsis),
-              onTap: () => Navigator.of(context).pop(song),
-            );
-          }
-          return ListTile(
-            dense: true,
-            leading: Icon(Icons.music_note_rounded, color: muted),
-            title: Text(p.basename(song), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted)),
-          );
-        }
+        if (i >= folders.length) return _fileRow(theme, files[i - folders.length], muted);
         final folder = folders[i];
         final inside = _inside[folder] ??= _source.list(folder).then<FolderContents?>((c) => c).catchError((Object _) => null);
         return ListTile(
@@ -349,10 +433,11 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
               final c = snap.data;
               if (snap.connectionState != ConnectionState.done) return const Text(' ');
               if (c == null) return const Text("Can't be read");
+              final n = _shown(c).length;
               return Text([
-                if (c.songs.isNotEmpty) _count(c.songs.length, 'song'),
+                if (n > 0) _count(n, audio ? 'song' : 'file'),
                 if (c.folders.isNotEmpty) _count(c.folders.length, 'folder'),
-                if (c.songs.isEmpty && c.folders.isEmpty) 'Empty',
+                if (n == 0 && c.folders.isEmpty) 'Empty',
               ].join(' · '));
             },
           ),
@@ -361,5 +446,35 @@ class _FolderBrowserState extends ConsumerState<FolderBrowser> {
         );
       },
     );
+  }
+
+  Widget _fileRow(ThemeData theme, String file, Color muted) {
+    final name = p.basename(file);
+    final icon = supportedAudioExtensions.contains(extensionOf(file)) ? Icons.audio_file_rounded : Icons.description_rounded;
+    switch (widget._mode) {
+      // Choosing a folder: the files only show what is inside.
+      case _Mode.folder:
+        return ListTile(
+          dense: true,
+          leading: Icon(Icons.music_note_rounded, color: muted),
+          title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted)),
+        );
+      case _Mode.file:
+        return ListTile(
+          key: ValueKey('browser-file-$name'),
+          minTileHeight: 56,
+          leading: Icon(icon, color: theme.colorScheme.primary),
+          title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
+          onTap: () => Navigator.of(context).pop(file),
+        );
+      case _Mode.files:
+        return CheckboxListTile(
+          key: ValueKey('browser-file-$name'),
+          secondary: Icon(icon, color: theme.colorScheme.primary),
+          title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
+          value: _picked.contains(file),
+          onChanged: (_) => setState(() => _picked.contains(file) ? _picked.remove(file) : _picked.add(file)),
+        );
+    }
   }
 }

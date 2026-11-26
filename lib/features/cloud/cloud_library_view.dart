@@ -300,7 +300,8 @@ class _CloudLibraryViewState extends ConsumerState<CloudLibraryView> {
     if (pick == null || catalog == null) return;
     final Uint8List? bytes;
     try {
-      bytes = await pick();
+      if (!mounted) return;
+      bytes = await pick(context);
     } catch (_) {
       _snack("That picture couldn't be opened.");
       return;

@@ -11,29 +11,37 @@ import '../music/music_source.dart';
 import 'folder_browser.dart';
 import 'folder_choice.dart';
 import 'import_service.dart';
+import 'metadata_extractor.dart' show supportedAudioExtensions;
 
-/// Picks audio files with the system picker and imports (copies) them.
-/// Returns true if anything was added.
+/// Picks audio files and imports (copies) them. Returns true if anything was added.
+///
+/// The app's own browser reads the storage itself, so it needs the music permission; without it,
+/// Android's picker (which needs none) is used.
 Future<bool> pickAndImportFiles(BuildContext context, WidgetRef ref) async {
-  final FilePickerResult? picked;
+  Future<List<String>?> system() async {
+    final picked = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: true);
+    if (picked == null) return null;
+    return [for (final f in picked.files) if (f.path != null) f.path!];
+  }
+
+  final access = await ref.read(permissionsProvider).ensureMusicAccess();
+  if (!context.mounted) return false;
+  final List<String>? paths;
   try {
-    picked = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
-      allowMultiple: true,
-    );
+    paths = access == PermissionOutcome.granted
+        ? await showFilesBrowser(context, title: 'Add songs', extensions: supportedAudioExtensions, systemPicker: system)
+        : await system();
   } catch (_) {
     if (context.mounted) _snack(context, "Couldn't open the file picker.");
     return false;
   }
-  if (picked == null) return false; // cancelled
-  final paths = [for (final f in picked.files) if (f.path != null) f.path!];
-  if (paths.isEmpty) return false;
-  if (!context.mounted) return false;
+  if (paths == null || paths.isEmpty || !context.mounted) return false; // cancelled
+  final chosen = paths;
 
   final service = await ref.read(importServiceProvider.future);
   if (!context.mounted) return false;
   return _runImport(
-      context, (onProgress) => service.importFiles(paths, onProgress: onProgress));
+      context, (onProgress) => service.importFiles(chosen, onProgress: onProgress));
 }
 
 /// Picks a folder and imports every audio file inside it (referenced in

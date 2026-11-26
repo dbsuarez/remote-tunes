@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:remote_tunes/core/file_access.dart';
+import 'package:remote_tunes/features/backup/backup_screen.dart' show writeNewFile;
 import 'package:remote_tunes/features/library/folder_browser.dart';
 
 class FakeFolders implements FolderSource {
@@ -36,6 +39,15 @@ class FakeFolders implements FolderSource {
       [for (final n in names) if (n.contains('.')) '$path/$n'],
     );
   }
+}
+
+class _Access extends FileAccess {
+  bool allowed = false;
+  int opened = 0;
+  @override
+  Future<bool> canWriteAll() async => allowed;
+  @override
+  Future<void> openSettings() async => opened++;
 }
 
 void main() {
@@ -224,6 +236,105 @@ void main() {
     });
   });
 
+  group('choosing several files', () {
+    List<String>? many;
+
+    Future<void> openMany(WidgetTester tester) async {
+      many = null;
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [folderSourceProvider.overrideWithValue(folders)],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async => many = await showFilesBrowser(context, title: 'Add songs', extensions: const {'mp3'}),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('files from more than one folder are added together', (tester) async {
+      await openMany(tester);
+      expect(tester.widget<ButtonStyleButton>(find.byKey(const Key('browser-add'))).onPressed, isNull);
+      await into(tester, 'Music');
+      await tester.tap(find.byKey(const ValueKey('browser-file-two.mp3')));
+      await tester.pumpAndSettle();
+      await tap(tester, 'browser-up');
+      await into(tester, 'Podcasts');
+      await tap(tester, 'browser-select-all');
+      expect(find.text('Add 2 files'), findsOneWidget);
+      await tap(tester, 'browser-add');
+      expect(many, ['/phone/Music/two.mp3', '/phone/Podcasts/show.mp3']);
+    });
+
+    testWidgets('All picks the folder, None lets it go', (tester) async {
+      await openMany(tester);
+      await into(tester, 'Music');
+      await tap(tester, 'browser-select-all');
+      expect(find.text('Add 2 files'), findsOneWidget);
+      await tap(tester, 'browser-select-all');
+      expect(find.text('Tap the files to add'), findsOneWidget);
+      await tap(tester, 'browser-close');
+      expect(many, isNull);
+    });
+  });
+
+  group('files Android hides', () {
+    testWidgets('it asks for All files access, and shows them once it is on', (tester) async {
+      final access = _Access();
+      folders.tree['/phone'] = ['Download'];
+      folders.tree['/phone/Download'] = [];
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [folderSourceProvider.overrideWithValue(folders), fileAccessProvider.overrideWithValue(access)],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async => chosen = await showFileBrowser(context,
+                    title: 'Choose a backup', extensions: const {'rtbackup'}, needsAllFiles: true),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await into(tester, 'Download');
+      expect(find.textContaining('All files access'), findsOneWidget);
+      await tap(tester, 'browser-allow');
+      expect(access.opened, 1);
+      access.allowed = true;
+      folders.tree['/phone/Download'] = ['mine.rtbackup'];
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('All files access'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('browser-file-mine.rtbackup')));
+      await tester.pumpAndSettle();
+      expect(chosen, '/phone/Download/mine.rtbackup');
+    });
+  });
+
+  test('a saved backup never replaces a file', () async {
+    final dir = await Directory.systemTemp.createTemp('rt_save_');
+    addTearDown(() => dir.delete(recursive: true));
+    final bytes = Uint8List.fromList([1]);
+    final names = [for (var i = 0; i < 3; i++) p.basename((await writeNewFile(dir.path, 'a.rtbackup', bytes)).path)];
+    expect(names, ['a.rtbackup', 'a (2).rtbackup', 'a (3).rtbackup']);
+  });
+
   test('the phone source lists folders and songs by name, without hidden ones', () async {
     final root = await Directory.systemTemp.createTemp('rt_browser_');
     addTearDown(() => root.delete(recursive: true));
@@ -235,7 +346,7 @@ void main() {
     }
     final c = await PhoneFolderSource().list(root.path);
     expect(c.folders.map(p.basename), ['Alpha', 'zeta']);
-    expect(c.songs.map(p.basename), ['A.flac', 'b.mp3']);
+    expect(c.files.map(p.basename), ['A.flac', 'b.mp3', 'notes.txt'], reason: 'the screen picks the types it wants');
     await expectLater(PhoneFolderSource().list(p.join(root.path, 'nothing')), throwsA(isA<FileSystemException>()));
   });
 }

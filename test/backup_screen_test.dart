@@ -24,17 +24,17 @@ class _Picker implements BackupPicker {
   String? folder;
 
   @override
-  Future<bool> save(String fileName, Uint8List bytes) async {
+  Future<bool> save(BuildContext context, String fileName, Uint8List bytes) async {
     if (cancelSave) return false;
     saved[fileName] = bytes;
     return true;
   }
 
   @override
-  Future<Uint8List?> pickFile() async => file;
+  Future<Uint8List?> pickFile(BuildContext context) async => file;
 
   @override
-  Future<String?> pickFolder() async => folder;
+  Future<String?> pickFolder(BuildContext context) async => folder;
 }
 
 class _NoTags implements MetadataExtractor {

@@ -231,7 +231,7 @@ secondsecret
         await tester.pumpWidget(ProviderScope(
           overrides: [
             cloudConfigStoreProvider.overrideWithValue(store),
-            cloudNotesPickerProvider.overrideWithValue(() async {
+            cloudNotesPickerProvider.overrideWithValue((_) async {
               pickerAsked++;
               return picked;
             }),

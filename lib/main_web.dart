@@ -34,7 +34,7 @@ Future<void> main() async {
         recentLinksStoreProvider.overrideWithValue(WebRecentLinksStore(storage)),
         // Songs to upload are picked from the computer with the browser's file chooser.
         cloudSongPickerProvider.overrideWithValue(pickSongsFromComputer),
-        cloudCoverPickerProvider.overrideWithValue(pickCoverFromComputer),
+        cloudCoverPickerProvider.overrideWithValue((_) => pickCoverFromComputer()),
       ],
       child: const WebControllerApp(),
     ),

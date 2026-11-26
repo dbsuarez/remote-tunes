@@ -84,7 +84,7 @@ void main() {
         cloudConfigStoreProvider.overrideWithValue(MemoryCloudStore(cfg ?? config)),
         cloudHistoryStoreProvider.overrideWithValue(history),
         if (covers)
-          cloudCoverPickerProvider.overrideWithValue(() async {
+          cloudCoverPickerProvider.overrideWithValue((_) async {
             picked++;
             return picture;
           }),

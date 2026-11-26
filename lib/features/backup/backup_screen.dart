@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/library_providers.dart';
+import '../library/folder_browser.dart';
 import '../library/import_actions.dart';
 import '../../providers/providers.dart';
 import 'backup_models.dart';
@@ -15,41 +16,85 @@ import 'match_by_hand.dart';
 /// Where backup files are saved to and read from (replaced in tests).
 abstract class BackupPicker {
   /// Saves [bytes] as [fileName] where the user chooses; false if they cancelled.
-  Future<bool> save(String fileName, Uint8List bytes);
+  Future<bool> save(BuildContext context, String fileName, Uint8List bytes);
 
   /// Lets the user choose a backup file; null if they cancelled.
-  Future<Uint8List?> pickFile();
+  Future<Uint8List?> pickFile(BuildContext context);
 
   /// Lets the user choose a folder; null if they cancelled.
-  Future<String?> pickFolder();
+  Future<String?> pickFolder(BuildContext context);
 }
 
-class FilePickerBackupPicker implements BackupPicker {
+/// The app's own browser, with Android's screens in its menu and for where Android refuses.
+class BrowserBackupPicker implements BackupPicker {
+  static const _types = {'rtbackup', 'zip', 'json'};
+
   @override
-  Future<bool> save(String fileName, Uint8List bytes) async {
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save the backup',
-      fileName: fileName,
-      bytes: bytes,
+  Future<bool> save(BuildContext context, String fileName, Uint8List bytes) async {
+    final folder = await showFolderBrowser(
+      context,
+      title: 'Save the backup',
+      action: 'Save here',
+      showTypes: _types,
+      systemPicker: () => FilePicker.platform.getDirectoryPath(),
     );
-    return path != null;
+    if (folder == null) return false;
+    try {
+      await writeNewFile(folder, fileName, bytes);
+      return true;
+    } on FileSystemException {
+      if (!context.mounted) return false;
+      final other = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Android didn't allow saving there"),
+          content: const Text('Choose the Download or Documents folder, turn on All files access in Settings, '
+              "or save with Android's own screen."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Android's screen")),
+          ],
+        ),
+      );
+      if (other != true) return false;
+      return await FilePicker.platform.saveFile(dialogTitle: 'Save the backup', fileName: fileName, bytes: bytes) != null;
+    }
   }
 
   @override
-  Future<Uint8List?> pickFile() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
-    if (r == null || r.files.isEmpty) return null;
-    final f = r.files.single;
-    if (f.bytes != null) return f.bytes;
-    final path = f.path;
+  Future<Uint8List?> pickFile(BuildContext context) async {
+    final path = await showFileBrowser(
+      context,
+      title: 'Choose a backup',
+      extensions: _types,
+      needsAllFiles: true,
+      systemPicker: () async => (await FilePicker.platform.pickFiles(type: FileType.any))?.files.singleOrNull?.path,
+    );
     return path == null ? null : File(path).readAsBytes();
   }
 
   @override
-  Future<String?> pickFolder() => FilePicker.platform.getDirectoryPath();
+  Future<String?> pickFolder(BuildContext context) => showFolderBrowser(
+        context,
+        title: 'Choose a folder',
+        action: 'Use this folder',
+        systemPicker: () => FilePicker.platform.getDirectoryPath(),
+      );
 }
 
-final backupPickerProvider = Provider<BackupPicker>((ref) => FilePickerBackupPicker());
+/// Writes [bytes] into [folder] without replacing anything: a taken name gets a number.
+Future<File> writeNewFile(String folder, String fileName, Uint8List bytes) async {
+  final dot = fileName.lastIndexOf('.');
+  final base = dot > 0 ? fileName.substring(0, dot) : fileName;
+  final ext = dot > 0 ? fileName.substring(dot) : '';
+  var file = File('$folder/$fileName');
+  for (var n = 2; await file.exists(); n++) {
+    file = File('$folder/$base ($n)$ext');
+  }
+  return file.writeAsBytes(bytes, flush: true);
+}
+
+final backupPickerProvider = Provider<BackupPicker>((ref) => BrowserBackupPicker());
 
 final backupServiceProvider = FutureProvider<BackupService>((ref) async {
   final import = await ref.watch(importServiceProvider.future);
@@ -109,7 +154,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   /// Puts the songs added with "Add songs" in a folder the user picks, so they exist outside the app.
   Future<void> _exportCopies() async {
-    final dir = await ref.read(backupPickerProvider).pickFolder();
+    final dir = await ref.read(backupPickerProvider).pickFolder(context);
     if (dir == null || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -141,7 +186,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       final d = data.created;
       String two(int n) => n.toString().padLeft(2, '0');
       final name = 'RemoteTunes-${d.year}-${two(d.month)}-${two(d.day)}.rtbackup';
-      final saved = await ref.read(backupPickerProvider).save(name, bytes);
+      if (!mounted) return;
+      final saved = await ref.read(backupPickerProvider).save(context, name, bytes);
       if (!mounted) return;
       if (!saved) {
         _say('Nothing was saved.');
@@ -168,7 +214,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Future<void> _chooseFile() async {
     setState(() => _busy = true);
     try {
-      final bytes = await ref.read(backupPickerProvider).pickFile();
+      final bytes = await ref.read(backupPickerProvider).pickFile(context);
       if (bytes == null) return;
       final data = BackupData.decode(bytes);
       final songs = await (await ref.read(backupServiceProvider.future)).db.customSelect(
@@ -191,7 +237,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   Future<void> _chooseRoot() async {
-    final dir = await ref.read(backupPickerProvider).pickFolder();
+    final dir = await ref.read(backupPickerProvider).pickFolder(context);
     if (dir != null && mounted) setState(() => _root = dir);
   }
 

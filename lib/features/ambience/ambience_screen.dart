@@ -63,7 +63,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     if (!await _mayBrowse() || !mounted) return null;
     final folder = await showFolderBrowser(context, title: 'Import sounds', action: 'Import from this folder');
     if (folder == null) return null;
-    return (await ref.read(folderSourceProvider).list(folder)).songs;
+    return (await ref.read(folderSourceProvider).list(folder)).files;
   }
 
   Widget _body() {

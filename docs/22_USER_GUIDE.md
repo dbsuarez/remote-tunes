@@ -58,6 +58,8 @@ The app **remembers the folders you add**. After you put songs in the right fold
 - the report says how many folders were scanned. If a folder cannot be reached (an SD card that is not in), it says so and does not call its songs missing.
 The first time, add your music folder once with **Add folder**; it is remembered from then on. Adding a folder (music or audiobooks) opens RemoteTunes' own folder screen: tap a folder to go in (it shows its folders and songs), then **Add this folder**. If a place cannot be reached from there, the menu has *Use Android's picker*.
 
+**Choosing files:** RemoteTunes uses its own file screen everywhere (songs, folders, backups, pictures). Android lets an app see files that are not music only with **All files access**, so for backups, pictures and text files the screen offers *Allow*, which opens that setting. The ⋮ menu has Android's own picker if you need it.
+
 ### After adding
 - **Settings > Update tags from files** reads genre, year, album artist, composer and Replay Gain from the files, so Genres, Years, Album Artists and Composers fill in. Run it once after adding a lot. It changes nothing in the files.
 - **Settings > Find missing album art** looks up covers (needs internet; only names are sent).

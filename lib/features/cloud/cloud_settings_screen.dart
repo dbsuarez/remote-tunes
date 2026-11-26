@@ -113,7 +113,7 @@ class _CloudSettingsScreenState extends ConsumerState<CloudSettingsScreen> {
   Future<void> _import() async {
     final String? text;
     try {
-      text = await ref.read(cloudNotesPickerProvider)?.call();
+      text = await ref.read(cloudNotesPickerProvider)?.call(context);
     } catch (_) {
       _say("The file couldn't be opened.");
       return;
