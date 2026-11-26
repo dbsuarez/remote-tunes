@@ -24,6 +24,7 @@ void main() {
   AmbienceOwner owner() => AmbienceOwner(
         pickFolder: () async => folder,
         setIcon: c.setIcon,
+        setBoost: c.setBoost,
         watchedFolder: () => c.watchedFolder,
         watchFolder: c.setWatchedFolder,
         checkFolder: () async => c.watchedFolder == null ? const [] : c.connectNew(inFolder),
@@ -62,6 +63,17 @@ void main() {
     await tester.tap(find.byKey(ValueKey('amb-sound-$id')));
     await tester.pumpAndSettle();
   }
+
+  Future<void> category(WidgetTester tester, String name) async {
+    await tester.tap(find.byKey(const Key('amb-title')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(ValueKey('amb-cat-$name')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('amb-cat-$name')));
+    await tester.pumpAndSettle();
+  }
+
+  String title(WidgetTester tester) => tester.widget<Text>(find.byKey(const Key('amb-title-text'))).data!;
 
   String status(WidgetTester tester) => tester.widget<Text>(find.byKey(const Key('amb-status'))).data!;
 
@@ -210,6 +222,40 @@ void main() {
     });
   });
 
+  group('the Selected page', () {
+    screenTest('shows only what is on, with the volumes, and empties as sounds are switched off', (tester) async {
+      await open(tester);
+      await category(tester, 'selected');
+      expect(find.textContaining('Nothing is switched on'), findsOneWidget);
+      await category(tester, 'ready');
+      await sound(tester, 'pink-noise');
+      await sound(tester, 'blue-noise');
+      expect(tester.widget<Text>(find.byKey(const Key('amb-selected-count'))).data, '2');
+      await tap(tester, 'amb-selected');
+      expect(title(tester), 'Selected (2)');
+      expect(find.byKey(const ValueKey('amb-sound-pink-noise')), findsOneWidget);
+      expect(find.byKey(const ValueKey('amb-volume-blue-noise')), findsOneWidget);
+      expect(find.byKey(const ValueKey('amb-sound-white-noise')), findsNothing);
+      await sound(tester, 'pink-noise');
+      expect(find.byKey(const ValueKey('amb-sound-pink-noise')), findsNothing);
+      expect(title(tester), 'Selected (1)');
+    });
+  });
+
+  screenTest('a sound can be made louder from its menu', (tester) async {
+    await open(tester);
+    await sound(tester, 'white-noise');
+    final before = engine.voices['white-noise']!;
+    await tester.longPress(find.byKey(const ValueKey('amb-sound-white-noise')));
+    await tester.pumpAndSettle();
+    await tap(tester, 'amb-boost');
+    await tester.drag(find.byKey(const Key('amb-boost-slider')), const Offset(400, 0));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Text>(find.byKey(const Key('amb-boost-value'))).data, '400%');
+    await tap(tester, 'amb-boost-save');
+    expect(engine.voices['white-noise'], closeTo(before * 4, 0.001));
+  });
+
   group('icons', () {
     Future<void> hold(WidgetTester tester, String id) async {
       await tester.longPress(find.byKey(ValueKey('amb-sound-$id')));
@@ -295,13 +341,6 @@ void main() {
     });
   });
 
-  Future<void> category(WidgetTester tester, String name) async {
-    await tester.ensureVisible(find.byKey(ValueKey('amb-cat-$name')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(ValueKey('amb-cat-$name')));
-    await tester.pumpAndSettle();
-  }
-
   screenTest('Ready shows what can be played; a category shows all its places', (tester) async {
     await open(tester);
     expect(find.byKey(const ValueKey('amb-sound-white-noise')), findsOneWidget);
@@ -318,24 +357,31 @@ void main() {
     await tester.pumpAndSettle();
     await category(tester, 'ready');
     expect(find.byKey(const ValueKey('amb-sound-umbrella')), findsOneWidget);
-    expect(find.text('Rain'), findsWidgets);
+    expect(find.byKey(const ValueKey('amb-group-Rain')), findsOneWidget);
   });
 
-  screenTest('swiping goes from group to group, and the chip follows', (tester) async {
+  screenTest('swiping goes from page to page, and the title follows', (tester) async {
     await open(tester);
-    bool selected(String name) => tester.widget<ChoiceChip>(find.byKey(ValueKey('amb-cat-$name'))).selected;
-    expect(selected('ready'), isTrue);
-    await tester.fling(find.byKey(const Key('amb-pages')), const Offset(-300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(selected('Rain'), isTrue);
+    Future<void> swipe(double by) async {
+      await tester.fling(find.byKey(const Key('amb-pages')), Offset(by, 0), 1000);
+      await tester.pumpAndSettle();
+    }
+
+    expect(title(tester), 'Ready');
+    await swipe(-300);
+    expect(title(tester), 'Selected');
+    await swipe(-300);
+    expect(title(tester), 'Rain');
     expect(find.byKey(const ValueKey('amb-sound-umbrella')), findsOneWidget);
-    await tester.fling(find.byKey(const Key('amb-pages')), const Offset(-300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(selected('Ocean'), isTrue);
+    await swipe(-300);
+    expect(title(tester), 'Ocean');
     expect(find.byKey(const ValueKey('amb-sound-whale')), findsOneWidget);
-    await tester.fling(find.byKey(const Key('amb-pages')), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(selected('Rain'), isTrue);
+    await swipe(300);
+    expect(title(tester), 'Rain');
+    await tap(tester, 'amb-home');
+    expect(title(tester), 'Ready');
+    await tap(tester, 'amb-groups');
+    expect(find.byKey(const ValueKey('amb-cat-Zen Garden')), findsOneWidget);
   });
 
   screenTest('a new group appearing does not move you off the one you are on', (tester) async {
@@ -446,6 +492,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Playing without Morning Rain'), findsOneWidget);
     expect(engine.voices.keys, {'white-noise'});
+  });
+
+  screenTest('ready-made mixes that can play come first, and the others say what they need', (tester) async {
+    await open(tester);
+    await tap(tester, 'amb-mixes');
+    final playable = tester.getTopLeft(find.byKey(const ValueKey('amb-mix-calm-noise'))).dy;
+    final waiting = tester.getTopLeft(find.byKey(const ValueKey('amb-mix-campfire'))).dy;
+    expect(playable, lessThan(waiting));
+    expect(find.textContaining('Needs: Campfire'), findsOneWidget);
   });
 
   screenTest('the maximum volume stops the volume slider there', (tester) async {

@@ -7,7 +7,11 @@ import 'package:flutter/foundation.dart';
 /// A sound that can be layered. It can be played once it has audio: built-in noise always has, the
 /// others after a file is added on the playing phone.
 class AmbienceSound {
-  const AmbienceSound({required this.id, required this.name, required this.category, this.available = false, this.icon});
+  const AmbienceSound(
+      {required this.id, required this.name, required this.category, this.available = false, this.icon, this.boost = 1});
+
+  /// The owner's louder (above 1) or softer for this sound.
+  final double boost;
 
   final String id;
   final String name;
@@ -17,11 +21,23 @@ class AmbienceSound {
   /// The icon the owner chose (a name from the icon library), or null for the usual one.
   final String? icon;
 
-  AmbienceSound copyWith({bool? available, String? icon}) => AmbienceSound(
-      id: id, name: name, category: category, available: available ?? this.available, icon: icon ?? this.icon);
+  AmbienceSound copyWith({bool? available, String? icon, double? boost}) => AmbienceSound(
+      id: id,
+      name: name,
+      category: category,
+      available: available ?? this.available,
+      icon: icon ?? this.icon,
+      boost: boost ?? this.boost);
 
   Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'category': category, 'available': available, if (icon != null) 'icon': icon};
+      {
+        'id': id,
+        'name': name,
+        'category': category,
+        'available': available,
+        if (icon != null) 'icon': icon,
+        if (boost != 1) 'boost': boost,
+      };
 
   static AmbienceSound? fromJson(Object? j) {
     if (j is! Map) return null;
@@ -32,7 +48,8 @@ class AmbienceSound {
         name: name,
         category: category,
         available: j['available'] == true,
-        icon: j['icon'] is String ? j['icon'] as String : null);
+        icon: j['icon'] is String ? j['icon'] as String : null,
+        boost: j['boost'] is num ? (j['boost'] as num).toDouble() : 1);
   }
 }
 
@@ -372,4 +389,27 @@ const ambiencePresets = [
   AmbienceMix(id: 'forest-morning', name: 'Forest Morning', builtIn: true, layers: {'birds': 0.5, 'stream': 0.3}),
   AmbienceMix(id: 'study-focus', name: 'Study Focus', builtIn: true, layers: {'white-noise': 0.5, 'light-rain': 0.3}),
   AmbienceMix(id: 'sleep', name: 'Sleep', builtIn: true, layers: {'white-noise': 0.45, 'rain': 0.35}),
+  AmbienceMix(id: 'baby-sleep', name: 'Baby Sleep', builtIn: true, layers: {'brown-noise': 0.35, 'rain': 0.25}),
+  AmbienceMix(id: 'rainy-sleep', name: 'Rainy Sleep', builtIn: true, layers: {'rain': 0.5, 'thunder': 0.35, 'crickets': 0.4, 'owls': 0.3, 'frogs': 0.3}),
+  AmbienceMix(id: 'rain-on-roof', name: 'Rain on the Roof', builtIn: true, layers: {'roof': 0.6, 'light-rain': 0.3}),
+  AmbienceMix(id: 'window-rain', name: 'Rain at the Window', builtIn: true, layers: {'window': 0.55, 'distant-thunder': 0.2}),
+  AmbienceMix(id: 'rain-in-tent', name: 'Night in the Tent', builtIn: true, layers: {'tent': 0.55, 'crickets': 0.3, 'owls': 0.2}),
+  AmbienceMix(id: 'summer-night', name: 'Summer Night', builtIn: true, layers: {'crickets': 0.5, 'frogs': 0.35, 'owls': 0.25}),
+  AmbienceMix(id: 'night-forest-walk', name: 'Night Forest', builtIn: true, layers: {'night-forest': 0.55, 'owls': 0.3, 'stream': 0.25}),
+  AmbienceMix(id: 'cozy-cabin', name: 'Cozy Cabin', builtIn: true, layers: {'fireplace': 0.55, 'rain': 0.35, 'distant-thunder': 0.2}),
+  AmbienceMix(id: 'beach-day', name: 'Beach Day', builtIn: true, layers: {'ocean': 0.6, 'seagulls': 0.25, 'wind': 0.2}),
+  AmbienceMix(id: 'deep-sea', name: 'Deep Sea', builtIn: true, layers: {'calm-waves': 0.6, 'whale': 0.35}),
+  AmbienceMix(id: 'mountain-stream', name: 'Mountain Stream', builtIn: true, layers: {'stream': 0.6, 'birds': 0.3, 'wind': 0.2}),
+  AmbienceMix(id: 'waterfall-rest', name: 'Waterfall', builtIn: true, layers: {'waterfall': 0.55, 'birds': 0.25}),
+  AmbienceMix(id: 'rainforest-walk', name: 'Rainforest Walk', builtIn: true, layers: {'rainforest': 0.5, 'waterfall': 0.25, 'birds': 0.3}),
+  AmbienceMix(id: 'farm-morning', name: 'Farm Morning', builtIn: true, layers: {'birds': 0.45, 'cow': 0.2, 'sheep': 0.2, 'ducks': 0.2}),
+  AmbienceMix(id: 'zen-garden', name: 'Zen Garden', builtIn: true, layers: {'water-flow': 0.5, 'koi-pond': 0.35, 'chimes': 0.2, 'birds': 0.2}),
+  AmbienceMix(id: 'cat-nap', name: 'Cat Nap', builtIn: true, layers: {'cat-purring': 0.5, 'fan': 0.3}),
+  AmbienceMix(id: 'fan-night', name: 'Fan Night', builtIn: true, layers: {'fan': 0.55, 'brown-noise': 0.25}),
+  AmbienceMix(id: 'train-ride', name: 'Train Ride', builtIn: true, layers: {'train-cabin': 0.55, 'light-rain': 0.25}),
+  AmbienceMix(id: 'car-ride-home', name: 'Sea and Rain', builtIn: true, layers: {'ocean': 0.45, 'light-rain': 0.35}),
+  AmbienceMix(id: 'soft-music', name: 'Lullaby', builtIn: true, layers: {'harp': 0.4, 'brown-noise': 0.2}),
+  AmbienceMix(id: 'coffee-focus', name: 'Coffee Shop', builtIn: true, layers: {'coffee-shop': 0.45, 'rain': 0.3}),
+  AmbienceMix(id: 'deep-focus', name: 'Deep Focus', builtIn: true, layers: {'brown-noise': 0.45, 'green-noise': 0.2}),
+  AmbienceMix(id: 'calm-noise', name: 'Calm Noise', builtIn: true, layers: {'pink-noise': 0.4, 'green-noise': 0.3}),
 ];

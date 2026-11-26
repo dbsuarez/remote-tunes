@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'ambience_icons.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
+import 'ambience_style.dart';
 
 /// What only the playing phone can do: give sounds their files and set the loudest allowed.
 class AmbienceOwner {
@@ -17,10 +18,14 @@ class AmbienceOwner {
     required this.setMaxVolume,
     this.pickFolder,
     this.setIcon,
+    this.setBoost,
     this.watchedFolder,
     this.watchFolder,
     this.checkFolder,
   });
+
+  /// Makes one sound louder or softer (1 is as it comes). Null: not offered.
+  final Future<void> Function(String soundId, double boost)? setBoost;
 
   /// The folder new files are picked up from, or null.
   final String? Function()? watchedFolder;
@@ -57,7 +62,10 @@ String _left(int seconds) {
 /// everything, the sleep timer and the mixes. The same on the playing phone and from the other one
 /// ([owner] is then null).
 class AmbienceView extends StatefulWidget {
-  const AmbienceView({super.key, required this.controls, this.owner, this.enabled = true});
+  const AmbienceView({super.key, required this.controls, this.owner, this.enabled = true, this.onColor});
+
+  /// Told the color of the page shown, so the bar above can match.
+  final ValueChanged<Color>? onColor;
 
   final AmbienceControls controls;
   final AmbienceOwner? owner;
@@ -75,11 +83,14 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
 
   AmbienceControls get _c => widget.controls;
 
-  /// The page shown: a category, or null for every sound that is ready to play.
+  /// The page of the sounds switched on (not a category name).
+  static const _selected = '+selected';
+
+  /// The page shown: a category, [_selected], or null for every sound that is ready to play.
   String? _category;
 
   final _pages = PageController();
-  final Map<String?, GlobalKey> _chipKeys = {};
+  Color? _toldColor;
 
   /// The pages as last built, to stay on the same group when one appears or goes.
   List<String?> _pageList = const [null];
@@ -124,14 +135,6 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
       _checking = false;
     }
   }
-
-  /// Keeps the chip of the page shown in view.
-  void _revealChip(String? category) => WidgetsBinding.instance.addPostFrameCallback((_) {
-        final context = _chipKeys[category]?.currentContext;
-        if (context != null && context.mounted) {
-          Scrollable.ensureVisible(context, alignment: 0.5, duration: const Duration(milliseconds: 200));
-        }
-      });
 
   void _snack(String text) {
     if (!mounted) return;
@@ -226,12 +229,14 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     if (owner == null || !s.available) return;
     final noise = ambienceCatalog.any((x) => x.id == s.id && x.available);
     // A built-in noise has no file to change.
-    if (noise && owner.setIcon == null) return;
+    if (noise && owner.setIcon == null && owner.setBoost == null) return;
     final choice = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (owner.setIcon != null)
@@ -240,6 +245,14 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                 leading: AmbiencePicture(ambienceIconName(s), size: 24),
                 title: Text('Change the picture of ${s.name}'),
                 onTap: () => Navigator.pop(ctx, 'icon'),
+              ),
+            if (owner.setBoost != null)
+              ListTile(
+                key: const Key('amb-boost'),
+                leading: const Icon(Icons.volume_up_rounded),
+                title: Text('Make ${s.name} louder or softer'),
+                subtitle: s.boost == 1 ? null : Text('Now ${(s.boost * 100).round()}%'),
+                onTap: () => Navigator.pop(ctx, 'boost'),
               ),
             if (!noise) ListTile(
               key: const Key('amb-replace'),
@@ -254,10 +267,15 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
               onTap: () => Navigator.pop(ctx, 'remove'),
             ),
           ],
+          ),
         ),
       ),
     );
-    if (choice == 'icon') {
+    if (choice == 'boost') {
+      if (!mounted) return;
+      final boost = await showDialog<double>(context: context, builder: (_) => _BoostDialog(sound: s));
+      if (boost != null) await _run(() => owner.setBoost!(s.id, boost));
+    } else if (choice == 'icon') {
       if (!mounted) return;
       final picked = await showModalBottomSheet<({String? icon})>(
         context: context,
@@ -310,15 +328,25 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
       builder: (ctx) {
         final state = _c.state;
         final own = [for (final m in state.mixes) if (!m.builtIn) m];
-        final presets = [for (final m in state.mixes) if (m.builtIn) m];
-        String names(AmbienceMix m) => [
-              for (final id in m.layers.keys)
-                state.sound(id)?.name ?? ambienceCatalog.where((s) => s.id == id).map((s) => s.name).firstOrNull ?? id,
-            ].join(', ');
+        bool has(String id) => state.sound(id)?.available ?? false;
+        // Those that can play now come first.
+        final presets = [
+          for (final playable in [true, false])
+            for (final m in state.mixes)
+              if (m.builtIn && m.layers.keys.any(has) == playable) m,
+        ];
+        String name(String id) =>
+            state.sound(id)?.name ?? ambienceCatalog.where((s) => s.id == id).map((s) => s.name).firstOrNull ?? id;
+        String names(AmbienceMix m) => [for (final id in m.layers.keys) name(id)].join(', ');
+        String? needs(AmbienceMix m) {
+          final missing = [for (final id in m.layers.keys) if (!has(id)) name(id)];
+          return missing.isEmpty ? null : 'Needs: ${missing.join(', ')}';
+        }
+
         Widget tile(AmbienceMix m) => ListTile(
               key: ValueKey('amb-mix-${m.id}'),
               title: Text(m.name),
-              subtitle: Text(names(m), maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text([names(m), if (needs(m) case final n?) n].join('\n'), maxLines: 3, overflow: TextOverflow.ellipsis),
               trailing: m.builtIn
                   ? null
                   : IconButton(
@@ -375,22 +403,63 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     if (value != null) await _run(() => owner.setMaxVolume(value));
   }
 
+  String _titleOf(String? page, AmbienceState state) => switch (page) {
+        null => 'Ready',
+        _selected => state.active.isEmpty ? 'Selected' : 'Selected (${state.active.length})',
+        final c => c,
+      };
+
+  void _goTo(List<String?> pages, String? page) {
+    setState(() => _category = page);
+    if (_pages.hasClients) _pages.jumpToPage(pages.indexOf(page));
+  }
+
+  /// Every page in one list, to jump to.
+  Future<void> _groups(List<String?> pages) async {
+    final state = _c.state;
+    final choice = await showModalBottomSheet<({String? page})>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final page in pages)
+                  ListTile(
+                    key: ValueKey('amb-cat-${page == _selected ? 'selected' : page ?? 'ready'}'),
+                    leading: CircleAvatar(backgroundColor: ambienceColor(page == _selected ? ambienceSelectedPage : page), radius: 14),
+                    title: Text(_titleOf(page, state)),
+                    trailing: page == _category ? const Icon(Icons.check_rounded) : null,
+                    onTap: () => Navigator.pop(ctx, (page: page)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (choice != null && mounted) _goTo(pages, choice.page);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _c,
       builder: (context, _) {
-        final theme = Theme.of(context);
         final state = _c.state;
         if (state.sounds.isEmpty) {
           return state.error == null
               ? const Center(child: CircularProgressIndicator())
               : Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(state.error!, textAlign: TextAlign.center)));
         }
-        // A page for what is ready, then one for each category; swipe between them or tap a chip. The owner
-        // can always add a sound of their own.
+        // A page for what is ready, one for what is on, then one for each group; swipe between them, or tap
+        // the title for the list. The owner can always add a sound of their own.
         final all = <String>{for (final s in state.sounds) s.category, if (widget.owner != null) ambienceOwnCategory};
-        final pages = <String?>[null, ...all];
+        final pages = <String?>[null, _selected, ...all];
         final chosen = pages.contains(_category) ? _category : null;
         if (!listEquals(pages, _pageList)) {
           _pageList = pages;
@@ -398,54 +467,256 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
             if (mounted && _pages.hasClients) _pages.jumpToPage(pages.indexOf(chosen));
           });
         }
-        Widget chip(String? value, String label) => Padding(
-              key: _chipKeys[value] ??= GlobalKey(),
-              padding: const EdgeInsets.only(right: 6),
-              child: ChoiceChip(
-                key: ValueKey('amb-cat-${value ?? 'ready'}'),
-                showCheckmark: false,
-                visualDensity: VisualDensity.compact,
-                label: Text(label),
-                selected: chosen == value,
-                onSelected: (_) {
-                  setState(() => _category = value);
-                  _revealChip(value);
-                  if (_pages.hasClients) _pages.jumpToPage(pages.indexOf(value));
+        final color = ambienceColor(chosen == _selected ? ambienceSelectedPage : chosen);
+        if (color != _toldColor) {
+          _toldColor = color;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) widget.onColor?.call(color);
+          });
+        }
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [color, Color.lerp(color, Colors.black, 0.35)!],
+            ),
+          ),
+          child: Theme(
+            data: ambienceTheme(Theme.of(context), color),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Builder(
+                builder: (context) {
+                  final theme = Theme.of(context);
+                  return Column(
+                    children: [
+                      _banner(theme, state, chosen),
+                      _dots(pages.length, pages.indexOf(chosen)),
+                      InkWell(
+                        key: const Key('amb-title'),
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _groups(pages),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(_titleOf(chosen, state),
+                                    key: const Key('amb-title-text'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleLarge),
+                              ),
+                              const Icon(Icons.expand_more_rounded),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: PageView.builder(
+                          key: const Key('amb-pages'),
+                          controller: _pages,
+                          itemCount: pages.length,
+                          onPageChanged: (i) {
+                            if (i >= pages.length || pages[i] == _category) return;
+                            setState(() => _category = pages[i]);
+                          },
+                          itemBuilder: (context, i) => _page(theme, state, all, pages[i]),
+                        ),
+                      ),
+                      _controls(theme, state, pages, color),
+                    ],
+                  );
                 },
               ),
-            );
-        return Column(
-          children: [
-            SizedBox(
-              height: 52,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
-                child: Row(children: [chip(null, 'Ready'), for (final c in all) chip(c, c)]),
-              ),
             ),
-            Expanded(
-              child: PageView.builder(
-                key: const Key('amb-pages'),
-                controller: _pages,
-                itemCount: pages.length,
-                onPageChanged: (i) {
-                  if (i >= pages.length || pages[i] == _category) return;
-                  setState(() => _category = pages[i]);
-                  _revealChip(pages[i]);
-                },
-                itemBuilder: (context, i) => _page(theme, state, all, pages[i]),
-              ),
-            ),
-            _bar(theme, state),
-          ],
+          ),
         );
       },
     );
   }
 
+  /// The picture across the top: some of the page's sounds, and what is playing.
+  Widget _banner(ThemeData theme, AmbienceState state, String? page) {
+    final count = state.active.length;
+    final timer = state.timerMinutes;
+    final shown = [
+      for (final s in state.sounds)
+        if (switch (page) { null => s.available, _selected => state.active.containsKey(s.id), final c => s.category == c }) s,
+    ].take(5).toList();
+    // A short screen keeps only the line of words.
+    final tall = MediaQuery.sizeOf(context).height >= 640;
+    return Column(
+      children: [
+        if (tall)
+          Container(
+            height: 84,
+            width: double.infinity,
+            color: Colors.white.withValues(alpha: 0.10),
+            alignment: Alignment.center,
+            child: ExcludeSemantics(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < shown.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: AmbiencePicture(ambienceIconName(shown[i]), size: i.isEven ? 48 : 34, color: Colors.white70),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Container(
+          width: double.infinity,
+          color: Colors.black.withValues(alpha: 0.18),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          child: Text(
+            [
+              state.mixName ?? (count == 0 ? 'Tap a sound to begin' : '$count sound${count == 1 ? '' : 's'} on'),
+              if (state.mixName != null) '$count sound${count == 1 ? '' : 's'}',
+              if (timer != null) '${_left(state.secondsLeft ?? timer * 60)} left',
+            ].join(' · '),
+            key: const Key('amb-status'),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _dots(int count, int at) => ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 7,
+            runSpacing: 4,
+            children: [
+              for (var i = 0; i < count; i++)
+                Container(
+                  width: i == at ? 9 : 6,
+                  height: i == at ? 9 : 6,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: i == at ? Colors.white : Colors.white38),
+                ),
+            ],
+          ),
+        ),
+      );
+
+  /// The floating bar (mixes, play, stop, what is on), the volume of everything, and the round buttons.
+  Widget _controls(ThemeData theme, AmbienceState state, List<String?> pages, Color color) {
+    final master = _dragging['*'] ?? state.master;
+    final count = state.active.length;
+    final timer = state.timerMinutes;
+    Widget round(String key, String tip, IconData icon, VoidCallback? onPressed, {bool lit = false}) => IconButton(
+          key: Key(key),
+          tooltip: tip,
+          icon: Icon(icon),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: lit ? 0.9 : 0.16),
+            foregroundColor: lit ? color : Colors.white,
+          ),
+          onPressed: onPressed,
+        );
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Material(
+              color: Colors.black.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(22),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                        key: const Key('amb-mixes'),
+                        tooltip: 'Mixes',
+                        icon: const Icon(Icons.favorite_rounded),
+                        onPressed: widget.enabled ? _mixes : null),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      key: const Key('amb-play'),
+                      tooltip: state.playing ? 'Pause' : 'Play',
+                      iconSize: 34,
+                      icon: Icon(state.playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                      onPressed: widget.enabled && count > 0 ? () => _run(state.playing ? _c.pause : _c.play) : null,
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                        key: const Key('amb-stop'),
+                        tooltip: 'Stop',
+                        iconSize: 30,
+                        icon: const Icon(Icons.stop_rounded),
+                        onPressed: widget.enabled ? () => _run(_c.stop) : null),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      key: const Key('amb-selected'),
+                      tooltip: 'What is on',
+                      icon: Badge(
+                        isLabelVisible: count > 0,
+                        backgroundColor: Colors.white,
+                        textColor: color,
+                        label: Text('$count', key: const Key('amb-selected-count')),
+                        child: const Icon(Icons.visibility_rounded),
+                      ),
+                      onPressed: () => _goTo(pages, _selected),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                const Icon(Icons.volume_up_rounded, size: 22),
+                Expanded(
+                  child: Slider(
+                    key: const Key('amb-master'),
+                    value: master.clamp(0.0, 1.0),
+                    semanticFormatterCallback: (v) => 'Ambience volume ${(v * 100).round()} percent',
+                    // The slider stops at the loudest allowed.
+                    onChanged: widget.enabled ? (v) => setState(() => _dragging['*'] = v.clamp(0.0, state.maxVolume)) : null,
+                    onChangeEnd: (v) async {
+                      await _run(() => _c.setMaster(v.clamp(0.0, state.maxVolume)));
+                      if (mounted) setState(() => _dragging.remove('*'));
+                    },
+                  ),
+                ),
+                SizedBox(width: 32, child: Text('${(master * 100).round()}', textAlign: TextAlign.end)),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                round('amb-home', 'Ready sounds', Icons.home_rounded, () => _goTo(pages, null)),
+                round('amb-timer', 'Sleep timer', Icons.alarm_rounded, widget.enabled ? _timer : null, lit: timer != null),
+                round('amb-groups', 'All groups', Icons.dashboard_rounded, () => _groups(pages)),
+                if (widget.owner != null) round('amb-max', 'Maximum volume', Icons.hearing_rounded, _maxVolume),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// One page: the sounds ready to play (by category), or every place of one category.
   Widget _page(ThemeData theme, AmbienceState state, Set<String> all, String? page) {
+    if (page == _selected) return _selectedPage(theme, state);
     final owner = widget.owner;
     bool visible(AmbienceSound s) => page == null ? s.available : s.category == page;
     final categories = [
@@ -465,7 +736,8 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
             if (owner?.pickFolder != null && (page == null || page == ambienceOwnCategory))
               _folderRow(theme, owner!),
             for (final c in categories) ...[
-              _Heading(c, key: ValueKey('amb-group-$c')),
+              // A group's own page is already named by the title above.
+              if (page == null) _Heading(c, key: ValueKey('amb-group-$c')) else SizedBox(key: ValueKey('amb-group-$c'), height: 4),
               if (owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
@@ -479,6 +751,32 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                 ],
               ),
             ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// Only what is switched on, each with its volume.
+  Widget _selectedPage(ThemeData theme, AmbienceState state) {
+    final on = [for (final id in state.active.keys) if (state.sound(id) case final s?) s];
+    if (on.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Nothing is switched on. Tap a sound on another page to add it here.', textAlign: TextAlign.center),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        final columns = (box.maxWidth / 112).floor().clamp(3, 8);
+        final width = (box.maxWidth - 24) / columns;
+        return ListView(
+          key: const PageStorageKey('amb-list-selected'),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          children: [
+            Wrap(children: [for (final s in on) SizedBox(width: width, child: _tile(theme, state, s))]),
           ],
         );
       },
@@ -532,14 +830,15 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
 
   Widget _square(ThemeData theme, {required Color color, required Widget child}) => Material(
         color: color,
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(width: 64, height: 64, child: Center(child: child)),
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(width: 68, height: 68, child: Center(child: child)),
       );
 
   Widget _tile(ThemeData theme, AmbienceState state, AmbienceSound s) {
     final on = state.active.containsKey(s.id);
     final volume = _dragging[s.id] ?? state.active[s.id] ?? 0;
-    final colors = theme.colorScheme;
+    // The color of the page shows through the picture of a sound that is on.
+    final page = theme.colorScheme.onPrimary;
     return Column(
       children: [
         Semantics(
@@ -549,24 +848,26 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           excludeSemantics: true,
           child: InkWell(
             key: ValueKey('amb-sound-${s.id}'),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             onTap: widget.enabled ? () => _tap(s) : null,
             onLongPress: widget.enabled && widget.owner != null ? () => _fileMenu(s) : null,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
+            child: SizedBox(
+              width: 96,
+              height: 76,
               child: Stack(
+                alignment: Alignment.center,
                 children: [
                   _square(
                     theme,
-                    color: on ? colors.primary : colors.surfaceContainerHighest,
-                    child: AmbiencePicture(ambienceIconName(s),
-                        color: on ? colors.onPrimary : colors.onSurfaceVariant, faded: !s.available),
+                    color: on ? Colors.white : Colors.white.withValues(alpha: s.available ? 0.18 : 0.08),
+                    child: AmbiencePicture(ambienceIconName(s), size: 32, color: on ? page : Colors.white, faded: !s.available),
                   ),
+                  if (on) Positioned(top: 0, right: 0, child: Text('${(volume * 100).round()}', style: theme.textTheme.labelMedium)),
                   if (!s.available)
                     Positioned(
-                      right: 4,
-                      bottom: 4,
-                      child: Icon(Icons.add_circle_rounded, key: ValueKey('amb-add-${s.id}'), size: 18, color: colors.primary),
+                      right: 12,
+                      bottom: 6,
+                      child: Icon(Icons.add_circle_rounded, key: ValueKey('amb-add-${s.id}'), size: 18, color: Colors.white),
                     ),
                 ],
               ),
@@ -580,13 +881,15 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
               ? SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 3,
+                    activeTrackColor: Colors.white,
+                    inactiveTrackColor: Colors.white30,
+                    thumbColor: Colors.white,
                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                     thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
                   ),
                   child: Slider(
                     key: ValueKey('amb-volume-${s.id}'),
                     value: volume.clamp(0.0, 1.0),
-                    label: '${(volume * 100).round()}',
                     semanticFormatterCallback: (v) => '${s.name} volume ${(v * 100).round()} percent',
                     onChanged: widget.enabled ? (v) => setState(() => _dragging[s.id] = v) : null,
                     onChangeEnd: (v) async {
@@ -609,84 +912,12 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
             onTap: widget.enabled ? _addOwn : null,
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: _square(theme, color: theme.colorScheme.surfaceContainerHigh, child: const Icon(Icons.add_rounded, size: 30)),
+              child: _square(theme, color: Colors.white.withValues(alpha: 0.12), child: const Icon(Icons.add_rounded, size: 30)),
             ),
           ),
           Text('Add a sound', style: theme.textTheme.bodySmall),
         ],
       );
-
-  Widget _bar(ThemeData theme, AmbienceState state) {
-    final master = _dragging['*'] ?? state.master;
-    final count = state.active.length;
-    final timer = state.timerMinutes;
-    return Material(
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                [
-                  state.mixName ?? (count == 0 ? 'Tap a sound to begin' : '$count sound${count == 1 ? '' : 's'} on'),
-                  if (state.mixName != null) '$count sound${count == 1 ? '' : 's'}',
-                  if (timer != null) '${_left(state.secondsLeft ?? timer * 60)} left',
-                ].join(' · '),
-                key: const Key('amb-status'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall,
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.volume_up_rounded, size: 20),
-                  Expanded(
-                    child: Slider(
-                      key: const Key('amb-master'),
-                      value: master.clamp(0.0, 1.0),
-                      semanticFormatterCallback: (v) => 'Ambience volume ${(v * 100).round()} percent',
-                      // The slider stops at the loudest allowed.
-                      onChanged: widget.enabled ? (v) => setState(() => _dragging['*'] = v.clamp(0.0, state.maxVolume)) : null,
-                      onChangeEnd: (v) async {
-                        await _run(() => _c.setMaster(v.clamp(0.0, state.maxVolume)));
-                        if (mounted) setState(() => _dragging.remove('*'));
-                      },
-                    ),
-                  ),
-                  SizedBox(width: 32, child: Text('${(master * 100).round()}', textAlign: TextAlign.end)),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(key: const Key('amb-mixes'), tooltip: 'Mixes', icon: const Icon(Icons.favorite_rounded), onPressed: widget.enabled ? _mixes : null),
-                  IconButton.filled(
-                    key: const Key('amb-play'),
-                    tooltip: state.playing ? 'Pause' : 'Play',
-                    iconSize: 32,
-                    icon: Icon(state.playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                    onPressed: widget.enabled && count > 0 ? () => _run(state.playing ? _c.pause : _c.play) : null,
-                  ),
-                  IconButton(key: const Key('amb-stop'), tooltip: 'Stop', icon: const Icon(Icons.stop_rounded), onPressed: widget.enabled ? () => _run(_c.stop) : null),
-                  IconButton(
-                    key: const Key('amb-timer'),
-                    tooltip: 'Sleep timer',
-                    icon: Icon(timer == null ? Icons.timer_outlined : Icons.timer_rounded, color: timer == null ? null : theme.colorScheme.primary),
-                    onPressed: widget.enabled ? _timer : null,
-                  ),
-                  if (widget.owner != null)
-                    IconButton(key: const Key('amb-max'), tooltip: 'Maximum volume', icon: const Icon(Icons.hearing_rounded), onPressed: _maxVolume),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _Heading extends StatelessWidget {
@@ -1107,4 +1338,43 @@ class _TargetSheetState extends State<_TargetSheet> {
       ),
     );
   }
+}
+
+/// One sound louder or softer than it comes.
+class _BoostDialog extends StatefulWidget {
+  const _BoostDialog({required this.sound});
+
+  final AmbienceSound sound;
+
+  @override
+  State<_BoostDialog> createState() => _BoostDialogState();
+}
+
+class _BoostDialogState extends State<_BoostDialog> {
+  late double _value = widget.sound.boost.clamp(0.25, 4.0);
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('Loudness of ${widget.sound.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('100% is as the app evens it out. This stays with the sound, in every mix.'),
+            Slider(
+              key: const Key('amb-boost-slider'),
+              min: 0.25,
+              max: 4,
+              divisions: 15,
+              value: _value,
+              onChanged: (v) => setState(() => _value = v),
+            ),
+            Text('${(_value * 100).round()}%', key: const Key('amb-boost-value')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, 1.0), child: const Text('Usual')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(key: const Key('amb-boost-save'), onPressed: () => Navigator.pop(context, _value), child: const Text('Save')),
+        ],
+      );
 }

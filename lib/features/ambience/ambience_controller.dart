@@ -15,7 +15,25 @@ abstract class AmbienceEngine {
   Future<void> stop(String id);
   Future<void> setPaused(bool paused);
   Future<void> stopAll();
+
+  /// How strong the sound in [path] is, as a share of the loudest a file can be: its average (RMS) and
+  /// its highest point. Null if it cannot be told.
+  Future<({double rms, double peak})?> measure(String path);
 }
+
+/// How much to turn a file up (or down) so that all sounds are about equally loud. Recordings of rain or
+/// crickets are often far quieter than music. Short peaks (crackles) may go a little over the top, where
+/// the player rounds them off, but not further.
+double evenGain(({double rms, double peak})? level) {
+  if (level == null || level.rms <= 0.00001) return 1;
+  var gain = ambienceLoudness / level.rms;
+  if (level.peak > 0) gain = min(gain, ambienceHeadroom / level.peak);
+  return gain.clamp(0.2, 12.0);
+}
+
+/// The average level every sound is brought to (about -20 dB), and how far its peaks may go over full.
+const ambienceLoudness = 0.1;
+const ambienceHeadroom = 2.5;
 
 /// Where the audio files are: copies the owner added, and the noise the app makes.
 abstract class AmbienceFiles {
@@ -69,6 +87,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   final Set<String> _environments = {}; // which of those are whole environments
   final Map<String, String> _icons = {}; // sound id -> the icon the owner chose
   final Set<String> _keptEmpty = {}; // sounds whose file was taken away: the folder does not refill them
+  final Map<String, double> _gain = {}; // sound id -> the measured evening-out of its file
+  final Map<String, double> _boost = {}; // sound id -> the owner's louder (above 1) or softer
   String? _folder;
   final List<AmbienceMix> _mixes = [];
   final Map<String, double> _active = {};
@@ -107,6 +127,11 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       for (final e in (j['icons'] is Map ? j['icons'] as Map : const {}).entries) {
         if (e.key is String && e.value is String) _icons[e.key as String] = e.value as String;
       }
+      for (final (key, into) in [('gain', _gain), ('boost', _boost)]) {
+        for (final e in (j[key] is Map ? j[key] as Map : const {}).entries) {
+          if (e.key is String && e.value is num) into[e.key as String] = (e.value as num).toDouble().clamp(0.2, 12.0);
+        }
+      }
       if (j['folder'] is String) _folder = j['folder'] as String;
       if (j['empty'] is List) _keptEmpty.addAll([for (final id in j['empty'] as List) if (id is String) id]);
       if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
@@ -136,6 +161,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         'env': _environments.toList(),
         'icons': _icons,
         'empty': _keptEmpty.toList(),
+        'gain': _gain,
+        'boost': _boost,
         if (_folder != null) 'folder': _folder,
         'mixes': [for (final m in _mixes) m.toJson()],
         'active': _active,
@@ -151,7 +178,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   bool _hasAudio(String id) => _saved.containsKey(id) || _isBuiltInNoise(id);
 
   List<AmbienceSound> get _sounds => [
-        for (final s in ambienceCatalog) s.copyWith(available: _hasAudio(s.id), icon: _icons[s.id]),
+        for (final s in ambienceCatalog) s.copyWith(available: _hasAudio(s.id), icon: _icons[s.id], boost: _boost[s.id]),
         // Environments first, then the owner's other sounds.
         for (final environment in [true, false])
           for (final e in _own.entries)
@@ -162,6 +189,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
                 category: environment ? ambienceEnvironmentCategory : ambienceOwnCategory,
                 available: _hasAudio(e.key),
                 icon: _icons[e.key],
+                boost: _boost[e.key] ?? 1,
               ),
       ];
 
@@ -195,7 +223,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     return (_remaining() / window).clamp(0.0, 1.0);
   }
 
-  double _volumeOf(String id) => (_active[id] ?? 0) * min(_master, _max) * _fade();
+  double _volumeOf(String id) =>
+      (_active[id] ?? 0) * min(_master, _max) * _fade() * (_gain[id] ?? 1) * (_boost[id] ?? 1);
 
   /// One change to the engine at a time, so a quick tap cannot overtake a slow start.
   Future<void> _inTurn(Future<void> Function() action) {
@@ -208,6 +237,15 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     try {
       final path = await files.pathFor(id, _saved[id]);
       if (path == null) throw const AmbienceException('no file');
+      // Measured once for each file, the first time it plays.
+      if (!_gain.containsKey(id)) {
+        try {
+          _gain[id] = evenGain(await engine.measure(path));
+          await _save();
+        } catch (_) {
+          // Plays as it is.
+        }
+      }
       await engine.start(id, path, _volumeOf(id));
       _voices.add(id);
     } catch (_) {
@@ -426,6 +464,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         final old = _saved[soundId];
         final saved = await files.add(soundId, sourcePath);
         _saved[soundId] = saved;
+        _gain.remove(soundId); // a new file, to be measured again
         _keptEmpty.remove(soundId);
         if (old != null && old != saved) await files.remove(old);
         // A sound that is playing takes the new file.
@@ -469,9 +508,25 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         }
         if (ambienceCatalog.any((s) => s.id == soundId)) _keptEmpty.add(soundId);
         _own.remove(soundId);
+        _gain.remove(soundId);
+        _boost.remove(soundId);
         _environments.remove(soundId);
         if (!ambienceCatalog.any((s) => s.id == soundId)) _icons.remove(soundId);
         if (saved != null) await files.remove(saved);
+        notifyListeners();
+        await _save();
+      });
+
+  /// Makes one sound louder or softer for good (1 is as it comes; 0.25 to 4).
+  Future<void> setBoost(String soundId, double boost) => _inTurn(() async {
+        await load();
+        final v = boost.clamp(0.25, 4.0);
+        if ((v - 1).abs() < 0.01) {
+          _boost.remove(soundId);
+        } else {
+          _boost[soundId] = v;
+        }
+        if (_voices.contains(soundId)) await engine.setVolume(soundId, _volumeOf(soundId));
         notifyListeners();
         await _save();
       });

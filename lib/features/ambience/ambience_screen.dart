@@ -8,6 +8,7 @@ import '../../providers/library_providers.dart' show permissionsProvider;
 import '../library/folder_browser.dart';
 import 'ambience_controller.dart' show AmbienceException, ambienceExtensions;
 import 'ambience_remote.dart';
+import 'ambience_style.dart';
 import 'ambience_view.dart';
 
 /// Ambience: this phone's own, or the other phone's while controlling it.
@@ -22,6 +23,9 @@ class AmbienceScreen extends ConsumerStatefulWidget {
 
 class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
   RemoteAmbience? _remote;
+  Color _color = ambienceColor(null);
+
+  void _tint(Color color) => setState(() => _color = color);
 
   @override
   void initState() {
@@ -68,7 +72,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
 
   Widget _body() {
     final remote = _remote;
-    if (remote != null) return AmbienceView(controls: remote);
+    if (remote != null) return AmbienceView(controls: remote, onColor: _tint);
     final core = ref.watch(playerCoreProvider);
     final ambience = core.valueOrNull?.ambience;
     if (ambience == null) {
@@ -79,6 +83,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     ambience.load();
     return AmbienceView(
       controls: ambience,
+      onColor: _tint,
       owner: AmbienceOwner(
         pickFile: _pickSoundFile,
         addFile: ambience.addFile,
@@ -87,6 +92,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
         setMaxVolume: ambience.setMaxVolume,
         pickFolder: _pickFolder,
         setIcon: ambience.setIcon,
+        setBoost: ambience.setBoost,
         watchedFolder: () => ambience.watchedFolder,
         watchFolder: ambience.setWatchedFolder,
         checkFolder: () async {
@@ -101,7 +107,11 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(widget.remote ? 'Ambience on the other phone' : 'Ambience')),
+        appBar: AppBar(
+          title: Text(widget.remote ? 'Ambience on the other phone' : 'Ambience'),
+          backgroundColor: _color,
+          foregroundColor: Colors.white,
+        ),
         body: _body(),
       );
 }

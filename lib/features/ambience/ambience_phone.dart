@@ -5,6 +5,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
@@ -82,6 +83,22 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
     // A sleeping child's sound must not be dropped when many play at once.
     _so.setProtectVoice(handle, true);
     _voices[id] = (source: source, handle: handle);
+  }
+
+  @override
+  Future<({double rms, double peak})?> measure(String path) async {
+    await _ready();
+    // Points spread evenly through the whole file are enough to tell how loud it is.
+    final samples = await _so.readSamplesFromFile(path, 60000);
+    var sum = 0.0, peak = 0.0;
+    var n = 0;
+    for (final v in samples) {
+      if (!v.isFinite) continue;
+      sum += v * v;
+      if (v.abs() > peak) peak = v.abs();
+      n++;
+    }
+    return n == 0 ? null : (rms: sqrt(sum / n), peak: peak);
   }
 
   @override

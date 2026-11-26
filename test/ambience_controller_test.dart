@@ -32,6 +32,20 @@ class FakeEngine implements AmbienceEngine {
   Future<void> setPaused(bool v) async => paused = v;
   @override
   Future<void> stopAll() async => voices.clear();
+
+  /// Files already at the level the app aims for, unless a test says otherwise.
+  final levels = <String, ({double rms, double peak})>{};
+  final measured = <String>[];
+  @override
+  Future<({double rms, double peak})?> measure(String path) async {
+    measured.add(path);
+    return levels[path] ?? (rms: ambienceLoudness, peak: 0.5);
+  }
+}
+
+class _Unmeasured extends FakeEngine {
+  @override
+  Future<({double rms, double peak})?> measure(String path) async => throw Exception('cannot');
 }
 
 class FakeFiles implements AmbienceFiles {
@@ -345,12 +359,79 @@ void main() {
     }
   });
 
+  group('loudness', () {
+    test('quiet files are turned up and loud ones down, without clipping hard', () {
+      expect(evenGain((rms: 0.01, peak: 0.05)), about(10));
+      expect(evenGain((rms: 0.2, peak: 0.9)), about(0.5));
+      expect(evenGain((rms: 0.005, peak: 0.5)), about(5), reason: 'loud crackles hold it back');
+      expect(evenGain((rms: 0.0001, peak: 0.001)), 12, reason: 'never more than this');
+      expect(evenGain((rms: 0, peak: 0)), 1, reason: 'silence is left alone');
+      expect(evenGain(null), 1);
+    });
+
+    test('a quiet file plays louder, measured once', () async {
+      final c = make();
+      await c.setMaster(1);
+      await c.addFile('rain', '/d/rain.mp3');
+      engine.levels['/kept/rain.mp3'] = (rms: 0.02, peak: 0.1);
+      await c.setActive('rain', true);
+      expect(engine.voices['rain'], about(0.5 * 5));
+      await c.stop();
+      await c.play();
+      expect(engine.measured, ['/kept/rain.mp3']);
+      final again = make();
+      await again.load();
+      await again.play();
+      expect(engine.measured, ['/kept/rain.mp3'], reason: 'remembered');
+    });
+
+    test('a new file is measured again', () async {
+      final c = make();
+      await c.addFile('rain', '/d/a.mp3');
+      await c.setActive('rain', true);
+      await c.addFile('rain', '/d/b.ogg');
+      expect(engine.measured, ['/kept/rain.mp3', '/kept/rain.ogg']);
+    });
+
+    test('the owner can make a sound louder or softer, and the maximum still holds it', () async {
+      final c = make();
+      await c.setMaster(1);
+      await c.setActive('white-noise', true);
+      await c.setVolume('white-noise', 1);
+      await c.setBoost('white-noise', 3);
+      expect(engine.voices['white-noise'], about(3));
+      expect(c.state.sound('white-noise')!.boost, 3);
+      await c.setMaxVolume(0.5);
+      expect(engine.voices['white-noise'], about(1.5));
+      await c.setBoost('white-noise', 99);
+      expect(c.state.sound('white-noise')!.boost, 4);
+      await c.setBoost('white-noise', 1);
+      expect(AmbienceState.fromJson(c.state.toJson()).sound('white-noise')!.boost, 1);
+    });
+
+    test('a file that cannot be measured plays as it is', () async {
+      final broken = _Unmeasured();
+      final c = AmbienceController(engine: broken, files: files, store: store);
+      await c.setMaster(1);
+      await c.setActive('white-noise', true);
+      expect(broken.voices['white-noise'], about(0.5));
+    });
+  });
+
   group('the catalog', () {
     test('has the whole list, with unique ids and a picture each', () {
       final ids = [for (final s in ambienceCatalog) s.id];
       expect(ids.toSet(), hasLength(ids.length));
       expect(ids.length, greaterThan(150));
       expect(ids.every(ambienceDefaultPictures.containsKey), isTrue);
+    });
+
+    test('there are plenty of ready-made mixes, with their own ids and names', () {
+      expect(ambiencePresets.length, greaterThan(25));
+      expect({for (final m in ambiencePresets) m.id}, hasLength(ambiencePresets.length));
+      expect({for (final m in ambiencePresets) m.name}, hasLength(ambiencePresets.length));
+      final noise = {for (final s in ambienceCatalog) if (s.available) s.id};
+      expect(ambiencePresets.where((m) => m.layers.keys.every(noise.contains)), isNotEmpty, reason: 'some work with nothing added');
     });
 
     test('keeps the ids sounds were saved under, and the mixes still point at sounds', () {
