@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'ambience_import.dart';
 import 'ambience_models.dart';
 
 /// Plays looping sounds together (the phone uses SoLoud; tests use a pretend one).
@@ -67,6 +68,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   final Map<String, String> _own = {}; // id -> name, sounds the owner added by name
   final Set<String> _environments = {}; // which of those are whole environments
   final Map<String, String> _icons = {}; // sound id -> the icon the owner chose
+  final Set<String> _keptEmpty = {}; // sounds whose file was taken away: the folder does not refill them
+  String? _folder;
   final List<AmbienceMix> _mixes = [];
   final Map<String, double> _active = {};
   final Set<String> _voices = {};
@@ -104,6 +107,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       for (final e in (j['icons'] is Map ? j['icons'] as Map : const {}).entries) {
         if (e.key is String && e.value is String) _icons[e.key as String] = e.value as String;
       }
+      if (j['folder'] is String) _folder = j['folder'] as String;
+      if (j['empty'] is List) _keptEmpty.addAll([for (final id in j['empty'] as List) if (id is String) id]);
       if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
       if (j['mixes'] is List) {
         for (final m in j['mixes'] as List) {
@@ -130,6 +135,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         'own': _own,
         'env': _environments.toList(),
         'icons': _icons,
+        'empty': _keptEmpty.toList(),
+        if (_folder != null) 'folder': _folder,
         'mixes': [for (final m in _mixes) m.toJson()],
         'active': _active,
         'master': _master,
@@ -419,6 +426,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         final old = _saved[soundId];
         final saved = await files.add(soundId, sourcePath);
         _saved[soundId] = saved;
+        _keptEmpty.remove(soundId);
         if (old != null && old != saved) await files.remove(old);
         // A sound that is playing takes the new file.
         if (_voices.remove(soundId)) {
@@ -459,6 +467,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           if (_voices.remove(soundId)) await engine.stop(soundId);
           if (_active.isEmpty) await _stopNow();
         }
+        if (ambienceCatalog.any((s) => s.id == soundId)) _keptEmpty.add(soundId);
         _own.remove(soundId);
         _environments.remove(soundId);
         if (!ambienceCatalog.any((s) => s.id == soundId)) _icons.remove(soundId);
@@ -466,6 +475,35 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         notifyListeners();
         await _save();
       });
+
+  /// The folder that new sound files are picked up from, or null.
+  String? get watchedFolder => _folder;
+
+  Future<void> setWatchedFolder(String? folder) => _inTurn(() async {
+        await load();
+        _folder = folder;
+        // Choosing a folder again means: fill what matches, also what was emptied before.
+        _keptEmpty.clear();
+        notifyListeners();
+        await _save();
+      });
+
+  /// Connects the files among [paths] that are named like a sound with no file. Gives the names of the
+  /// sounds that got one.
+  Future<List<String>> connectNew(List<String> paths) async {
+    await load();
+    final added = <String>[];
+    for (final m in matchByName(paths, _sounds)) {
+      if (_keptEmpty.contains(m.id)) continue;
+      try {
+        await addFile(m.id, m.path);
+        added.add(_nameOf(m.id));
+      } catch (_) {
+        // A file that cannot be copied is tried again next time.
+      }
+    }
+    return added;
+  }
 
   /// The icon a sound shows (a name from the icon library); null gives it its usual one.
   Future<void> setIcon(String soundId, String? icon) => _inTurn(() async {

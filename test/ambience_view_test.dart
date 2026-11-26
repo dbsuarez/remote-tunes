@@ -12,16 +12,21 @@ void main() {
   late AmbienceController c;
   String? picked;
   List<String>? folder;
+  var inFolder = <String>[];
 
   setUp(() {
     engine = FakeEngine();
     c = AmbienceController(engine: engine, files: FakeFiles(), store: MemoryAmbienceStore());
     picked = '/down/rain-loop.mp3';
+    inFolder = [];
   });
 
   AmbienceOwner owner() => AmbienceOwner(
         pickFolder: () async => folder,
         setIcon: c.setIcon,
+        watchedFolder: () => c.watchedFolder,
+        watchFolder: c.setWatchedFolder,
+        checkFolder: () async => c.watchedFolder == null ? const [] : c.connectNew(inFolder),
         pickFile: () async => picked,
         addFile: c.addFile,
         addOwnSound: c.addOwnSound,
@@ -141,6 +146,67 @@ void main() {
     screenTest('is not offered from the other phone', (tester) async {
       await open(tester, owned: false);
       expect(find.byKey(const Key('amb-import')), findsNothing);
+    });
+  });
+
+  group('the watched folder', () {
+    setUp(() => folder = ['/f/Whale.mp3']);
+
+    Future<void> importOnce(WidgetTester tester) async {
+      await open(tester);
+      await tap(tester, 'amb-import');
+      await tap(tester, 'amb-import-go');
+    }
+
+    screenTest('is remembered after an import, and new matching files connect on coming back', (tester) async {
+      await importOnce(tester);
+      expect(c.watchedFolder, '/f');
+      expect(find.textContaining('New files in "f"'), findsOneWidget);
+      inFolder = ['/f/Whale.mp3', '/f/Dolphins.mp3', '/f/random take.mp3'];
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(c.state.sound('dolphins')!.available, isTrue);
+      expect(find.textContaining('Added from your folder: Dolphins'), findsOneWidget);
+      expect(c.state.sounds.where((s) => s.name == 'random take'), isEmpty);
+      expect(engine.voices, isEmpty, reason: 'connecting plays nothing');
+    });
+
+    screenTest('connects when the screen opens', (tester) async {
+      await c.setWatchedFolder('/f');
+      inFolder = ['/f/Harp.mp3'];
+      await open(tester);
+      await tester.pumpAndSettle();
+      expect(c.state.sound('harp')!.available, isTrue);
+    });
+
+    screenTest('a file taken away is not put back, until the folder is chosen again', (tester) async {
+      await importOnce(tester);
+      inFolder = ['/f/Whale.mp3'];
+      await c.removeFile('whale');
+      await tester.pumpAndSettle();
+      await tap(tester, 'amb-check');
+      expect(c.state.sound('whale')!.available, isFalse);
+      expect(find.textContaining('No new files'), findsOneWidget);
+      await tap(tester, 'amb-import');
+      await tap(tester, 'amb-import-go');
+      expect(c.state.sound('whale')!.available, isTrue);
+    });
+
+    screenTest('Import and Rescan are icons; Rescan with no folder says what to do', (tester) async {
+      await open(tester);
+      expect(find.text('Import a folder'), findsNothing);
+      expect(find.byTooltip('Import a folder'), findsOneWidget);
+      expect(find.byTooltip('Rescan the folder'), findsOneWidget);
+      await tap(tester, 'amb-check');
+      expect(find.textContaining('Import a folder first'), findsOneWidget);
+    });
+
+    screenTest('can be let go', (tester) async {
+      await importOnce(tester);
+      await tap(tester, 'amb-unwatch');
+      expect(c.watchedFolder, isNull);
+      expect(find.byKey(const Key('amb-watching')), findsNothing);
     });
   });
 

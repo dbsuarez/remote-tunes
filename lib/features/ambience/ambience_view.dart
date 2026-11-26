@@ -17,7 +17,19 @@ class AmbienceOwner {
     required this.setMaxVolume,
     this.pickFolder,
     this.setIcon,
+    this.watchedFolder,
+    this.watchFolder,
+    this.checkFolder,
   });
+
+  /// The folder new files are picked up from, or null.
+  final String? Function()? watchedFolder;
+
+  /// Remembers a folder to pick new files up from (null: stop).
+  final Future<void> Function(String? folder)? watchFolder;
+
+  /// Connects the new files of the remembered folder; gives the names of the sounds that got one.
+  final Future<List<String>> Function()? checkFolder;
 
   /// Gives a sound an icon from the library (null: its usual one). Null: not offered.
   final Future<void> Function(String soundId, String? icon)? setIcon;
@@ -57,7 +69,7 @@ class AmbienceView extends StatefulWidget {
   State<AmbienceView> createState() => _AmbienceViewState();
 }
 
-class _AmbienceViewState extends State<AmbienceView> {
+class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver {
   /// Slider positions while a finger is on them.
   final Map<String, double> _dragging = {};
 
@@ -73,9 +85,44 @@ class _AmbienceViewState extends State<AmbienceView> {
   List<String?> _pageList = const [null];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFolder());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pages.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Back from a file manager or a download: there may be new files.
+    if (state == AppLifecycleState.resumed) _checkFolder();
+  }
+
+  bool _checking = false;
+
+  /// Picks up new files from the remembered folder. Says nothing unless something came in, or [asked].
+  Future<void> _checkFolder({bool asked = false}) async {
+    final check = widget.owner?.checkFolder;
+    if (check == null || _checking) return;
+    _checking = true;
+    try {
+      final added = await check();
+      if (added.isNotEmpty) {
+        _snack('Added from your folder: ${added.join(', ')}');
+      } else if (asked) {
+        _snack('No new files with a matching name.');
+      }
+    } catch (_) {
+      if (asked) _snack("The folder couldn't be read.");
+    } finally {
+      _checking = false;
+    }
   }
 
   /// Keeps the chip of the page shown in view.
@@ -151,6 +198,10 @@ class _AmbienceViewState extends State<AmbienceView> {
           builder: (_) => _ImportDialog(rows: rows, sounds: importTargets(_c.state.sounds)),
         );
         if (agreed != true || !mounted) return;
+        // From now on, new files here that are named like a sound connect by themselves.
+        final first = paths.first;
+        final cut = first.lastIndexOf(RegExp(r'[\\/]'));
+        if (cut > 0) await owner.watchFolder?.call(first.substring(0, cut));
         final chosen = [for (final r in rows) if (r.target != AmbienceImportRow.skip) r];
         _snack('Adding ${chosen.length} sound${chosen.length == 1 ? '' : 's'}…');
         var added = 0;
@@ -412,15 +463,7 @@ class _AmbienceViewState extends State<AmbienceView> {
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           children: [
             if (owner?.pickFolder != null && (page == null || page == ambienceOwnCategory))
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  key: const Key('amb-import'),
-                  onPressed: widget.enabled ? _importFolder : null,
-                  icon: const Icon(Icons.drive_folder_upload_rounded),
-                  label: const Text('Import a folder'),
-                ),
-              ),
+              _folderRow(theme, owner!),
             for (final c in categories) ...[
               _Heading(c, key: ValueKey('amb-group-$c')),
               if (owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
@@ -439,6 +482,51 @@ class _AmbienceViewState extends State<AmbienceView> {
           ],
         );
       },
+    );
+  }
+
+  /// The folder buttons: import one, rescan the one watched, stop watching it.
+  Widget _folderRow(ThemeData theme, AmbienceOwner owner) {
+    final folder = owner.watchedFolder?.call();
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: folder == null
+                ? const SizedBox.shrink()
+                : Text(
+                    'New files in "${folder.split(RegExp(r'[\\/]')).last}" named like a sound are added by themselves.',
+                    key: const Key('amb-watching'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+          ),
+          IconButton(
+            key: const Key('amb-import'),
+            tooltip: 'Import a folder',
+            icon: const Icon(Icons.drive_folder_upload_rounded),
+            onPressed: widget.enabled ? _importFolder : null,
+          ),
+          if (owner.checkFolder != null)
+            IconButton(
+              key: const Key('amb-check'),
+              tooltip: 'Rescan the folder',
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: widget.enabled
+                  ? () => folder == null
+                      ? _snack('Import a folder first. Rescan then picks up its new files.')
+                      : _checkFolder(asked: true)
+                  : null,
+            ),
+          if (folder != null)
+            IconButton(
+              key: const Key('amb-unwatch'),
+              tooltip: 'Stop watching the folder',
+              icon: const Icon(Icons.link_off_rounded),
+              onPressed: widget.enabled ? () => _run(() => owner.watchFolder!(null)) : null,
+            ),
+        ],
+      ),
     );
   }
 

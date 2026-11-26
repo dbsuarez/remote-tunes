@@ -90,6 +90,27 @@ void main() {
     );
   });
 
+  group('connecting by name', () {
+    Map<String, String> connect(List<String> files, [List<AmbienceSound> sounds = ambienceCatalog]) =>
+        {for (final m in matchByName([for (final f in files) '/f/$f'], sounds)) m.path.split('/').last: m.id};
+
+    test('only a file named like the button connects', () {
+      expect(connect(['Whale.mp3', 'coffee_shop.wav', 'RAIN ON LEAVES.ogg', 'big whale.mp3', 'Rain.wav', 'Fan.m4a', 'Relaxation 2.5 Hz.mp3']), {
+        'Whale.mp3': 'whale',
+        'coffee_shop.wav': 'coffee-shop',
+        'RAIN ON LEAVES.ogg': 'rain-on-leaves',
+        'Relaxation 2.5 Hz.mp3': 'relaxation-2-5-hz',
+      });
+    });
+
+    test('a sound with a file is left alone, and one file fills one sound', () {
+      const full = AmbienceSound(id: 'whale', name: 'Whale', category: 'Ocean', available: true);
+      expect(connect(['Whale.mp3'], [full]), isEmpty);
+      expect(connect(['Flute.mp3']), {'Flute.mp3': 'flute'});
+      expect(connect(['White Noise.wav']), isEmpty);
+    });
+  });
+
   test('only files that can be looped are listed, and the noises are never replaced', () {
     expect(plan(['rain.m4a', 'readme.txt', '.mp3', 'White Noise.wav']), {'White Noise.wav': fresh});
     expect(importTargets(ambienceCatalog).map((s) => s.id), isNot(contains('white-noise')));

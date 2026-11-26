@@ -111,3 +111,26 @@ List<AmbienceImportRow> planImport(List<String> paths, List<AmbienceSound> sound
   }
   return rows;
 }
+
+/// The files that connect by themselves: named exactly like a sound's button ("Whale.mp3" for *Whale*;
+/// capitals, spaces and punctuation do not matter), for sounds that have no file yet. Each file and each
+/// sound is used once.
+List<({String id, String path})> matchByName(List<String> paths, List<AmbienceSound> sounds) {
+  final out = <({String id, String path})>[];
+  final used = <String>{};
+  for (final sound in importTargets(sounds)) {
+    if (sound.available) continue;
+    final name = _words(sound.name).join(' ');
+    for (final path in paths) {
+      final file = path.split(RegExp(r'[\\/]')).last;
+      final dot = file.lastIndexOf('.');
+      if (dot <= 0 || !ambienceExtensions.contains(file.substring(dot + 1).toLowerCase())) continue;
+      if (!used.contains(path) && _words(file.substring(0, dot)).join(' ') == name) {
+        used.add(path);
+        out.add((id: sound.id, path: path));
+        break;
+      }
+    }
+  }
+  return out;
+}

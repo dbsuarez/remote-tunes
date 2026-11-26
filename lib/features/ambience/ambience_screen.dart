@@ -87,6 +87,14 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
         setMaxVolume: ambience.setMaxVolume,
         pickFolder: _pickFolder,
         setIcon: ambience.setIcon,
+        watchedFolder: () => ambience.watchedFolder,
+        watchFolder: ambience.setWatchedFolder,
+        checkFolder: () async {
+          await ambience.load();
+          final folder = ambience.watchedFolder;
+          if (folder == null) return const [];
+          return ambience.connectNew((await ref.read(folderSourceProvider).list(folder)).files);
+        },
       ),
     );
   }
