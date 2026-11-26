@@ -152,7 +152,8 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     },
   );
   ambienceEngine.onMustPause = ambience.pause;
-  final disconnectAmbience = connectAmbience(ambience, localEngine, handler);
+  final disconnectAmbience = connectAmbience(ambience, localEngine, handler,
+      name: () => ref.read(settingsProvider).valueOrNull?.ambienceName ?? AppSettings.defaultAmbienceName);
   ref.onDispose(() {
     disconnectAmbience();
     unawaited(ambience.stop().whenComplete(ambience.dispose));

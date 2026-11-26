@@ -341,6 +341,18 @@ final List<_Group> _groups = [
         },
       ),
       _Entry(
+        id: 'ambiencename',
+        title: 'Name of Ambience',
+        keywords: 'ambience ambiance name rename call title sounds sleep',
+        build: (c) => _SavedTextField(
+          label: 'Name of Ambience (leave empty for "Ambience")',
+          value: c.s.ambienceName,
+          maxLength: 30,
+          validator: (v) => null,
+          onSave: c.repo.setAmbienceName,
+        ),
+      ),
+      _Entry(
         id: 'queuescroll',
         title: 'Queue opens at the song playing',
         keywords: 'queue scroll current playing',

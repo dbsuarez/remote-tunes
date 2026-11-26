@@ -10,6 +10,7 @@ import '../queue_aware_engine.dart';
 /// What the notification shows while ambience has the sound, and what its buttons do.
 class AmbienceNotice {
   const AmbienceNotice({
+    this.title = 'RemoteTunes Ambience',
     required this.subtitle,
     required this.playing,
     required this.play,
@@ -17,6 +18,7 @@ class AmbienceNotice {
     required this.stop,
   });
 
+  final String title;
   final String subtitle;
   final bool playing;
   final Future<void> Function() play;
@@ -60,7 +62,7 @@ class RemoteTunesAudioHandler extends svc.BaseAudioHandler with svc.SeekHandler 
     _ambience = notice;
     _lastKey = null;
     if (notice != null) {
-      mediaItem.add(svc.MediaItem(id: 'remotetunes.ambience', title: 'RemoteTunes Ambience', artist: notice.subtitle));
+      mediaItem.add(svc.MediaItem(id: 'remotetunes.ambience', title: notice.title, artist: notice.subtitle));
       playbackState.add(svc.PlaybackState(
         controls: [if (notice.playing) svc.MediaControl.pause else svc.MediaControl.play, svc.MediaControl.stop],
         systemActions: const {svc.MediaAction.play, svc.MediaAction.pause},

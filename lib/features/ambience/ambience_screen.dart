@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/permissions.dart';
+import '../../data/repositories/settings_repository.dart' show AppSettings;
+import '../../providers/providers.dart' show settingsProvider;
 import '../../providers/connection_providers.dart';
 import '../../providers/library_providers.dart' show permissionsProvider;
 import '../library/folder_browser.dart';
@@ -70,6 +72,9 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     return (await ref.read(folderSourceProvider).list(folder)).files;
   }
 
+  /// What the owner calls this screen (Settings).
+  String get _name => ref.watch(settingsProvider).valueOrNull?.ambienceName ?? AppSettings.defaultAmbienceName;
+
   Widget _body() {
     final remote = _remote;
     if (remote != null) return AmbienceView(controls: remote, onColor: _tint);
@@ -77,7 +82,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
     final ambience = core.valueOrNull?.ambience;
     if (ambience == null) {
       return core.hasError || core.hasValue
-          ? const Center(child: Text("Ambience isn't available on this phone."))
+          ? Center(child: Text("$_name isn't available on this phone."))
           : const Center(child: CircularProgressIndicator());
     }
     ambience.load();
@@ -108,7 +113,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: Text(widget.remote ? 'Ambience on the other phone' : 'Ambience'),
+          title: Text(widget.remote ? '$_name on the other phone' : _name),
           backgroundColor: _color,
           foregroundColor: Colors.white,
         ),

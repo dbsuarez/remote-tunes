@@ -18,6 +18,7 @@ class AppDrawer extends StatelessWidget {
     this.onSkins,
     this.onInsights,
     this.onAmbience,
+    this.ambienceName = 'Ambience',
     this.showEqualizer = true,
     this.version,
     this.updateAvailable = false,
@@ -46,6 +47,9 @@ class AppDrawer extends StatelessWidget {
 
   /// Calming sounds layered together (null: not shown).
   final VoidCallback? onAmbience;
+
+  /// What the owner calls them.
+  final String ambienceName;
 
   /// Skin settings (null: not shown).
   final VoidCallback? onSkins;
@@ -105,7 +109,7 @@ class AppDrawer extends StatelessWidget {
             item(Icons.search_rounded, 'Search', onSearch),
             item(Icons.format_list_numbered_rounded, 'Queue', onQueue),
             const Divider(),
-            if (onAmbience != null) item(Icons.spa_rounded, 'Ambience', onAmbience!),
+            if (onAmbience != null) item(Icons.spa_rounded, ambienceName, onAmbience!),
             if (showEqualizer) item(Icons.equalizer_rounded, 'Equalizer', onEqualizer),
             if (onInsights != null) item(Icons.insights_rounded, 'Insights', onInsights!),
             item(Icons.cast_connected_rounded, 'Remote playback', onRemotePlayback),

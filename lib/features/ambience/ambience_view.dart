@@ -687,7 +687,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                   child: Slider(
                     key: const Key('amb-master'),
                     value: master.clamp(0.0, 1.0),
-                    semanticFormatterCallback: (v) => 'Ambience volume ${(v * 100).round()} percent',
+                    semanticFormatterCallback: (v) => 'Volume of all sounds ${(v * 100).round()} percent',
                     // The slider stops at the loudest allowed.
                     onChanged: widget.enabled ? (v) => setState(() => _dragging['*'] = v.clamp(0.0, state.maxVolume)) : null,
                     onChangeEnd: (v) async {

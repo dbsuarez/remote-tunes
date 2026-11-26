@@ -101,6 +101,15 @@ void main() {
     });
   });
 
+  test('the notification uses the name the owner chose', () async {
+    final handler = RemoteTunesAudioHandler()..attach(music);
+    final disconnect = connectAmbience(ambience, music, handler, name: () => 'Pampatulog');
+    await ambience.setActive('white-noise', true);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(handler.mediaItem.value!.title, 'RemoteTunes Pampatulog');
+    disconnect();
+  });
+
   group('from the other phone', () {
     late PlayerServer server;
     late ControllerClient client;

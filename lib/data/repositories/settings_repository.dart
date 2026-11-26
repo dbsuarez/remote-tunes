@@ -41,6 +41,7 @@ class SettingKeys {
   static const visualizerCoverPosition = 'visualizer_cover_position';
   static const listLooks = 'list_looks';
   static const rescanOnOpen = 'rescan_on_open';
+  static const ambienceName = 'ambience_name';
   static const playHistory = 'play_history';
   static const rememberAudiobooks = 'remember_audiobooks';
   static const onlineSuggestions = 'online_suggestions';
@@ -110,6 +111,7 @@ class AppSettings {
     this.visualizerCoverPosition = 'bottom',
     this.listLooks = const {},
     this.rescanOnOpen = false,
+    this.ambienceName = defaultAmbienceName,
     this.playHistory = true,
     this.rememberAudiobooks = true,
     this.onlineSuggestions = true,
@@ -183,6 +185,11 @@ class AppSettings {
   /// How each kind of song list is drawn (kinds not here use the standard list).
   final Map<String, ListLook> listLooks;
 
+  static const defaultAmbienceName = 'Ambience';
+
+  /// What the layered sounds are called in the menu, on their screen and in the notification.
+  final String ambienceName;
+
   /// Look through the remembered music folders for new songs each time the app opens.
   final bool rescanOnOpen;
 
@@ -250,6 +257,10 @@ class AppSettings {
       visualizerCoverPosition: m[SettingKeys.visualizerCoverPosition] ?? 'bottom',
       listLooks: decodeListLooks(m[SettingKeys.listLooks]),
       rescanOnOpen: m[SettingKeys.rescanOnOpen] == 'true',
+      ambienceName: switch (m[SettingKeys.ambienceName]?.trim()) {
+        final n? when n.isNotEmpty => n,
+        _ => defaultAmbienceName,
+      },
       playHistory: m[SettingKeys.playHistory] != 'false',
       rememberAudiobooks: m[SettingKeys.rememberAudiobooks] != 'false',
       onlineSuggestions: m[SettingKeys.onlineSuggestions] != 'false',
@@ -363,6 +374,15 @@ class SettingsRepository {
   Future<void> setPlayHistory(bool v) => _put(SettingKeys.playHistory, v.toString());
 
   Future<void> setRescanOnOpen(bool v) => _put(SettingKeys.rescanOnOpen, v.toString());
+
+  /// Blank (or the usual name) goes back to the usual name.
+  Future<void> setAmbienceName(String v) {
+    final t = v.trim();
+    final name = t.length > 30 ? t.substring(0, 30).trim() : t;
+    return name.isEmpty || name == AppSettings.defaultAmbienceName
+        ? _remove(SettingKeys.ambienceName)
+        : _put(SettingKeys.ambienceName, name);
+  }
 
   /// Remembers the look of one kind of list (the standard look is not stored).
   Future<void> setListLook(String kind, ListLook look) async {

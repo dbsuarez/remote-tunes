@@ -102,6 +102,7 @@ class BackupService {
     SettingKeys.visualizerCoverPosition,
     SettingKeys.listLooks,
     SettingKeys.rescanOnOpen,
+    SettingKeys.ambienceName,
     SettingKeys.playHistory,
     SettingKeys.rememberAudiobooks,
     SettingKeys.onlineSuggestions,

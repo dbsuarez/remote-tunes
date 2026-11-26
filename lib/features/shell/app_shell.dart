@@ -244,6 +244,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         onHelp: () => context.push(AppRoutes.help),
         onSkins: () => context.push(AppRoutes.skins),
         onInsights: remote ? null : () => context.push(AppRoutes.insights),
+        ambienceName: ref.watch(settingsProvider).valueOrNull?.ambienceName ?? AppSettings.defaultAmbienceName,
         onAmbience: () => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => AmbienceScreen(remote: remote)),
         ),
