@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:path/path.dart' as pp;
 import 'package:uuid/uuid.dart';
 
+import '../../core/utils/album_name.dart';
 import '../../data/database/app_database.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../library/import_service.dart' show ExclusionStore, MusicFolder, MusicFoldersStore;
@@ -144,10 +145,13 @@ class BackupService {
   /// One picture file per album that has one.
   Future<List<String>> _artFiles() async {
     final rows = await db.customSelect(
-      'SELECT DISTINCT album_art_path AS p FROM songs '
+      'SELECT DISTINCT album_art_path AS p, album FROM songs '
       "WHERE album_art_path IS NOT NULL AND album_art_path != ''",
     ).get();
-    return [for (final r in rows) r.read<String>('p')];
+    return {
+      for (final r in rows)
+        if (isRealAlbum(r.readNullable<String>('album'))) r.read<String>('p'),
+    }.toList();
   }
 
   /// [activity] is what you did with your music: playlists, favorites, play and skip counts,
@@ -305,6 +309,7 @@ class BackupService {
         final artist = r.readNullable<String>('artist') ?? '';
         final album = r.readNullable<String>('album') ?? '';
         final path = r.read<String>('p');
+        if (!isRealAlbum(album)) continue; // covers travel per album; these songs have none
         final key = '${backupNorm(artist)}|${backupNorm(album)}';
         if (!seen.add(key)) continue;
         try {
@@ -638,6 +643,8 @@ class BackupService {
 
     if (includeArt && artDir.isNotEmpty) {
       for (final a in data.art) {
+        // An older backup may hold a cover for "Unknown album": it belongs to no one song.
+        if (!isRealAlbum(a.album)) continue;
         // Only songs of that album that have no picture yet get it.
         final rows = await db.customSelect(
           'SELECT id, album_art_path AS p FROM songs WHERE lower(IFNULL(artist, \'\')) = lower(?) '

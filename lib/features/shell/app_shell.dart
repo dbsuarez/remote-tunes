@@ -86,6 +86,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
       if (settings.startMode == StartMode.lastPlayer) unawaited(_reconnectLastPlayer());
       if (settings.rescanOnOpen && !settings.remoteAutoStart) unawaited(_rescanQuietly());
+      unawaited(_repairBorrowedArt());
       // Which songs are audiobooks (so they remember where they were left).
       unawaited(ref.read(playerCoreProvider.future).then((c) => c.audiobooks?.load()).catchError((Object _) {}));
       // Android 13+ needs permission to show the media notification. Playback
@@ -94,6 +95,22 @@ class _AppShellState extends ConsumerState<AppShell> {
         await ref.read(permissionsProvider).ensureNotifications();
       } catch (_) {}
     });
+  }
+
+  /// Once, after the update that stopped songs with no album sharing a cover: takes the borrowed
+  /// pictures off the songs already in the library. Tried again next time if it fails.
+  Future<void> _repairBorrowedArt() async {
+    const done = 'repair.borrowedArt';
+    try {
+      final settings = ref.read(settingsRepositoryProvider);
+      if (await settings.readValue(done) != null || !mounted) return;
+      final service = await ref.read(importServiceProvider.future);
+      final changed = await service.repairBorrowedArt();
+      await settings.writeValue(done, '1');
+      if (changed > 0) SongArt.forgetAll();
+    } catch (_) {
+      // Nothing is lost by waiting.
+    }
   }
 
   /// Looks for new songs in the music folders when the app opens (if the setting is on).

@@ -673,6 +673,25 @@ class LibraryRepository {
     return rows.isEmpty ? null : rows.first.read<String>('p');
   }
 
+  /// Every song with a file and a picture.
+  Future<List<({int id, String path, String album, String art})>> songsWithArt() async {
+    final rows = await _db.customSelect(
+      'SELECT id, file_path AS f, album, album_art_path AS p FROM songs '
+      "WHERE file_path IS NOT NULL AND album_art_path IS NOT NULL AND album_art_path != ''",
+    ).get();
+    return [
+      for (final r in rows)
+        (id: r.read<int>('id'), path: r.read<String>('f'), album: r.readNullable<String>('album') ?? '', art: r.read<String>('p')),
+    ];
+  }
+
+  /// Sets (or, with null, takes away) one song's picture.
+  Future<void> setSongArt(int songId, String? path) => _db.customUpdate(
+        'UPDATE songs SET album_art_path = ? WHERE id = ?',
+        variables: [Variable<String>(path), Variable<int>(songId)],
+        updates: {_db.songs},
+      );
+
   /// How many songs use this album-art file.
   Future<int> songsUsingArt(String path) async {
     final row = await _db.customSelect(

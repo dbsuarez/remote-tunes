@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/protocol/library_models.dart';
+import '../../core/utils/album_name.dart';
 import '../../data/database/app_database.dart';
 import '../player/lyrics_service.dart';
 import 'lookup_models.dart';
@@ -211,8 +212,8 @@ class SongLookup implements SongLookupService {
   @override
   Future<void> discardLyrics(int songId) => lyrics.discard(songId);
 
-  /// Makes [cover] the picture of every song that shares [songId]'s artist and album, and keeps
-  /// the file. Returns how many songs got it.
+  /// Makes [cover] the picture of every song that shares [songId]'s artist and album (only of that
+  /// song if it has no album), and keeps the file. Returns how many songs got it.
   @override
   Future<int> applyCover(int songId, LookupCover cover) async {
     final row = await db.customSelect(
@@ -225,11 +226,18 @@ class SongLookup implements SongLookupService {
     final dir = await artDir();
     await dir.create(recursive: true);
     var h = 0x811c9dc5;
-    for (final u in '$artist|$album|${DateTime.now().millisecondsSinceEpoch}'.toLowerCase().codeUnits) {
+    for (final u in '$songId|$artist|$album|${DateTime.now().millisecondsSinceEpoch}'.toLowerCase().codeUnits) {
       h = ((h ^ u) * 0x01000193) & 0x7fffffff;
     }
     final file = File('${dir.path}${Platform.pathSeparator}cover_$h.${cover.ext}');
     await file.writeAsBytes(cover.bytes, flush: true);
+    if (!isRealAlbum(album)) {
+      return db.customUpdate(
+        'UPDATE songs SET album_art_path = ? WHERE id = ?',
+        variables: [Variable<String>(file.path), Variable<int>(songId)],
+        updates: {db.songs},
+      );
+    }
     return db.customUpdate(
       'UPDATE songs SET album_art_path = ? WHERE lower(IFNULL(artist, \'\')) = lower(?) '
       'AND lower(IFNULL(album, \'\')) = lower(?)',

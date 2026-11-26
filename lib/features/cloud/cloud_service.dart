@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+import '../../core/utils/album_name.dart';
 import 'cloud_models.dart';
 import 'r2_client.dart';
 
@@ -174,14 +175,18 @@ class CloudLibraryService {
           String? artKey;
           final art = it.art;
           if (art != null && art.isNotEmpty) {
-            artKey = artKeyFor(it.artist, it.album, it.artExt);
-            if (artDone.add(artKey)) {
+            // One cover per album; a song with no album has its own.
+            final key = isRealAlbum(it.album)
+                ? artKeyFor(it.artist, it.album, it.artExt)
+                : 'artwork/$id.${it.artExt == 'png' ? 'png' : 'jpg'}';
+            artKey = key;
+            if (artDone.add(key)) {
               try {
                 await _r2.putBytes(artKey, art, contentType: artKey.endsWith('.png') ? 'image/png' : 'image/jpeg');
               } on R2Exception catch (e) {
                 if (e.refused) rethrow;
                 artKey = null; // a cover that fails is just left off
-                artDone.remove(artKeyFor(it.artist, it.album, it.artExt));
+                artDone.remove(key);
               }
             }
           }

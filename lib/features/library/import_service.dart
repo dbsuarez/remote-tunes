@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import '../../core/utils/album_name.dart';
 import '../../data/repositories/library_repository.dart';
 import 'import_exception.dart';
 import 'metadata_extractor.dart';
@@ -706,13 +709,16 @@ class LibraryImportService {
     }
   }
 
-  /// Album art is stored once per artist+album and shared by its songs.
+  /// Album art is stored once per artist+album and shared by its songs. A song with no album keeps
+  /// its own picture.
   Future<String?> _storeArt(
       ExtractedMetadata meta, String artist, String album) async {
     final bytes = meta.artBytes;
     if (bytes == null) return null;
-    final existing = await _library.albumArtFor(artist, album);
-    if (existing != null && await File(existing).exists()) return existing;
+    if (isRealAlbum(album)) {
+      final existing = await _library.albumArtFor(artist, album);
+      if (existing != null && await File(existing).exists()) return existing;
+    }
 
     await _artDir.create(recursive: true);
     final ext = (meta.artMimeType ?? '').contains('png') ? 'png' : 'jpg';
@@ -797,6 +803,50 @@ class LibraryImportService {
     await _library.markInfoEdited(edited);
     onProgress?.call(ImportProgress(rows.length, rows.length, null));
     return edited.length;
+  }
+
+  /// Gives songs with no album their own cover back (or none): they used to be treated as one album,
+  /// so a song could show another song's picture. Only pictures that two or more such songs share are
+  /// looked at (one on a single song may have been chosen by hand). A song whose file cannot be read is
+  /// left alone. Returns how many songs changed.
+  Future<int> repairBorrowedArt() async {
+    final byPicture = <String, List<({int id, String path})>>{};
+    for (final s in await _library.songsWithArt()) {
+      if (!isRealAlbum(s.album)) (byPicture[s.art] ??= []).add((id: s.id, path: s.path));
+    }
+    var changed = 0;
+    for (final e in byPicture.entries) {
+      if (e.value.length < 2) continue;
+      final shared = e.key;
+      Uint8List? sharedBytes;
+      try {
+        sharedBytes = await File(shared).readAsBytes();
+      } on FileSystemException {
+        sharedBytes = null;
+      }
+      // Songs whose files hold the same picture share one copy of it.
+      final stored = <String, String>{};
+      if (sharedBytes != null) stored[base64Encode(sharedBytes)] = shared;
+      for (final song in e.value) {
+        try {
+          if (!await File(song.path).exists()) continue;
+          final meta = await _extractor.extract(song.path);
+          final bytes = meta.artBytes;
+          String? own;
+          if (bytes != null) {
+            final key = base64Encode(bytes);
+            own = stored[key] ??= (await _storeArt(meta, unknownArtist, unknownAlbum))!;
+          }
+          if (own == shared) continue;
+          await _library.setSongArt(song.id, own);
+          changed++;
+        } catch (_) {
+          // One unreadable file does not stop the rest.
+        }
+      }
+      if (await _library.songsUsingArt(shared) == 0) await _tryDelete(shared);
+    }
+    return changed;
   }
 
   /// Removes a song from the library, and deletes its copied file and its art
