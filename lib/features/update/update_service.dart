@@ -114,6 +114,9 @@ class UpdateChecker {
       throw UpdateException("Couldn't reach GitHub. Check the internet connection.");
     }
     if (res.statusCode == 404) return null; // no release published yet
+    // GitHub answers only so many of these an hour for one internet connection; its ordinary pages
+    // do not count against that.
+    if (_limited(res.statusCode)) return _fromReleasePage(currentVersion: currentVersion, abi: abi);
     if (res.statusCode != 200) {
       throw UpdateException('GitHub said no (${res.statusCode}). Try again later.');
     }
@@ -153,6 +156,46 @@ class UpdateChecker {
     );
   }
 
+  static bool _limited(int status) => status == 403 || status == 429;
+
+  static const _busy = 'GitHub is not answering this internet connection for now. '
+      'Try again in an hour, or use mobile data.';
+
+  /// The newest version read from where the releases page leads (`.../releases/tag/v1.2.3`), with the
+  /// download address built from it. No notes and no checksum come this way; the size is still checked,
+  /// and Android only installs an update signed like this app.
+  Future<UpdateInfo?> _fromReleasePage({required String currentVersion, required String abi}) async {
+    try {
+      final ask = http.Request('GET', Uri.parse('https://github.com/$repo/releases/latest'))..followRedirects = false;
+      final answer = await _client.send(ask).timeout(const Duration(seconds: 15));
+      await answer.stream.drain<void>();
+      final to = Uri.tryParse(answer.headers['location'] ?? '');
+      final at = to?.pathSegments.indexOf('tag') ?? -1;
+      if (to == null || at < 0 || at + 1 >= to.pathSegments.length) throw UpdateException(_busy);
+      final tag = to.pathSegments[at + 1];
+      if (parseVersion(tag) == null) throw UpdateException(_busy);
+      if (!isNewerVersion(tag, currentVersion)) return null;
+      final name = 'app-$abi-release.apk';
+      final url = '$_downloadPrefix$tag/$name';
+      final head = await _client.send(http.Request('HEAD', Uri.parse(url))).timeout(const Duration(seconds: 15));
+      await head.stream.drain<void>();
+      // A release appears a few minutes before its files are all there.
+      if (head.statusCode == 404) throw UpdateException('Version $tag has no download for this phone ($abi) yet.');
+      if (head.statusCode != 200) throw UpdateException(_busy);
+      return UpdateInfo(
+        version: tag.startsWith('v') ? tag.substring(1) : tag,
+        notes: '',
+        apkUrl: url,
+        apkName: name,
+        size: head.contentLength ?? 0,
+      );
+    } on UpdateException {
+      rethrow;
+    } catch (_) {
+      throw UpdateException(_busy);
+    }
+  }
+
   /// True when [file] is the complete, unchanged APK of [info].
   Future<bool> _isGoodDownload(File file, UpdateInfo info) async {
     try {
@@ -183,6 +226,7 @@ class UpdateChecker {
     } catch (_) {
       throw UpdateException("Couldn't reach GitHub. Check the internet connection.");
     }
+    if (_limited(res.statusCode)) throw UpdateException(_busy);
     if (res.statusCode != 200) {
       throw UpdateException('GitHub said no (${res.statusCode}). Try again later.');
     }

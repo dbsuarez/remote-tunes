@@ -100,6 +100,7 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
       title: _name,
       owner: AmbienceOwner(
         rename: ambience.renameSound,
+        organizer: ambience,
         listBanners: () => ambience.listBanners,
         setListBanners: ambience.setListBanners,
         pickFile: _pickSoundFile,

@@ -9,6 +9,7 @@ import 'ambience_banner.dart';
 import 'ambience_beats.dart';
 import 'ambience_icons.dart';
 import 'ambience_import.dart';
+import 'ambience_manage.dart';
 import 'ambience_models.dart';
 import 'ambience_night.dart';
 import 'ambience_style.dart';
@@ -51,7 +52,11 @@ class AmbienceOwner {
     this.rename,
     this.listBanners,
     this.setListBanners,
+    this.organizer,
   });
+
+  /// Categories, moving and ordering sounds, and their switches. Null: not offered.
+  final AmbienceOrganizer? organizer;
 
   /// Renames one of the owner's own sounds. Null: not offered.
   final Future<void> Function(String soundId, String name)? rename;
@@ -92,7 +97,7 @@ class AmbienceOwner {
   /// Gives the path of a picked sound file, or null.
   final Future<String?> Function() pickFile;
   final Future<void> Function(String soundId, String path) addFile;
-  final Future<void> Function(String name, String path, {bool environment}) addOwnSound;
+  final Future<void> Function(String name, String path, {bool environment, String? category}) addOwnSound;
   final Future<void> Function(String soundId) removeFile;
   final Future<void> Function(double volume) setMaxVolume;
 }
@@ -225,7 +230,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         await _c.setActive(s.id, true);
       });
 
-  Future<void> _addOwn() => _run(() async {
+  Future<void> _addOwn([String? category]) => _run(() async {
         final path = await widget.owner!.pickFile();
         if (path == null || !mounted) return;
         final file = path.split(RegExp(r'[\\/]')).last;
@@ -235,7 +240,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           builder: (_) => _NameDialog(title: 'Name this sound', initial: dot > 0 ? file.substring(0, dot) : file),
         );
         if (name == null) return;
-        await widget.owner!.addOwnSound(name, path);
+        await widget.owner!.addOwnSound(name, path, category: category);
       });
 
   /// Picks a folder, shows which sound each file would go to, and adds the ones agreed.
@@ -278,11 +283,19 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
 
   Future<void> _fileMenu(AmbienceSound s) async {
     final owner = widget.owner;
-    if (owner == null || !s.available) return;
+    final organizer = owner?.organizer;
+    if (owner == null || (!s.available && organizer == null)) return;
     final noise = ambienceCatalog.any((x) => x.id == s.id && x.available);
     final tones = beatTones(s.id);
     // A sound the app makes has no file to change.
-    if (noise && owner.setIcon == null && owner.setBoost == null) return;
+    if (noise && owner.setIcon == null && owner.setBoost == null && organizer == null) return;
+    // Switches set for the whole category cannot be changed here.
+    final group = organizer?.categories.where((c) => c.id == s.category).firstOrNull;
+    final forced = {
+      if (group?.once ?? false) ambienceFlagOnce,
+      if (group?.alone ?? false) ambienceFlagAlone,
+      if ((group?.headphones ?? false) || isAmbienceBeat(s.id)) ambienceFlagHeadphones,
+    };
     final choice = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -313,7 +326,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                 title: Text('Change the picture of ${s.name}'),
                 onTap: () => Navigator.pop(ctx, 'icon'),
               ),
-            if (owner.setBoost != null)
+            if (owner.setBoost != null && s.available)
               ListTile(
                 key: const Key('amb-boost'),
                 leading: const Icon(Icons.volume_up_rounded),
@@ -321,18 +334,35 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                 subtitle: s.boost == 1 ? null : Text('Now ${(s.boost * 100).round()}%'),
                 onTap: () => Navigator.pop(ctx, 'boost'),
               ),
-            if (!noise) ListTile(
+            if (!noise && s.available) ListTile(
               key: const Key('amb-replace'),
               leading: const Icon(Icons.swap_horiz_rounded),
               title: Text('Choose another file for ${s.name}'),
               onTap: () => Navigator.pop(ctx, 'replace'),
             ),
-            if (!noise) ListTile(
+            if (!noise && (s.available || s.own)) ListTile(
               key: const Key('amb-remove'),
               leading: const Icon(Icons.delete_outline_rounded),
               title: Text(isOwnAmbienceSound(s) ? 'Delete this sound' : 'Take its file away'),
               onTap: () => Navigator.pop(ctx, 'remove'),
             ),
+            if (organizer != null) ...[
+              ListTile(
+                key: const Key('amb-move'),
+                leading: const Icon(Icons.drive_file_move_outline),
+                title: Text('Move ${s.name} to another category'),
+                onTap: () => Navigator.pop(ctx, 'move'),
+              ),
+              const Divider(height: 1),
+              AmbienceSwitches(
+                own: () => organizer.soundFlags(s.id),
+                set: (flag, on) => _run(() => organizer.setSoundFlag(s.id, flag, on)),
+                forced: forced,
+                forcedBy: isAmbienceBeat(s.id) && !(group?.once ?? false) && !(group?.alone ?? false)
+                    ? 'These always need them'
+                    : 'Set for the whole category',
+              ),
+            ],
           ],
           ),
         ),
@@ -345,6 +375,32 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         builder: (_) => _NameDialog(title: 'Rename this sound', initial: s.name, maxLength: 30),
       );
       if (name != null) await _run(() => owner.rename!(s.id, name));
+    } else if (choice == 'move') {
+      if (!mounted) return;
+      final to = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (ctx) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final c in organizer!.categories)
+                  ListTile(
+                    key: ValueKey('amb-move-to-${c.id}'),
+                    leading: CircleAvatar(backgroundColor: ambienceColor(c.id), radius: 12),
+                    title: Text(c.name),
+                    trailing: c.id == s.category ? const Icon(Icons.check_rounded) : null,
+                    onTap: () => Navigator.pop(ctx, c.id),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (to != null && to != s.category) await _run(() => organizer!.moveSound(s.id, to));
     } else if (choice == 'boost') {
       if (!mounted) return;
       final boost = await showDialog<double>(context: context, builder: (_) => _BoostDialog(sound: s));
@@ -480,12 +536,18 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
   String _titleOf(String? page, AmbienceState state) => switch (page) {
         null => 'Ready',
         _selected => state.active.isEmpty ? 'Selected' : 'Selected (${state.active.length})',
-        final c => c,
+        final c => state.categoryName(c),
       };
 
   void _goTo(List<String?> pages, String? page) {
     setState(() => _category = page);
-    if (_pages.hasClients) _pages.jumpToPage(pages.indexOf(page));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_pages.hasClients) return;
+      _pages.jumpToPage(pages.indexOf(page));
+      // A page that has only just been added (on the management screen) is not measured yet, and the
+      // jump reports the one before it: the title follows what was asked for.
+      if (_category != page) setState(() => _category = page);
+    });
   }
 
   Future<void> _editSchedule() async {
@@ -560,7 +622,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
       final result = await Navigator.of(context).push<BannerResult>(MaterialPageRoute(
         builder: (_) => BannerCropScreen(
           bytes: bytes,
-          group: group,
+          group: _c.state.categoryName(group),
           // A new picture keeps the height this banner (or the last one set) has.
           framing: choice == 'move'
               ? current!.framing
@@ -700,6 +762,9 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         ),
       );
 
+  bool _needsPhones(AmbienceState state, String? page) =>
+      ambienceNeedsHeadphones(page) || state.categoryList.any((c) => c.id == page && c.headphones);
+
   /// A group's picture: the owner's own, or its color with some of its sounds. A faint pair of
   /// headphones lies over the groups that need them.
   Widget _art(AmbienceState state, String? page) {
@@ -708,7 +773,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
       for (final s in state.sounds)
         if (switch (page) { null => s.available, _selected => state.active.containsKey(s.id), final c => s.category == c }) s,
     ].take(5).toList();
-    final phones = ambienceNeedsHeadphones(page);
+    final phones = _needsPhones(state, page);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -787,6 +852,22 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         ),
       );
 
+  Future<void> _manage(AmbienceOwner owner) async {
+    final at = _category;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => AmbienceManageScreen(
+        controls: _c,
+        organizer: owner.organizer!,
+        onSound: _fileMenu,
+        onAddSound: _addOwn,
+        onBanner: owner.banners == null ? null : _editBanner,
+        bannerOf: owner.banners == null ? null : (id) => owner.banners!.of(id)?.image,
+      ),
+    ));
+    // Back on the group left, wherever it is in the order now.
+    if (mounted) _goTo(_pageList, _pageList.contains(at) ? at : null);
+  }
+
   /// The buttons at the top right: about the watched folder, and a menu of what is not needed often.
   List<Widget> _actions(String? page) {
     final owner = widget.owner;
@@ -798,6 +879,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           child: Row(children: [Icon(icon, size: 22), const SizedBox(width: 12), Flexible(child: Text(text))]),
         );
     final items = [
+      if (owner.organizer != null) item('amb-manage', Icons.tune_rounded, 'Categories and sounds'),
       if (owner.banners != null) item('amb-banner-edit', Icons.add_photo_alternate_outlined, 'Banner picture'),
       if (owner.pickFolder != null) item('amb-import', Icons.drive_folder_upload_rounded, 'Import a folder'),
       if (owner.pickFolder != null && owner.checkFolder != null) item('amb-check', Icons.refresh_rounded, 'Rescan the folder'),
@@ -817,6 +899,8 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           enabled: widget.enabled,
           onSelected: (choice) {
             switch (choice) {
+              case 'amb-manage':
+                _manage(owner);
               case 'amb-banner-edit':
                 _editBanner(_groupOf(page));
               case 'amb-import':
@@ -848,7 +932,13 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         }
         // A page for what is ready, one for what is on, then one for each group; swipe between them, or tap
         // the title for the list. The owner can always add a sound of their own.
-        final all = <String>{for (final s in state.sounds) s.category, if (widget.owner != null) ambienceOwnCategory};
+        // In the owner's order: those with something in them, and on the playing phone also the owner's own
+        // categories while still empty.
+        final used = {for (final s in state.sounds) s.category};
+        final all = <String>{
+          for (final c in state.categoryList)
+            if (used.contains(c.id) || (widget.owner != null && (c.custom || c.id == ambienceOwnCategory))) c.id,
+        };
         final pages = <String?>[null, _selected, ...all];
         final chosen = pages.contains(_category) ? _category : null;
         if (!listEquals(pages, _pageList)) {
@@ -966,7 +1056,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                             ),
                           ),
                         ),
-                        if (ambienceNeedsHeadphones(page)) ...[
+                        if (_needsPhones(state, page)) ...[
                           const SizedBox(height: 4),
                           Material(
                             color: Colors.black.withValues(alpha: 0.45),
@@ -1013,6 +1103,7 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         [
           state.mixName ?? (count == 0 ? 'Tap a sound to begin' : '$count sound${count == 1 ? '' : 's'} on'),
           if (state.mixName != null) '$count sound${count == 1 ? '' : 's'}',
+          if (state.onceLeft case final once?) '${_left(once)} of the sound left',
           if (timer != null) '${_left(state.secondsLeft ?? timer * 60)} left',
         ].join(' · '),
         key: const Key('amb-status'),
@@ -1169,7 +1260,10 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           children: [
             for (final c in categories) ...[
               // A group's own page is already named by the title above.
-              if (page == null) _Heading(c, key: ValueKey('amb-group-$c')) else SizedBox(key: ValueKey('amb-group-$c'), height: 4),
+              if (page == null)
+                _Heading(state.categoryName(c), key: ValueKey('amb-group-$c'))
+              else
+                SizedBox(key: ValueKey('amb-group-$c'), height: 4),
               if (owner?.setIcon != null && (c == ambienceOwnCategory || c == ambienceEnvironmentCategory))
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
@@ -1179,7 +1273,8 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                 children: [
                   for (final s in state.sounds.where((s) => s.category == c && visible(s)))
                     SizedBox(width: width, child: _tile(theme, state, s)),
-                  if (c == ambienceOwnCategory && owner != null) SizedBox(width: width, child: _addTile(theme)),
+                  if (owner != null && (c == ambienceOwnCategory || (page == c && state.categoryList.any((x) => x.id == c && x.custom))))
+                    SizedBox(width: width, child: _addTile(theme, c == ambienceOwnCategory ? null : c)),
                 ],
               ),
             ],
@@ -1250,11 +1345,28 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                     child: AmbiencePicture(ambienceIconName(s), size: 32, color: on ? page : Colors.white, faded: !s.available),
                   ),
                   if (on) Positioned(top: 0, right: 0, child: Text('${(volume * 100).round()}', style: theme.textTheme.labelMedium)),
-                  if (ambienceNeedsHeadphones(s.category))
+                  if (s.headphones || s.once || s.alone)
                     Positioned(
                       top: 0,
-                      left: 6,
-                      child: Icon(Icons.headphones_rounded, key: ValueKey('amb-phones-${s.id}'), size: 14, color: Colors.white70),
+                      left: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (s.headphones)
+                            Icon(Icons.headphones_rounded, key: ValueKey('amb-phones-${s.id}'), size: 14, color: Colors.white70),
+                          if (s.once)
+                            Text('1\u00d7', key: ValueKey('amb-once-${s.id}'), style: theme.textTheme.labelSmall),
+                          if (s.alone)
+                            Icon(Icons.person_rounded, key: ValueKey('amb-alone-${s.id}'), size: 14, color: Colors.white70),
+                        ],
+                      ),
+                    ),
+                  // The owner's own, where it sits among the app's sounds.
+                  if (s.own && s.category != ambienceOwnCategory && s.category != ambienceEnvironmentCategory)
+                    Positioned(
+                      left: 2,
+                      bottom: 2,
+                      child: Icon(Icons.star_rounded, key: ValueKey('amb-own-${s.id}'), size: 15, color: Colors.amberAccent),
                     ),
                   if (!s.available)
                     Positioned(
@@ -1297,12 +1409,12 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     );
   }
 
-  Widget _addTile(ThemeData theme) => Column(
+  Widget _addTile(ThemeData theme, [String? category]) => Column(
         children: [
           InkWell(
             key: const Key('amb-add-own'),
             borderRadius: BorderRadius.circular(18),
-            onTap: widget.enabled ? _addOwn : null,
+            onTap: widget.enabled ? () => _addOwn(category) : null,
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: _square(theme, color: Colors.white.withValues(alpha: 0.12), child: const Icon(Icons.add_rounded, size: 30)),

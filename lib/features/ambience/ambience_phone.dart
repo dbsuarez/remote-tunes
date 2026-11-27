@@ -81,8 +81,28 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
     }
   }
 
+  /// Told when a voice that does not loop has played to its end.
+  void Function(String id)? _ended;
+
   @override
-  Future<void> start(String id, String path, double volume) async {
+  set onEnded(void Function(String id)? listener) => _ended = listener;
+
+  @override
+  Future<void> setLooping(String id, bool loop) async {
+    final v = _voices[id];
+    if (v != null && _so.getIsValidVoiceHandle(v.handle)) _so.setLooping(v.handle, loop);
+  }
+
+  @override
+  Duration? left(String id) {
+    final v = _voices[id];
+    if (v == null || !_so.getIsValidVoiceHandle(v.handle)) return null;
+    final left = _so.getLength(v.source) - _so.getPosition(v.handle);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  @override
+  Future<void> start(String id, String path, double volume, {bool loop = true}) async {
     _release?.cancel();
     _release = null;
     await _ready();
@@ -93,7 +113,11 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
     final source = await _so.loadFile(path, mode: long ? LoadMode.disk : LoadMode.memory);
     await _takeFocus();
     final fade = isAmbienceBeat(id);
-    final handle = await _so.play(source, volume: fade ? 0 : volume, looping: true, paused: _paused || _interrupted);
+    // Heard also when looping is switched off later, so it is always listened to.
+    unawaited(source.allInstancesFinished.first.then((_) {
+      if (_voices[id]?.source == source) _ended?.call(id);
+    }).catchError((Object _) {}));
+    final handle = await _so.play(source, volume: fade ? 0 : volume, looping: loop, paused: _paused || _interrupted);
     if (fade) _so.fadeVolume(handle, volume, _beatFade);
     // A sleeping child's sound must not be dropped when many play at once.
     _so.setProtectVoice(handle, true);

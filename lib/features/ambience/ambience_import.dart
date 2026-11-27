@@ -104,9 +104,10 @@ List<AmbienceImportRow> planImport(List<String> paths, List<AmbienceSound> sound
   // A new sound named like one of the owner's own would be a second copy: it replaces that one.
   bool sameName(AmbienceImportRow row, AmbienceSound sound) => sound.name.toLowerCase() == row.newName.toLowerCase();
   for (final sound in targets) {
-    if (sound.category == ambienceOwnCategory) give(sound, (row) => sameName(row, sound));
     if (sound.category == ambienceEnvironmentCategory) {
       give(sound, (row) => sameName(row, sound), of: AmbienceImportRow.newEnvironment);
+    } else if (sound.own || sound.category == ambienceOwnCategory) {
+      give(sound, (row) => sameName(row, sound));
     }
   }
   return rows;

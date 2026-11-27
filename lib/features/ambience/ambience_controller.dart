@@ -11,8 +11,16 @@ import 'ambience_models.dart';
 
 /// Plays looping sounds together (the phone uses SoLoud; tests use a pretend one).
 abstract class AmbienceEngine {
-  /// Starts [path] looping as the voice [id] at [volume]. Throws if the file cannot be played.
-  Future<void> start(String id, String path, double volume);
+  /// Starts [path] as the voice [id] at [volume], looping unless [loop] is false. Throws if the file
+  /// cannot be played.
+  Future<void> start(String id, String path, double volume, {bool loop = true});
+  Future<void> setLooping(String id, bool loop);
+
+  /// What is left of a voice that does not loop, or null if it cannot be told.
+  Duration? left(String id);
+
+  /// Told when a voice that does not loop has played to its end.
+  set onEnded(void Function(String id)? listener);
   Future<void> setVolume(String id, double volume);
   Future<void> stop(String id);
   Future<void> setPaused(bool paused);
@@ -76,14 +84,16 @@ const ambienceLateStart = Duration(minutes: 10);
 const ambienceExtensions = {'mp3', 'ogg', 'wav', 'flac'};
 
 /// Ambience on the phone that plays it: which sounds are on and how loud, the mixes, the sleep timer.
-class AmbienceController extends ChangeNotifier implements AmbienceControls {
+class AmbienceController extends ChangeNotifier implements AmbienceControls, AmbienceOrganizer {
   AmbienceController({
     required this.engine,
     required this.files,
     required this.store,
     this.pauseMusic,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+  }) : _now = now ?? DateTime.now {
+    engine.onEnded = _ended;
+  }
 
   final AmbienceEngine engine;
   final AmbienceFiles files;
@@ -105,6 +115,12 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   final Map<String, double> _boost = {}; // sound id -> the owner's louder (above 1) or softer
   String? _folder;
   bool _listBanners = false;
+  final Map<String, String> _custom = {}; // id -> name of the owner's own categories
+  final Map<String, String> _categoryNames = {}; // other names given to the app's categories
+  final List<String> _categoryOrder = []; // empty: as they come
+  final Map<String, String> _placed = {}; // sound id -> the category the owner moved it to
+  final Map<String, List<String>> _soundOrder = {}; // category id -> its sounds as arranged
+  final Map<String, Set<String>> _flags = {}; // 's:<sound id>' or 'c:<category id>' -> switches
   AmbienceSchedule _schedule = const AmbienceSchedule();
   String? _ranOn; // the day the schedule last started
   Timer? _bedtime;
@@ -163,6 +179,17 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       if (j['ranOn'] is String) _ranOn = j['ranOn'] as String;
       if (j['folder'] is String) _folder = j['folder'] as String;
       _listBanners = j['listBanners'] == true;
+      _custom.addAll(_words(j['cats']));
+      _categoryNames.addAll(_words(j['catNames']));
+      _categoryOrder.addAll(_list(j['catOrder']));
+      _placed.addAll(_words(j['placed']));
+      for (final e in (j['soundOrder'] is Map ? j['soundOrder'] as Map : const {}).entries) {
+        if (e.key is String) _soundOrder[e.key as String] = _list(e.value);
+      }
+      for (final e in (j['flags'] is Map ? j['flags'] as Map : const {}).entries) {
+        final on = _list(e.value).where(ambienceFlags.contains).toSet();
+        if (e.key is String && on.isNotEmpty) _flags[e.key as String] = on;
+      }
       if (j['empty'] is List) _keptEmpty.addAll([for (final id in j['empty'] as List) if (id is String) id]);
       if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
       if (j['mixes'] is List) {
@@ -179,6 +206,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       // Damaged settings start afresh.
     }
     _active.removeWhere((id, _) => !_hasAudio(id));
+    _keepAlone();
     _left = (_timer ?? 0) * 60;
     for (final group in _banners.keys.toList()) {
       await _findBanner(group);
@@ -205,6 +233,12 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         'boost': _boost,
         if (_folder != null) 'folder': _folder,
         if (_listBanners) 'listBanners': true,
+        if (_custom.isNotEmpty) 'cats': _custom,
+        if (_categoryNames.isNotEmpty) 'catNames': _categoryNames,
+        if (_categoryOrder.isNotEmpty) 'catOrder': _categoryOrder,
+        if (_placed.isNotEmpty) 'placed': _placed,
+        if (_soundOrder.isNotEmpty) 'soundOrder': _soundOrder,
+        if (_flags.isNotEmpty) 'flags': {for (final e in _flags.entries) e.key: e.value.toList()},
         'mixes': [for (final m in _mixes) m.toJson()],
         'active': _active,
         'master': _master,
@@ -218,21 +252,99 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   bool _isBuiltIn(String id) => ambienceCatalog.any((s) => s.id == id && s.available);
   bool _hasAudio(String id) => _saved.containsKey(id) || _isBuiltIn(id);
 
-  List<AmbienceSound> get _sounds => [
-        for (final s in ambienceCatalog) s.copyWith(available: _hasAudio(s.id), icon: _icons[s.id], boost: _boost[s.id]),
-        // Environments first, then the owner's other sounds.
-        for (final environment in [true, false])
-          for (final e in _own.entries)
-            if (_environments.contains(e.key) == environment)
-              AmbienceSound(
-                id: e.key,
-                name: e.value,
-                category: environment ? ambienceEnvironmentCategory : ambienceOwnCategory,
-                available: _hasAudio(e.key),
-                icon: _icons[e.key],
-                boost: _boost[e.key] ?? 1,
-              ),
-      ];
+  static Map<String, String> _words(Object? j) => {
+        if (j is Map)
+          for (final e in j.entries)
+            if (e.key is String && e.value is String) e.key as String: e.value as String,
+      };
+
+  static List<String> _list(Object? j) => [if (j is List) for (final v in j) if (v is String) v];
+
+  /// The app's categories as they come: the places, then the owner's environments and sounds.
+  static final List<String> _builtInCategories = [
+    ...{for (final s in ambienceCatalog) s.category},
+    ambienceEnvironmentCategory,
+    ambienceOwnCategory,
+  ];
+
+  /// Every category id, in the owner's order; new ones come at the end.
+  List<String> get _categoryIds {
+    final all = [..._builtInCategories, ..._custom.keys];
+    final arranged = [for (final id in _categoryOrder) if (all.contains(id)) id];
+    return [...arranged, for (final id in all) if (!arranged.contains(id)) id];
+  }
+
+  AmbienceCategory _category(String id) {
+    final on = _flags['c:$id'] ?? const <String>{};
+    return AmbienceCategory(
+      id: id,
+      name: _custom[id] ?? _categoryNames[id] ?? id,
+      custom: _custom.containsKey(id),
+      once: on.contains(ambienceFlagOnce),
+      alone: on.contains(ambienceFlagAlone),
+      headphones: ambienceNeedsHeadphones(id) || on.contains(ambienceFlagHeadphones),
+    );
+  }
+
+  @override
+  List<AmbienceCategory> get categories => [for (final id in _categoryIds) _category(id)];
+
+  /// Where a sound sits unless it was moved.
+  String _homeOf(String id) =>
+      ambienceCatalog.where((s) => s.id == id).map((s) => s.category).firstOrNull ??
+      (_environments.contains(id) ? ambienceEnvironmentCategory : ambienceOwnCategory);
+
+  List<AmbienceSound> get _sounds {
+    final order = _categoryIds;
+    final categories = {for (final id in order) id: _category(id)};
+    final base = <AmbienceSound>[
+      for (final s in ambienceCatalog) s,
+      // Environments first, then the owner's other sounds.
+      for (final environment in [true, false])
+        for (final e in _own.entries)
+          if (_environments.contains(e.key) == environment)
+            AmbienceSound(id: e.key, name: e.value, category: _homeOf(e.key)),
+    ];
+    final out = <({int group, int place, int came, AmbienceSound sound})>[];
+    for (var i = 0; i < base.length; i++) {
+      final s = base[i];
+      final moved = _placed[s.id];
+      final where = moved != null && categories.containsKey(moved) ? moved : s.category;
+      final c = categories[where]!;
+      final on = _flags['s:${s.id}'] ?? const <String>{};
+      final place = _soundOrder[where]?.indexOf(s.id) ?? -1;
+      out.add((
+        group: order.indexOf(where),
+        place: place < 0 ? 1 << 30 : place,
+        came: i,
+        sound: s.copyWith(
+          category: where,
+          available: _hasAudio(s.id),
+          icon: _icons[s.id],
+          boost: _boost[s.id] ?? 1,
+          once: c.once || on.contains(ambienceFlagOnce),
+          alone: c.alone || on.contains(ambienceFlagAlone),
+          headphones: c.headphones || isAmbienceBeat(s.id) || on.contains(ambienceFlagHeadphones),
+        ),
+      ));
+    }
+    out.sort((a, b) {
+      if (a.group != b.group) return a.group - b.group;
+      if (a.place != b.place) return a.place - b.place;
+      return a.came - b.came;
+    });
+    return [for (final e in out) e.sound];
+  }
+
+  AmbienceSound? _soundOf(String id) => _sounds.where((s) => s.id == id).firstOrNull;
+
+  /// Seconds left of the first sound playing once, or null.
+  int? get _onceLeft {
+    for (final s in _sounds) {
+      if (s.once && _voices.contains(s.id)) return engine.left(s.id)?.inSeconds;
+    }
+    return null;
+  }
 
   @override
   AmbienceState get state => AmbienceState(
@@ -246,6 +358,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         secondsLeft: _timer == null ? null : _remaining().ceil(),
         mixName: _mixName,
         error: _error,
+        categories: categories,
+        onceLeft: _onceLeft,
       );
 
   // ------------------------------------------------------------------ sound
@@ -287,7 +401,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           // Plays as it is.
         }
       }
-      await engine.start(id, path, _volumeOf(id));
+      await engine.start(id, path, _volumeOf(id), loop: !(_soundOf(id)?.once ?? false));
       _voices.add(id);
     } catch (_) {
       _active.remove(id);
@@ -303,11 +417,14 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     }
   }
 
+  /// Runs the once-a-second tick while it is needed: for the timer, or to show what is left of a sound
+  /// that plays once.
   void _runClock() {
     _tick?.cancel();
     _tick = null;
-    if (!_playing || _timer == null) return;
-    _since = _now();
+    if (!_playing) return;
+    if (_timer != null) _since ??= _now();
+    if (_timer == null && !_sounds.any((s) => s.once && _active.containsKey(s.id))) return;
     _tick = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
   }
 
@@ -319,13 +436,46 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   }
 
   Future<void> _onTick() async {
-    if (!_playing || _timer == null) return;
-    if (_remaining() <= 0) {
-      await stop();
-      return;
+    if (!_playing) return;
+    if (_timer != null) {
+      if (_remaining() <= 0) {
+        await stop();
+        return;
+      }
+      await _inTurn(_applyVolumes);
     }
-    await _inTurn(_applyVolumes);
     notifyListeners();
+  }
+
+  /// A sound that plays once has played: it switches itself off.
+  void _ended(String id) {
+    unawaited(_inTurn(() async {
+      if (!_voices.remove(id)) return;
+      await engine.stop(id);
+      _active.remove(id);
+      _mixName = null;
+      if (_active.isEmpty) await _stopNow();
+      notifyListeners();
+      await _save();
+    }).catchError((Object _) {}));
+  }
+
+  /// A sound that plays alone is never with others: if one is on (the [preferred] one first), the rest
+  /// go off. Gives those that did.
+  List<String> _keepAlone([String? preferred]) {
+    final alone = {for (final s in _sounds) if (s.alone) s.id};
+    final on = _active.keys.where(alone.contains).toList();
+    if (on.isEmpty || _active.length == 1) return const [];
+    final keep = on.contains(preferred) ? preferred! : on.first;
+    final off = [for (final id in _active.keys) if (id != keep) id];
+    off.forEach(_active.remove);
+    return off;
+  }
+
+  Future<void> _silence(Iterable<String> ids) async {
+    for (final id in ids) {
+      if (_voices.remove(id)) await engine.stop(id);
+    }
   }
 
   Future<void> _playNow() async {
@@ -339,7 +489,11 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     for (final id in _active.keys.toList()) {
       if (!_voices.contains(id)) await _startVoice(id);
     }
-    if (_active.isEmpty) await _stopNow();
+    if (_active.isEmpty) {
+      await _stopNow();
+    } else {
+      _runClock();
+    }
   }
 
   Future<void> _stopNow() async {
@@ -387,6 +541,14 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           // Beats start lower: the difference between the ears matters, not loudness.
           _active.putIfAbsent(soundId, () => isAmbienceBeat(soundId) ? 0.4 : 0.5);
           _mixName = null;
+          // One that plays alone puts the others out; any other puts out the one playing alone.
+          final alone = {for (final s in _sounds) if (s.alone) s.id};
+          final off = [
+            for (final id in _active.keys)
+              if (id != soundId && (alone.contains(soundId) || alone.contains(id))) id,
+          ];
+          off.forEach(_active.remove);
+          await _silence(off);
           await _playNow();
         } else {
           if (_active.remove(soundId) == null) return;
@@ -459,6 +621,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       _active
         ..clear()
         ..addAll(layers);
+      _keepAlone();
       _mixName = mix.name;
       await _playNow();
       notifyListeners();
@@ -518,8 +681,9 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         await _save();
       });
 
-  /// Makes a sound of the owner's own, with its file; [environment] puts it with the environments.
-  Future<void> addOwnSound(String name, String sourcePath, {bool environment = false}) async {
+  /// Makes a sound of the owner's own, with its file; [environment] puts it with the environments,
+  /// [category] in that category.
+  Future<void> addOwnSound(String name, String sourcePath, {bool environment = false, String? category}) async {
     await load();
     final clean = name.trim();
     if (clean.isEmpty) throw const AmbienceException('Give the sound a name.');
@@ -530,11 +694,13 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     }
     _own[id] = clean.length > 30 ? clean.substring(0, 30) : clean;
     if (environment) _environments.add(id);
+    if (category != null && category != _homeOf(id) && _categoryIds.contains(category)) _placed[id] = category;
     try {
       await addFile(id, sourcePath);
     } catch (_) {
       _own.remove(id);
       _environments.remove(id);
+      _placed.remove(id);
       rethrow;
     }
   }
@@ -549,7 +715,13 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
           if (_active.isEmpty) await _stopNow();
         }
         if (ambienceCatalog.any((s) => s.id == soundId)) _keptEmpty.add(soundId);
-        _own.remove(soundId);
+        if (_own.remove(soundId) != null) {
+          _placed.remove(soundId);
+          _flags.remove('s:$soundId');
+          for (final order in _soundOrder.values) {
+            order.remove(soundId);
+          }
+        }
         _gain.remove(soundId);
         _boost.remove(soundId);
         _environments.remove(soundId);
@@ -593,6 +765,126 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         notifyListeners();
         await _save();
       });
+
+  // ------------------------------------------------------------- arranging
+
+  /// Runs a change to how things are arranged, then shows and keeps it.
+  Future<void> _arrange(Future<void> Function() change) => _inTurn(() async {
+        await load();
+        await change();
+        notifyListeners();
+        await _save();
+      });
+
+  String _categoryName(String name, {String? except}) {
+    final clean = name.trim();
+    if (clean.isEmpty) throw const AmbienceException('Give the category a name.');
+    final short = clean.length > 30 ? clean.substring(0, 30).trim() : clean;
+    if (categories.any((c) => c.id != except && c.name.toLowerCase() == short.toLowerCase())) {
+      throw AmbienceException('There is already a category called $short.');
+    }
+    return short;
+  }
+
+  @override
+  Future<String> createCategory(String name) async {
+    var id = '';
+    await _arrange(() async {
+      final clean = _categoryName(name);
+      id = 'cat-${_now().microsecondsSinceEpoch}';
+      for (var n = 2; _custom.containsKey(id); n++) {
+        id = 'cat-${_now().microsecondsSinceEpoch}-$n';
+      }
+      _custom[id] = clean;
+    });
+    return id;
+  }
+
+  @override
+  Future<void> renameCategory(String id, String name) => _arrange(() async {
+        if (!_categoryIds.contains(id)) return;
+        final clean = _categoryName(name, except: id);
+        if (_custom.containsKey(id)) {
+          _custom[id] = clean;
+        } else if (clean == id) {
+          _categoryNames.remove(id);
+        } else {
+          _categoryNames[id] = clean;
+        }
+      });
+
+  @override
+  Future<void> deleteCategory(String id) => _arrange(() async {
+        if (_custom.remove(id) == null) return;
+        _placed.removeWhere((_, where) => where == id);
+        _soundOrder.remove(id);
+        _categoryOrder.remove(id);
+        _flags.remove('c:$id');
+        final banner = _banners.remove(id);
+        _bannerPaths.remove(id);
+        if (banner != null) {
+          await files.remove(banner.file);
+          if (banner.source != null) await files.remove(banner.source!);
+        }
+        await _applyFlags();
+      });
+
+  @override
+  Future<void> setCategoryOrder(List<String> ids) => _arrange(() async {
+        _categoryOrder
+          ..clear()
+          ..addAll(ids);
+      });
+
+  @override
+  Future<void> moveSound(String soundId, String categoryId) => _arrange(() async {
+        if (!_categoryIds.contains(categoryId) || _soundOf(soundId) == null) return;
+        for (final order in _soundOrder.values) {
+          order.remove(soundId);
+        }
+        if (categoryId == _homeOf(soundId)) {
+          _placed.remove(soundId);
+        } else {
+          _placed[soundId] = categoryId;
+        }
+        // Where the category was arranged, the newcomer goes last.
+        _soundOrder[categoryId]?.add(soundId);
+        await _applyFlags(soundId);
+      });
+
+  @override
+  Future<void> setSoundOrder(String categoryId, List<String> soundIds) =>
+      _arrange(() async => _soundOrder[categoryId] = List.of(soundIds));
+
+  @override
+  Set<String> soundFlags(String soundId) => Set.unmodifiable(_flags['s:$soundId'] ?? const <String>{});
+
+  @override
+  Set<String> categoryFlags(String categoryId) => Set.unmodifiable(_flags['c:$categoryId'] ?? const <String>{});
+
+  @override
+  Future<void> setSoundFlag(String soundId, String flag, bool on) => _setFlag('s:$soundId', flag, on, soundId);
+
+  @override
+  Future<void> setCategoryFlag(String categoryId, String flag, bool on) => _setFlag('c:$categoryId', flag, on, null);
+
+  Future<void> _setFlag(String key, String flag, bool on, String? preferred) => _arrange(() async {
+        if (!ambienceFlags.contains(flag)) return;
+        final set = _flags.putIfAbsent(key, () => {});
+        on ? set.add(flag) : set.remove(flag);
+        if (set.isEmpty) _flags.remove(key);
+        await _applyFlags(preferred);
+      });
+
+  /// What is playing follows the switches as they are now.
+  Future<void> _applyFlags([String? preferred]) async {
+    await _silence(_keepAlone(preferred));
+    final once = {for (final s in _sounds) if (s.once) s.id};
+    for (final id in _voices.toList()) {
+      await engine.setLooping(id, !once.contains(id));
+    }
+    _runClock();
+  }
 
   // ------------------------------------------------------------- bedtime
 
@@ -687,6 +979,18 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     final theirEnv = data['env'] is List ? {...(data['env'] as List).whereType<String>()} : <String>{};
     final renamed = <String, String>{}; // their sound id -> ours
 
+    // The owner's categories first: one of the same name here is the same one.
+    final categoryIds = <String, String>{}; // their category id -> ours
+    for (final e in _words(data['cats']).entries) {
+      final same = categories.where((c) => c.name.toLowerCase() == e.value.toLowerCase()).map((c) => c.id).firstOrNull;
+      if (same == null) {
+        _custom[e.key] = e.value;
+      } else {
+        categoryIds[e.key] = same;
+      }
+    }
+    String category(String id) => categoryIds[id] ?? id;
+
     for (final e in map('files').entries) {
       var id = e.key;
       final path = backup[e.value];
@@ -722,6 +1026,24 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       }
     }
     String ours(String id) => renamed[id] ?? id;
+    for (final e in _words(data['placed']).entries) {
+      _placed.putIfAbsent(ours(e.key), () => category(e.value));
+    }
+    for (final e in _words(data['catNames']).entries) {
+      _categoryNames.putIfAbsent(category(e.key), () => e.value);
+    }
+    for (final e in map('flags').entries) {
+      final cut = e.key.indexOf(':');
+      if (cut < 0) continue;
+      final id = e.key.substring(cut + 1);
+      final key = e.key.startsWith('s:') ? 's:${ours(id)}' : 'c:${category(id)}';
+      final on = _list(e.value).where(ambienceFlags.contains).toSet();
+      if (on.isNotEmpty) _flags.putIfAbsent(key, () => on);
+    }
+    if (_categoryOrder.isEmpty) _categoryOrder.addAll(_list(data['catOrder']).map(category));
+    for (final e in map('soundOrder').entries) {
+      _soundOrder.putIfAbsent(category(e.key), () => _list(e.value).map(ours).toList());
+    }
     for (final e in map('icons').entries) {
       if (e.value is String) _icons.putIfAbsent(ours(e.key), () => e.value as String);
     }
@@ -741,15 +1063,16 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     }
     for (final e in map('banners').entries) {
       final v = e.value;
-      if (_banners.containsKey(e.key) || v is! Map) continue;
+      final group = category(e.key);
+      if (_banners.containsKey(group) || v is! Map) continue;
       final image = backup[v['file']];
       if (image == null) continue;
       try {
         final file = await files.add('banner', image);
         final from = backup[v['source']];
         final source = from == null ? null : await files.add('bannersrc', from);
-        _banners[e.key] = (file: file, source: source, framing: BannerFraming.fromJson(v));
-        await _findBanner(e.key);
+        _banners[group] = (file: file, source: source, framing: BannerFraming.fromJson(v));
+        await _findBanner(group);
         banners++;
       } catch (_) {
         // A picture that cannot be copied is left out.
@@ -767,6 +1090,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       if (!_schedule.enabled) await setSchedule(AmbienceSchedule.fromJson(data['schedule']));
     }
     _active.removeWhere((id, _) => !_hasAudio(id));
+    _keepAlone();
     notifyListeners();
     await _save();
     return (sounds: sounds, mixes: mixes, banners: banners);

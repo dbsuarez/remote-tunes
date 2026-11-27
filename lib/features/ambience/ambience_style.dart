@@ -27,7 +27,24 @@ const _colors = <String, Color>{
 };
 
 /// The color of a page; null is the page of the sounds ready to play.
-Color ambienceColor(String? page) => page == null ? const Color(0xFF34407A) : _colors[page] ?? const Color(0xFF34407A);
+Color ambienceColor(String? page) {
+  if (page == null) return const Color(0xFF34407A);
+  final known = _colors[page];
+  if (known != null) return known;
+  // The owner's categories get one of a few, always the same for one category.
+  if (!page.startsWith('cat-')) return const Color(0xFF34407A);
+  final pick = page.codeUnits.fold(0, (h, u) => (h * 31 + u) & 0x7fffffff);
+  return _customColors[pick % _customColors.length];
+}
+
+const _customColors = [
+  Color(0xFF7A3E6B),
+  Color(0xFF2F6B6B),
+  Color(0xFF8A4B32),
+  Color(0xFF4A5A2A),
+  Color(0xFF5B4B8A),
+  Color(0xFF1F5F7A),
+];
 
 /// White words and controls over a page of [color].
 ThemeData ambienceTheme(ThemeData base, Color color) {

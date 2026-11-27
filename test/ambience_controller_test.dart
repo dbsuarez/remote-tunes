@@ -15,12 +15,29 @@ class FakeEngine implements AmbienceEngine {
   bool paused = false;
   final broken = <String>{};
 
+  /// The voices that do not loop.
+  final onceOnly = <String>{};
+
+  /// What [left] answers for them.
+  Duration remaining = const Duration(seconds: 90);
+  void Function(String id)? ended;
+
   @override
-  Future<void> start(String id, String path, double volume) async {
+  Future<void> start(String id, String path, double volume, {bool loop = true}) async {
     if (broken.contains(id)) throw Exception('bad file');
     voices[id] = volume;
     paths[id] = path;
+    loop ? onceOnly.remove(id) : onceOnly.add(id);
   }
+
+  @override
+  Future<void> setLooping(String id, bool loop) async => loop ? onceOnly.remove(id) : onceOnly.add(id);
+
+  @override
+  Duration? left(String id) => voices.containsKey(id) ? remaining : null;
+
+  @override
+  set onEnded(void Function(String id)? listener) => ended = listener;
 
   @override
   Future<void> setVolume(String id, double volume) async {

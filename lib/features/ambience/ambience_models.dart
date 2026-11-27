@@ -10,7 +10,27 @@ import 'ambience_beats.dart';
 /// others after a file is added on the playing phone.
 class AmbienceSound {
   const AmbienceSound(
-      {required this.id, required this.name, required this.category, this.available = false, this.icon, this.boost = 1});
+      {required this.id,
+      required this.name,
+      required this.category,
+      this.available = false,
+      this.icon,
+      this.boost = 1,
+      this.once = false,
+      this.alone = false,
+      this.headphones = false});
+
+  /// Plays from start to end one time, then switches itself off.
+  final bool once;
+
+  /// Plays by itself: switching it on switches the others off, and another switches it off.
+  final bool alone;
+
+  /// Needs headphones to be heard properly.
+  final bool headphones;
+
+  /// One the owner added (not one of the app's own places).
+  bool get own => id.startsWith('own-');
 
   /// The owner's louder (above 1) or softer for this sound.
   final double boost;
@@ -23,13 +43,18 @@ class AmbienceSound {
   /// The icon the owner chose (a name from the icon library), or null for the usual one.
   final String? icon;
 
-  AmbienceSound copyWith({bool? available, String? icon, double? boost}) => AmbienceSound(
-      id: id,
-      name: name,
-      category: category,
-      available: available ?? this.available,
-      icon: icon ?? this.icon,
-      boost: boost ?? this.boost);
+  AmbienceSound copyWith(
+          {String? category, bool? available, String? icon, double? boost, bool? once, bool? alone, bool? headphones}) =>
+      AmbienceSound(
+          id: id,
+          name: name,
+          category: category ?? this.category,
+          available: available ?? this.available,
+          icon: icon ?? this.icon,
+          boost: boost ?? this.boost,
+          once: once ?? this.once,
+          alone: alone ?? this.alone,
+          headphones: headphones ?? this.headphones);
 
   Map<String, dynamic> toJson() =>
       {
@@ -39,6 +64,9 @@ class AmbienceSound {
         'available': available,
         if (icon != null) 'icon': icon,
         if (boost != 1) 'boost': boost,
+        if (once) 'once': true,
+        if (alone) 'alone': true,
+        if (headphones) 'phones': true,
       };
 
   static AmbienceSound? fromJson(Object? j) {
@@ -51,8 +79,76 @@ class AmbienceSound {
         category: category,
         available: j['available'] == true,
         icon: j['icon'] is String ? j['icon'] as String : null,
-        boost: j['boost'] is num ? (j['boost'] as num).toDouble() : 1);
+        boost: j['boost'] is num ? (j['boost'] as num).toDouble() : 1,
+        once: j['once'] == true,
+        alone: j['alone'] == true,
+        headphones: j['phones'] == true);
   }
+}
+
+/// The switches a sound, or every sound of a category, can have.
+const ambienceFlagOnce = 'once';
+const ambienceFlagAlone = 'alone';
+const ambienceFlagHeadphones = 'phones';
+const ambienceFlags = {ambienceFlagOnce, ambienceFlagAlone, ambienceFlagHeadphones};
+
+/// A group of sounds. The [id] never changes (for the app's own groups it is their first name); the
+/// owner may give it another [name].
+class AmbienceCategory {
+  const AmbienceCategory(
+      {required this.id, required this.name, this.custom = false, this.once = false, this.alone = false, this.headphones = false});
+
+  final String id;
+  final String name;
+
+  /// Made by the owner (it can be deleted).
+  final bool custom;
+  final bool once;
+  final bool alone;
+  final bool headphones;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        if (custom) 'custom': true,
+        if (once) 'once': true,
+        if (alone) 'alone': true,
+        if (headphones) 'phones': true,
+      };
+
+  static AmbienceCategory? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final id = j['id'], name = j['name'];
+    if (id is! String || id.isEmpty || name is! String || name.isEmpty) return null;
+    return AmbienceCategory(
+        id: id,
+        name: name,
+        custom: j['custom'] == true,
+        once: j['once'] == true,
+        alone: j['alone'] == true,
+        headphones: j['phones'] == true);
+  }
+}
+
+/// Arranging the sounds: only on the phone that plays them.
+abstract class AmbienceOrganizer {
+  /// Every category in order, also those with nothing in them.
+  List<AmbienceCategory> get categories;
+
+  Future<String> createCategory(String name);
+  Future<void> renameCategory(String id, String name);
+
+  /// Only the owner's own; its sounds go back where they came from.
+  Future<void> deleteCategory(String id);
+  Future<void> setCategoryOrder(List<String> ids);
+  Future<void> moveSound(String soundId, String categoryId);
+  Future<void> setSoundOrder(String categoryId, List<String> soundIds);
+
+  /// The switches set on a sound, or on a category, itself.
+  Set<String> soundFlags(String soundId);
+  Set<String> categoryFlags(String categoryId);
+  Future<void> setSoundFlag(String soundId, String flag, bool on);
+  Future<void> setCategoryFlag(String categoryId, String flag, bool on);
 }
 
 /// Sounds and how loud each is, under a name.
@@ -98,7 +194,27 @@ class AmbienceState {
     this.secondsLeft,
     this.mixName,
     this.error,
+    this.categories = const [],
+    this.onceLeft,
   });
+
+  /// The categories in order (empty from a phone that does not send them).
+  final List<AmbienceCategory> categories;
+
+  /// What is left of a sound that plays once, in seconds.
+  final int? onceLeft;
+
+  /// The categories to show, in order: those sent, or else the ones the sounds name.
+  List<AmbienceCategory> get categoryList => categories.isNotEmpty
+      ? categories
+      : [for (final id in {for (final s in sounds) s.category}) AmbienceCategory(id: id, name: id)];
+
+  String categoryName(String id) {
+    for (final c in categories) {
+      if (c.id == id) return c.name;
+    }
+    return id;
+  }
 
   final List<AmbienceSound> sounds;
   final List<AmbienceMix> mixes;
@@ -146,6 +262,8 @@ class AmbienceState {
         if (secondsLeft != null) 'left': secondsLeft,
         if (mixName != null) 'mix': mixName,
         if (error != null) 'error': error,
+        if (categories.isNotEmpty) 'cats': [for (final c in categories) c.toJson()],
+        if (onceLeft != null) 'onceLeft': onceLeft,
       };
 
   static AmbienceState fromJson(Object? j) {
@@ -172,6 +290,12 @@ class AmbienceState {
       secondsLeft: whole(j['left']),
       mixName: j['mix'] is String ? j['mix'] as String : null,
       error: j['error'] is String ? j['error'] as String : null,
+      categories: [
+        if (j['cats'] is List)
+          for (final e in j['cats'] as List)
+            if (AmbienceCategory.fromJson(e) case final c?) c,
+      ],
+      onceLeft: whole(j['onceLeft']),
     );
   }
 }
@@ -429,7 +553,7 @@ const ambienceOwnCategory = 'My sounds';
 const ambienceEnvironmentCategory = 'Environment';
 
 /// Whether a sound was made by the owner (so it can be deleted altogether).
-bool isOwnAmbienceSound(AmbienceSound s) => s.category == ambienceOwnCategory || s.category == ambienceEnvironmentCategory;
+bool isOwnAmbienceSound(AmbienceSound s) => s.own;
 
 const ambiencePresets = [
   AmbienceMix(id: 'rainy-night', name: 'Rainy Night', builtIn: true, layers: {'rain': 0.6, 'distant-thunder': 0.25}),
