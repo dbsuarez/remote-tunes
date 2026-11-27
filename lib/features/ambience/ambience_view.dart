@@ -377,30 +377,8 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
       if (name != null) await _run(() => owner.rename!(s.id, name));
     } else if (choice == 'move') {
       if (!mounted) return;
-      final to = await showModalBottomSheet<String>(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        builder: (ctx) => SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final c in organizer!.categories)
-                  ListTile(
-                    key: ValueKey('amb-move-to-${c.id}'),
-                    leading: CircleAvatar(backgroundColor: ambienceColor(c.id), radius: 12),
-                    title: Text(c.name),
-                    trailing: c.id == s.category ? const Icon(Icons.check_rounded) : null,
-                    onTap: () => Navigator.pop(ctx, c.id),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
-      if (to != null && to != s.category) await _run(() => organizer!.moveSound(s.id, to));
+      final to = await pickAmbienceCategory(context, organizer!, current: s.category);
+      if (to != null && to != s.category) await _run(() => organizer.moveSound(s.id, to));
     } else if (choice == 'boost') {
       if (!mounted) return;
       final boost = await showDialog<double>(context: context, builder: (_) => _BoostDialog(sound: s));

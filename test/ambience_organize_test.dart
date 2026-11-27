@@ -94,6 +94,18 @@ void main() {
       c.dispose();
     });
 
+    test('several move together, in the order given', () async {
+      final mine = await c.createCategory('Bedtime');
+      await c.moveSounds(['pink-noise', 'white-noise', 'rain', 'nothing'], mine);
+      expect(inCategory(c, mine), ['rain', 'white-noise', 'pink-noise'], reason: 'unarranged: as they come');
+      await c.setSoundOrder(mine, ['rain']);
+      await c.moveSounds(['brown-noise', 'wind'], mine);
+      expect(inCategory(c, mine).take(3), ['rain', 'brown-noise', 'wind']);
+      await c.moveSounds(['rain', 'wind'], mine);
+      expect(inCategory(c, mine).take(3), ['rain', 'brown-noise', 'wind'], reason: 'already there');
+      c.dispose();
+    });
+
     test('a moved sound of your own still takes a file of its name on import', () async {
       final box = await own('Box');
       await c.moveSound(box, 'Rain');
@@ -365,6 +377,47 @@ void main() {
       await drag.up();
       await tester.pumpAndSettle();
       expect(inCategory(c, 'Noise').take(2), ['pink-noise', 'white-noise']);
+    });
+
+    screenTest('several sounds are selected and moved to another category', (tester) async {
+      final mine = await c.createCategory('Bedtime');
+      await open(tester);
+      await manage(tester);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('amb-manage-Noise')), 300);
+      await tap(tester, const ValueKey('amb-manage-Noise'));
+      await tester.longPress(find.byKey(const ValueKey('amb-manage-sound-white-noise')));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(find.byKey(const ValueKey('amb-drag-pink-noise')), findsNothing);
+      expect(find.byKey(const Key('amb-manage-add')), findsNothing);
+      await tap(tester, const ValueKey('amb-manage-sound-pink-noise'));
+      await tap(tester, const ValueKey('amb-check-brown-noise'));
+      expect(find.text('3 selected'), findsOneWidget);
+      await tap(tester, const ValueKey('amb-check-brown-noise'));
+      await tap(tester, 'amb-select-move');
+      await tester.scrollUntilVisible(find.byKey(ValueKey('amb-move-to-$mine')), 200, scrollable: find.byType(Scrollable).last);
+      await tap(tester, ValueKey('amb-move-to-$mine'));
+      expect(inCategory(c, mine), ['white-noise', 'pink-noise']);
+      expect(find.text('Moved 2 sounds to Bedtime'), findsOneWidget);
+      expect(find.byKey(const Key('amb-select')), findsOneWidget, reason: 'selecting is over');
+      expect(find.byKey(const ValueKey('amb-manage-sound-white-noise')), findsNothing);
+    });
+
+    screenTest('select all, and back leaves selecting before leaving the page', (tester) async {
+      await open(tester);
+      await manage(tester);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('amb-manage-Noise')), 300);
+      await tap(tester, const ValueKey('amb-manage-Noise'));
+      await tap(tester, 'amb-select');
+      expect(tester.widget<IconButton>(find.byKey(const Key('amb-select-move'))).onPressed, isNull);
+      await tap(tester, 'amb-select-all');
+      expect(find.text('6 selected'), findsOneWidget);
+      await tap(tester, 'amb-select-all');
+      expect(find.text('0 selected'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Noise'), findsOneWidget);
+      expect(find.byKey(const Key('amb-select')), findsOneWidget);
     });
 
     screenTest('holding a sound moves it and sets its switches, with marks on the tile', (tester) async {

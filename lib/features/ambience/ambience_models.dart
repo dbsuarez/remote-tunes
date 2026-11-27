@@ -142,6 +142,9 @@ abstract class AmbienceOrganizer {
   Future<void> deleteCategory(String id);
   Future<void> setCategoryOrder(List<String> ids);
   Future<void> moveSound(String soundId, String categoryId);
+
+  /// Moves several at once; they arrive in the order given.
+  Future<void> moveSounds(List<String> soundIds, String categoryId);
   Future<void> setSoundOrder(String categoryId, List<String> soundIds);
 
   /// The switches set on a sound, or on a category, itself.

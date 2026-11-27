@@ -115,6 +115,32 @@ Future<void> _try(BuildContext context, Future<void> Function() change) async {
   }
 }
 
+/// Asks which category to move to; [current] is ticked. Null if put away.
+Future<String?> pickAmbienceCategory(BuildContext context, AmbienceOrganizer organizer, {String? current}) =>
+    showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final c in organizer.categories)
+                ListTile(
+                  key: ValueKey('amb-move-to-${c.id}'),
+                  leading: CircleAvatar(backgroundColor: ambienceColor(c.id), radius: 12),
+                  title: Text(c.name),
+                  trailing: c.id == current ? const Icon(Icons.check_rounded) : null,
+                  onTap: () => Navigator.pop(ctx, c.id),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+
 /// Every category, to arrange, rename, add and delete.
 class AmbienceManageScreen extends StatelessWidget {
   const AmbienceManageScreen({
@@ -270,8 +296,9 @@ class AmbienceManageScreen extends StatelessWidget {
       );
 }
 
-/// The sounds of one category, to arrange; each opens its menu.
-class _CategorySounds extends StatelessWidget {
+/// The sounds of one category, to arrange; each opens its menu. Several can be picked (hold one) and
+/// moved together.
+class _CategorySounds extends StatefulWidget {
   const _CategorySounds(
       {required this.controls, required this.organizer, required this.id, required this.onSound, required this.onAddSound});
 
@@ -282,62 +309,146 @@ class _CategorySounds extends StatelessWidget {
   final Future<void> Function(String categoryId) onAddSound;
 
   @override
+  State<_CategorySounds> createState() => _CategorySoundsState();
+}
+
+class _CategorySoundsState extends State<_CategorySounds> {
+  /// The sounds picked; not null while picking.
+  Set<String>? _picked;
+
+  void _toggle(String id) => setState(() {
+        final picked = _picked ??= {};
+        if (!picked.remove(id)) picked.add(id);
+      });
+
+  Future<void> _move(List<AmbienceSound> sounds) async {
+    // In the order they are listed.
+    final ids = [for (final s in sounds) if (_picked!.contains(s.id)) s.id];
+    final to = await pickAmbienceCategory(context, widget.organizer, current: widget.id);
+    if (to == null || to == widget.id || !mounted) return;
+    final name = widget.controls.state.categoryName(to);
+    await _try(context, () => widget.organizer.moveSounds(ids, to));
+    if (!mounted) return;
+    setState(() => _picked = null);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('Moved ${ids.length} sound${ids.length == 1 ? '' : 's'} to $name')));
+  }
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: controls,
+        listenable: widget.controls,
         builder: (context, _) {
-          final state = controls.state;
-          final sounds = [for (final s in state.sounds) if (s.category == id) s];
-          return Scaffold(
-            appBar: AppBar(title: Text(state.categoryName(id))),
-            floatingActionButton: FloatingActionButton.extended(
-              key: const Key('amb-manage-add'),
-              onPressed: () => onAddSound(id),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add a sound'),
-            ),
-            body: sounds.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('Nothing here yet. Add a sound, or move one here: open another category, '
-                          'tap a sound, then "Move to".', textAlign: TextAlign.center),
-                    ),
-                  )
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.only(bottom: 96),
-                    buildDefaultDragHandles: false,
-                    itemCount: sounds.length,
-                    onReorder: (from, to) {
-                      final ids = [for (final s in sounds) s.id];
-                      final moved = ids.removeAt(from);
-                      ids.insert(to > from ? to - 1 : to, moved);
-                      _try(context, () => organizer.setSoundOrder(id, ids));
-                    },
-                    itemBuilder: (context, i) {
-                      final s = sounds[i];
-                      final words = [
-                        if (s.own) 'Custom',
-                        if (!s.available) 'No file yet',
-                        ambienceSwitchWords(once: s.once, alone: s.alone, headphones: s.headphones),
-                      ].where((w) => w.isNotEmpty).join(' · ');
-                      return ListTile(
-                        key: ValueKey('amb-manage-sound-${s.id}'),
-                        contentPadding: const EdgeInsets.only(left: 16),
-                        leading: AmbiencePicture(ambienceIconName(s), size: 28, faded: !s.available),
-                        title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: words.isEmpty ? null : Text(words, maxLines: 2, overflow: TextOverflow.ellipsis),
-                        onTap: () => onSound(s),
-                        trailing: ReorderableDragStartListener(
-                          index: i,
-                          child: Padding(
-                            key: ValueKey('amb-drag-${s.id}'),
-                            padding: const EdgeInsets.all(12),
-                            child: const Icon(Icons.drag_handle_rounded),
+          final state = widget.controls.state;
+          final sounds = [for (final s in state.sounds) if (s.category == widget.id) s];
+          final picked = _picked;
+          // Those that left meanwhile are no longer picked.
+          picked?.retainAll([for (final s in sounds) s.id]);
+          return PopScope(
+            canPop: picked == null,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) setState(() => _picked = null);
+            },
+            child: Scaffold(
+              appBar: picked == null
+                  ? AppBar(
+                      title: Text(state.categoryName(widget.id)),
+                      actions: [
+                        if (sounds.isNotEmpty)
+                          IconButton(
+                            key: const Key('amb-select'),
+                            tooltip: 'Select sounds',
+                            icon: const Icon(Icons.checklist_rounded),
+                            onPressed: () => setState(() => _picked = {}),
                           ),
+                      ],
+                    )
+                  : AppBar(
+                      leading: IconButton(
+                        key: const Key('amb-select-done'),
+                        tooltip: 'Stop selecting',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => setState(() => _picked = null),
+                      ),
+                      title: Text('${picked.length} selected'),
+                      actions: [
+                        IconButton(
+                          key: const Key('amb-select-all'),
+                          tooltip: picked.length == sounds.length ? 'Select none' : 'Select all',
+                          icon: const Icon(Icons.select_all_rounded),
+                          onPressed: () => setState(() {
+                            _picked = picked.length == sounds.length ? {} : {for (final s in sounds) s.id};
+                          }),
                         ),
-                      );
-                    },
-                  ),
+                        IconButton(
+                          key: const Key('amb-select-move'),
+                          tooltip: 'Move to another category',
+                          icon: const Icon(Icons.drive_file_move_outline),
+                          onPressed: picked.isEmpty ? null : () => _move(sounds),
+                        ),
+                      ],
+                    ),
+              floatingActionButton: picked != null
+                  ? null
+                  : FloatingActionButton.extended(
+                      key: const Key('amb-manage-add'),
+                      onPressed: () => widget.onAddSound(widget.id),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add a sound'),
+                    ),
+              body: sounds.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('Nothing here yet. Add a sound, or move some here: open another category, '
+                            'hold a sound to select, then the move button.', textAlign: TextAlign.center),
+                      ),
+                    )
+                  : ReorderableListView.builder(
+                      padding: const EdgeInsets.only(bottom: 96),
+                      buildDefaultDragHandles: false,
+                      itemCount: sounds.length,
+                      onReorder: (from, to) {
+                        final ids = [for (final s in sounds) s.id];
+                        final moved = ids.removeAt(from);
+                        ids.insert(to > from ? to - 1 : to, moved);
+                        _try(context, () => widget.organizer.setSoundOrder(widget.id, ids));
+                      },
+                      itemBuilder: (context, i) {
+                        final s = sounds[i];
+                        final words = [
+                          if (s.own) 'Custom',
+                          if (!s.available) 'No file yet',
+                          ambienceSwitchWords(once: s.once, alone: s.alone, headphones: s.headphones),
+                        ].where((w) => w.isNotEmpty).join(' · ');
+                        final chosen = picked?.contains(s.id) ?? false;
+                        return ListTile(
+                          key: ValueKey('amb-manage-sound-${s.id}'),
+                          contentPadding: const EdgeInsets.only(left: 16),
+                          selected: chosen,
+                          leading: AmbiencePicture(ambienceIconName(s), size: 28, faded: !s.available),
+                          title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: words.isEmpty ? null : Text(words, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          onTap: () => picked == null ? widget.onSound(s) : _toggle(s.id),
+                          onLongPress: () => _toggle(s.id),
+                          trailing: picked != null
+                              ? Checkbox(
+                                  key: ValueKey('amb-check-${s.id}'),
+                                  value: chosen,
+                                  onChanged: (_) => _toggle(s.id),
+                                )
+                              : ReorderableDragStartListener(
+                                  index: i,
+                                  child: Padding(
+                                    key: ValueKey('amb-drag-${s.id}'),
+                                    padding: const EdgeInsets.all(12),
+                                    child: const Icon(Icons.drag_handle_rounded),
+                                  ),
+                                ),
+                        );
+                      },
+                    ),
+            ),
           );
         },
       );

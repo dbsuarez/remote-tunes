@@ -837,19 +837,26 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls, Amb
       });
 
   @override
-  Future<void> moveSound(String soundId, String categoryId) => _arrange(() async {
-        if (!_categoryIds.contains(categoryId) || _soundOf(soundId) == null) return;
-        for (final order in _soundOrder.values) {
-          order.remove(soundId);
+  Future<void> moveSound(String soundId, String categoryId) => moveSounds([soundId], categoryId);
+
+  @override
+  Future<void> moveSounds(List<String> soundIds, String categoryId) => _arrange(() async {
+        if (!_categoryIds.contains(categoryId)) return;
+        final moving = [for (final id in soundIds) if (_soundOf(id) case final s? when s.category != categoryId) id];
+        if (moving.isEmpty) return;
+        for (final id in moving) {
+          for (final order in _soundOrder.values) {
+            order.remove(id);
+          }
+          if (categoryId == _homeOf(id)) {
+            _placed.remove(id);
+          } else {
+            _placed[id] = categoryId;
+          }
+          // Where the category was arranged, newcomers go last.
+          _soundOrder[categoryId]?.add(id);
         }
-        if (categoryId == _homeOf(soundId)) {
-          _placed.remove(soundId);
-        } else {
-          _placed[soundId] = categoryId;
-        }
-        // Where the category was arranged, the newcomer goes last.
-        _soundOrder[categoryId]?.add(soundId);
-        await _applyFlags(soundId);
+        await _applyFlags(moving.first);
       });
 
   @override
