@@ -118,7 +118,7 @@ The first time, add your music folder once with **Add folder**; it is remembered
 
 ## 5. Now Playing
 
-- Big cover, title in the cover's color, then a row of: **favorite**, **shuffle**, **repeat**, **speed**, **sleep timer**, **volume** (the speaker button opens a small slider). Shuffle and repeat are remembered when you close the app. **Shuffle never repeats a song until all of them have played** (then a new round starts if Repeat is on). With Crossfade on, **Next and Previous fade too**.
+- The page fits the screen: the cover takes the space left over, then the title in the cover's color, the row of quick actions, the play buttons, and the progress bar just above *Up next*. The row of quick actions has: **favorite**, **shuffle**, **repeat**, **speed**, **sleep timer**, **volume** (the speaker button opens a small slider). Shuffle and repeat are remembered when you close the app. **Shuffle never repeats a song until all of them have played** (then a new round starts if Repeat is on). With Crossfade on, **Next and Previous fade too**.
 - Round **play/pause**, previous, next, and **10-second back / forward**.
 - The line between the times shows the file's quality (for example "44.1 kHz · 320 kbps · MP3").
 - **Lyrics:** the button in the cover's top-right corner fades the cover into the lyrics. The line being sung is big and bright; tap any line to jump there; **Show fullscreen** opens a big version. The same button brings the cover back. Lyrics come from the internet (LRCLIB, then Megalobiz for timed lyrics, then lyrics.ovh) and are kept on the phone. Switch it off in Settings.

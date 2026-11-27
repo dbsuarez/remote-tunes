@@ -114,9 +114,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('on a large phone the cover stops growing', (tester) async {
+  testWidgets('on a large phone the cover takes the room, up to the width of the page', (tester) async {
     await open(tester, state(), size: const Size(600, 1200));
-    expect(tester.getSize(find.byType(RemoteArt).first).width, lessThanOrEqualTo(340));
+    expect(tester.getSize(find.byType(RemoteArt).first).width, inInclusiveRange(500, 568));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('seek buttons jump 10 seconds back and forward', (tester) async {

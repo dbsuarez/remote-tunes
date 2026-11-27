@@ -259,7 +259,7 @@ void main() {
         (tester) async {
       final client = _Client([item(1, 'Song One'), item(2, 'Song Two')]);
       await screen(tester, client, connected(2));
-      await tester.drag(find.byType(ListView).first, const Offset(0, -2000));
+      await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -2000));
       await tester.pump();
       // The last card of the page (the group card) is reachable.
       expect(find.byType(GroupCard), findsOneWidget);

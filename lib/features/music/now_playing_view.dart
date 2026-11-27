@@ -235,22 +235,60 @@ class NowPlayingViewState extends State<NowPlayingView> {
     );
   }
 
+  /// Another app's music: its card, the buttons, volume and the sleep timer.
+  Widget _external(PlaybackState p, bool enabled, Widget transport) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: [
+          if (widget.header != null) ...[
+            widget.header!,
+            const SizedBox(height: 12),
+          ],
+          NowPlayingCard(
+            state: p,
+            enabled: enabled,
+            onSeek: (s) => _run(() => session.seek(s)),
+            art: session.art(null, size: 64),
+          ),
+          const SizedBox(height: 8),
+          transport,
+          const SizedBox(height: 8),
+          // The volume and the sleep timer are not in a row of quick actions here.
+          VolumeSlider(
+            volume: p.volume,
+            enabled: enabled,
+            onChanged: (v) => _run(() => session.setVolume(v)),
+          ),
+          const SizedBox(height: 8),
+          SleepTimerControl(
+            secondsLeft: p.sleepTimerSeconds,
+            enabled: enabled,
+            offerFinishSong: false,
+            onSet: (m, _) => _run(() => session.setSleepTimer(m)),
+          ),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     final enabled = session.enabled;
     final p = session.state;
 
-    // The queue peek rests along the bottom; the page scrolls clear of it.
+    // The queue peek rests along the bottom; the page keeps clear of it.
     return LayoutBuilder(
       builder: (context, box) {
         final peekSpace = p.isExternal ? 0.0 : QueuePeekSheet.handleHeight + 12;
-        // The cover is as wide as the page allows, but not taller than about half
-        // the screen so the controls stay in reach on a small phone.
-        final heroSize = [
-          box.maxWidth - 64,
-          box.maxHeight * 0.42,
-          340.0,
-        ].reduce((a, b) => a < b ? a : b).clamp(120.0, 340.0);
+        final transport = TransportControls(
+          canSkip: p.canSkip,
+          isPlaying: p.isPlaying,
+          enabled: enabled,
+          onPrevious: () => _run(session.previous),
+          onToggle: () => _run(session.toggle),
+          onNext: () => _run(session.next),
+          onSeekBack: p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, -10),
+          onSeekForward: p.isExternal || p.durationSeconds <= 0 ? null : () => _jump(p, 10),
+        );
+        const top = 12.0;
+        final bottom = 4 + peekSpace;
         return EdgeSwipe(
           enabled: enabled,
           onFromLeft: widget.onOpenLibrary,
@@ -260,99 +298,61 @@ class NowPlayingViewState extends State<NowPlayingView> {
             onPointerDown: (e) => _lowerQueue(e.localPosition, box.maxHeight),
             child: Stack(
               children: [
-                ListView(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + peekSpace),
-                  children: [
-                    if (widget.header != null) ...[
-                      widget.header!,
-                      const SizedBox(height: 12),
-                    ],
-                    if (p.isExternal)
-                      NowPlayingCard(
-                        state: p,
-                        enabled: enabled,
-                        onSeek: (s) => _run(() => session.seek(s)),
-                        art: session.art(null, size: 64),
-                      )
-                    else
-                      NowPlayingCard(
-                        hero: true,
-                        state: p,
-                        enabled: enabled,
-                        onSeek: (s) => _run(() => session.seek(s)),
-                        // The cover, with the lyrics button in its corner.
-                        art: CoverWithLyrics(
-                          cover: session.art(
-                            (p.songId ?? 0) <= 0 ? null : p.songId,
-                            size: heroSize,
-                            radius: 20,
-                          ),
-                          size: heroSize,
-                          radius: 20,
-                          openRequests: widget.lyricsRequests,
-                          songId: p.songId,
-                          title: p.title,
-                          artist: p.artist,
-                          positionSeconds: p.positionSeconds,
-                          isPlaying: p.isPlaying,
+                if (p.isExternal)
+                  _external(p, enabled, transport)
+                else
+                  // Fitted to the screen: it only scrolls on a very small one, or to what is below (the
+                  // other phone's "Play on this phone too").
+                  SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(16, top, 16, bottom),
+                    child: Column(
+                      children: [
+                        NowPlayingCard(
+                          hero: true,
+                          state: p,
                           enabled: enabled,
-                          fetch: session.lyrics,
                           onSeek: (s) => _run(() => session.seek(s)),
-                          // Top-left while the cover shows; the lyrics' fullscreen button
-                          // has that corner when they show.
-                          coverAction: _playlistButton(context, p),
-                          overlayAlignment: widget.visualizerPosition,
-                          overlay: widget.visualizerOnCover && widget.visualizer != null
-                              ? widget.visualizer!(p.isPlaying)
-                              : null,
+                          actions: _quickActions(p, enabled),
+                          fill: NowPlayingFill(
+                            height: box.maxHeight - top - bottom,
+                            above: widget.header == null
+                                ? null
+                                : Padding(padding: const EdgeInsets.only(bottom: 8), child: widget.header!),
+                            // The cover, with the lyrics button in its corner.
+                            art: (side) => CoverWithLyrics(
+                              cover: session.art((p.songId ?? 0) <= 0 ? null : p.songId, size: side, radius: 20),
+                              size: side,
+                              radius: 20,
+                              openRequests: widget.lyricsRequests,
+                              songId: p.songId,
+                              title: p.title,
+                              artist: p.artist,
+                              positionSeconds: p.positionSeconds,
+                              isPlaying: p.isPlaying,
+                              enabled: enabled,
+                              fetch: session.lyrics,
+                              onSeek: (s) => _run(() => session.seek(s)),
+                              // Top-left while the cover shows; the lyrics' fullscreen button
+                              // has that corner when they show.
+                              coverAction: _playlistButton(context, p),
+                              overlayAlignment: widget.visualizerPosition,
+                              overlay: widget.visualizerOnCover && widget.visualizer != null
+                                  ? widget.visualizer!(p.isPlaying)
+                                  : null,
+                            ),
+                            underCover: widget.visualizer != null && !widget.visualizerOnCover
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: widget.visualizer!(p.isPlaying),
+                                  )
+                                : null,
+                            transport: transport,
+                          ),
                         ),
-                        actions: _quickActions(p, enabled),
-                      ),
-                    if (widget.visualizer != null && !widget.visualizerOnCover && !p.isExternal)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: widget.visualizer!(p.isPlaying),
-                      ),
-                    const SizedBox(height: 8),
-                    TransportControls(
-                      canSkip: p.canSkip,
-                      isPlaying: p.isPlaying,
-                      enabled: enabled,
-                      onPrevious: () => _run(session.previous),
-                      onToggle: () => _run(session.toggle),
-                      onNext: () => _run(session.next),
-                      onSeekBack: p.isExternal || p.durationSeconds <= 0
-                          ? null
-                          : () => _jump(p, -10),
-                      onSeekForward: p.isExternal || p.durationSeconds <= 0
-                          ? null
-                          : () => _jump(p, 10),
+                        if (widget.extras != null) widget.extras!,
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    // The volume is a button in the row of quick actions (with a small
-                    // vertical slider); when another music app is controlled there is
-                    // no such row, so it keeps the slider.
-                    if (p.isExternal)
-                      VolumeSlider(
-                        volume: p.volume,
-                        enabled: enabled,
-                        onChanged: (v) => _run(() => session.setVolume(v)),
-                      ),
-                    // Speed and the sleep timer are in the row of quick actions under
-                    // the title; when another music app is controlled they keep their
-                    // card.
-                    if (p.isExternal) ...[
-                      const SizedBox(height: 8),
-                      SleepTimerControl(
-                        secondsLeft: p.sleepTimerSeconds,
-                        enabled: enabled,
-                        offerFinishSong: false,
-                        onSet: (m, _) => _run(() => session.setSleepTimer(m)),
-                      ),
-                    ],
-                    if (widget.extras != null && !p.isExternal) widget.extras!,
-                  ],
-                ),
+                  ),
                 if (!p.isExternal)
                   Positioned.fill(
                     child: QueuePeekSheet(

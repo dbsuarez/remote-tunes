@@ -1,4 +1,6 @@
+import 'dart:math' show min;
 import 'default_art.dart';
+import 'fill_middle.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -47,6 +49,7 @@ class NowPlayingCard extends StatefulWidget {
     this.art,
     this.trailing,
     this.hero = false,
+    this.fill,
     this.actions,
   });
 
@@ -55,6 +58,10 @@ class NowPlayingCard extends StatefulWidget {
   /// The big layout: a large cover, centered title in the accent color, then
   /// [actions] and the seek bar. Without it: the compact card.
   final bool hero;
+
+  /// The [hero] layout fitted to a height: the cover takes the space left over, and the play buttons
+  /// sit between the quick actions and the progress bar.
+  final NowPlayingFill? fill;
 
   /// A row of quick actions shown under the title in the [hero] layout.
   final Widget? actions;
@@ -319,19 +326,19 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
 
   /// The big layout: cover, title in the accent color, quick actions, seek bar.
   Widget _hero(ThemeData theme, PlaybackState s, double position, int duration, bool canSeek) {
+    final fill = widget.fill;
+    // A short page gives the title one line, to leave the cover more room.
+    final short = fill != null && fill.height < 520;
     final subtitle = [
       if (s.artist.isNotEmpty) s.artist,
       if (s.album.isNotEmpty) s.album,
     ].join(' · ');
     final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
-    return Column(
-      children: [
-        if (widget.art != null) Center(child: widget.art!),
-        const SizedBox(height: 16),
+    final words = <Widget>[
         Text(
           s.hasTrack ? s.title : 'Nothing playing',
           textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: short ? 1 : 2,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleLarge?.copyWith(
             color: theme.colorScheme.primary,
@@ -383,15 +390,69 @@ class _NowPlayingCardState extends State<NowPlayingCard> {
           ),
         ],
         if (widget.actions != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: short ? 2 : 8),
           widget.actions!,
         ],
-        const SizedBox(height: 4),
-        _seekBar(theme, s, position, duration, canSeek, showFormat: true),
-      ],
+    ];
+    final seek = _seekBar(theme, s, position, duration, canSeek, showFormat: true);
+    if (fill == null) {
+      return Column(
+        children: [
+          if (widget.art != null) Center(child: widget.art!),
+          const SizedBox(height: 16),
+          ...words,
+          const SizedBox(height: 4),
+          seek,
+        ],
+      );
+    }
+    return FillMiddle(
+      height: fill.height,
+      top: fill.above ?? const SizedBox.shrink(),
+      // The cover: as large as the space left, never wider than the page.
+      middle: LayoutBuilder(
+        builder: (context, box) => Center(
+          child: fill.art(min(min(box.maxWidth, box.maxHeight), NowPlayingFill.largest).floorToDouble()),
+        ),
+      ),
+      bottom: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (fill.underCover != null) fill.underCover!,
+          SizedBox(height: short ? 6 : 12),
+          ...words,
+          SizedBox(height: short ? 0 : 4),
+          fill.transport,
+          seek,
+        ],
+      ),
     );
   }
 }
+
+/// How the [NowPlayingCard.hero] layout fills a page.
+class NowPlayingFill {
+  const NowPlayingFill({required this.height, required this.art, required this.transport, this.above, this.underCover});
+
+  /// A cover is never drawn larger than this.
+  static const largest = 600.0;
+
+  /// The space there is.
+  final double height;
+
+  /// The cover at a size.
+  final Widget Function(double size) art;
+
+  /// The previous / play / next row.
+  final Widget transport;
+
+  /// Above the cover.
+  final Widget? above;
+
+  /// Between the cover and the title.
+  final Widget? underCover;
+}
+
 
 /// Album art on the Player; a music-note placeholder when there is none (and
 /// always on the Controller, which never receives art paths).
