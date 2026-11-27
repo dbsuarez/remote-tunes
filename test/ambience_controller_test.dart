@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_tunes/features/ambience/ambience_beats.dart';
 import 'package:remote_tunes/features/ambience/ambience_controller.dart';
 import 'package:remote_tunes/features/ambience/ambience_icons.dart';
 import 'package:remote_tunes/features/ambience/ambience_models.dart';
@@ -92,11 +93,11 @@ void main() {
   Matcher about(double v) => closeTo(v, 0.001);
 
   group('sounds', () {
-    test('only the noises can be played before files are added', () async {
+    test('only what the app makes itself can be played before files are added', () async {
       final c = make();
       await c.load();
       expect([for (final s in c.state.sounds) if (s.available) s.id],
-          ['white-noise', 'pink-noise', 'brown-noise', 'green-noise', 'blue-noise', 'gray-noise']);
+          ['white-noise', 'pink-noise', 'brown-noise', 'green-noise', 'blue-noise', 'gray-noise', ...ambienceBeats.keys]);
       await expectLater(c.setActive('rain', true), throwsA(isA<AmbienceException>()));
       expect(engine.voices, isEmpty);
     });
@@ -450,7 +451,7 @@ void main() {
 
     test('every noise the app offers can be made', () {
       for (final s in ambienceCatalog.where((s) => s.available)) {
-        expect(noiseColorOf(s.id), isNotNull, reason: s.id);
+        expect(noiseColorOf(s.id) != null || isAmbienceBeat(s.id), isTrue, reason: s.id);
       }
     });
 
@@ -477,7 +478,7 @@ void main() {
     test('the other phone is sent only what can be played', () {
       final c = make();
       final sent = AmbienceState.fromJson(c.state.toJson(readyOnly: true));
-      expect(sent.sounds, hasLength(6));
+      expect(sent.sounds, hasLength(6 + ambienceBeats.length));
     });
   });
 

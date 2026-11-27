@@ -55,6 +55,11 @@ void main() {
   }
 
   Future<void> tap(WidgetTester tester, String key) async {
+    // Some are in the menu at the top right.
+    if (const {'amb-import', 'amb-check', 'amb-unwatch'}.contains(key)) {
+      await tester.tap(find.byKey(const Key('amb-menu')));
+      await tester.pumpAndSettle();
+    }
     await tester.tap(find.byKey(Key(key)));
     await tester.pumpAndSettle();
   }
@@ -173,7 +178,10 @@ void main() {
     screenTest('is remembered after an import, and new matching files connect on coming back', (tester) async {
       await importOnce(tester);
       expect(c.watchedFolder, '/f');
+      await tap(tester, 'amb-info');
       expect(find.textContaining('New files in "f"'), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
       inFolder = ['/f/Whale.mp3', '/f/Dolphins.mp3', '/f/random take.mp3'];
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -205,12 +213,15 @@ void main() {
       expect(c.state.sound('whale')!.available, isTrue);
     });
 
-    screenTest('Import and Rescan are icons; Rescan with no folder says what to do', (tester) async {
+    screenTest('Import and Rescan are in the menu; Rescan with no folder says what to do', (tester) async {
       await open(tester);
       expect(find.text('Import a folder'), findsNothing);
-      expect(find.byTooltip('Import a folder'), findsOneWidget);
-      expect(find.byTooltip('Rescan the folder'), findsOneWidget);
-      await tap(tester, 'amb-check');
+      expect(find.byKey(const Key('amb-info')), findsNothing, reason: 'nothing watched');
+      await tap(tester, 'amb-menu');
+      expect(find.text('Import a folder'), findsOneWidget);
+      expect(find.byKey(const Key('amb-unwatch')), findsNothing);
+      await tester.tap(find.byKey(const Key('amb-check')));
+      await tester.pumpAndSettle();
       expect(find.textContaining('Import a folder first'), findsOneWidget);
     });
 
@@ -218,7 +229,7 @@ void main() {
       await importOnce(tester);
       await tap(tester, 'amb-unwatch');
       expect(c.watchedFolder, isNull);
-      expect(find.byKey(const Key('amb-watching')), findsNothing);
+      expect(find.byKey(const Key('amb-info')), findsNothing);
     });
   });
 

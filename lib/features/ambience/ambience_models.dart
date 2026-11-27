@@ -4,6 +4,8 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import 'ambience_beats.dart';
+
 /// A sound that can be layered. It can be played once it has audio: built-in noise always has, the
 /// others after a file is added on the playing phone.
 class AmbienceSound {
@@ -356,6 +358,15 @@ const ambienceCatalog = [
   AmbienceSound(id: 'green-noise', name: 'Green Noise', category: 'Noise', available: true),
   AmbienceSound(id: 'blue-noise', name: 'Blue Noise', category: 'Noise', available: true),
   AmbienceSound(id: 'gray-noise', name: 'Gray Noise', category: 'Noise', available: true),
+  AmbienceSound(id: 'beat-deep-sleep', name: 'Deep Sleep', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-sleep', name: 'Sleep', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-relaxation', name: 'Relaxation', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-calm', name: 'Calm', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-meditation', name: 'Meditation', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-intuition', name: 'Intuition', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-creativity', name: 'Creativity', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-focus', name: 'Focus', category: ambienceBeatCategory, available: true),
+  AmbienceSound(id: 'beat-alert', name: 'Alert', category: ambienceBeatCategory, available: true),
   AmbienceSound(id: 'piano', name: 'Piano', category: 'Relaxing Music'),
   AmbienceSound(id: 'guitar', name: 'Guitar', category: 'Relaxing Music'),
   AmbienceSound(id: 'violin', name: 'Violin', category: 'Relaxing Music'),

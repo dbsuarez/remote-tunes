@@ -12,7 +12,6 @@ import '../../providers/library_providers.dart' show permissionsProvider;
 import '../library/folder_browser.dart';
 import 'ambience_controller.dart' show AmbienceException, ambienceExtensions;
 import 'ambience_remote.dart';
-import 'ambience_style.dart';
 import 'ambience_view.dart';
 
 /// Ambience: this phone's own, or the other phone's while controlling it.
@@ -27,10 +26,6 @@ class AmbienceScreen extends ConsumerStatefulWidget {
 
 class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
   RemoteAmbience? _remote;
-  Color _color = ambienceColor(null);
-
-  void _tint(Color color) => setState(() => _color = color);
-
   @override
   void initState() {
     super.initState();
@@ -88,19 +83,25 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
 
   Widget _body() {
     final remote = _remote;
-    if (remote != null) return AmbienceView(controls: remote, onColor: _tint);
+    if (remote != null) return AmbienceView(controls: remote, title: '$_name on the other phone');
     final core = ref.watch(playerCoreProvider);
     final ambience = core.valueOrNull?.ambience;
     if (ambience == null) {
-      return core.hasError || core.hasValue
-          ? Center(child: Text("$_name isn't available on this phone."))
-          : const Center(child: CircularProgressIndicator());
+      return Scaffold(
+        appBar: AppBar(title: Text(_name)),
+        body: core.hasError || core.hasValue
+            ? Center(child: Text("$_name isn't available on this phone."))
+            : const Center(child: CircularProgressIndicator()),
+      );
     }
     ambience.load();
     return AmbienceView(
       controls: ambience,
-      onColor: _tint,
+      title: _name,
       owner: AmbienceOwner(
+        rename: ambience.renameSound,
+        listBanners: () => ambience.listBanners,
+        setListBanners: ambience.setListBanners,
         pickFile: _pickSoundFile,
         addFile: ambience.addFile,
         addOwnSound: ambience.addOwnSound,
@@ -136,12 +137,5 @@ class _AmbienceScreenState extends ConsumerState<AmbienceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: Text(widget.remote ? '$_name on the other phone' : _name),
-          backgroundColor: _color,
-          foregroundColor: Colors.white,
-        ),
-        body: _body(),
-      );
+  Widget build(BuildContext context) => _body();
 }

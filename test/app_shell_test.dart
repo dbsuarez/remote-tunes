@@ -20,6 +20,8 @@ import 'package:remote_tunes/features/player/queue/playable_song.dart';
 import 'package:remote_tunes/features/player/queue_playback_engine.dart';
 import 'package:remote_tunes/features/player/server/player_library.dart';
 import 'package:remote_tunes/features/player/sleep_timer.dart';
+import 'package:remote_tunes/features/ambience/ambience_screen.dart';
+import 'package:remote_tunes/features/shell/launcher_shortcuts.dart';
 import 'package:remote_tunes/features/player/visualizer.dart';
 import 'package:remote_tunes/providers/connection_providers.dart';
 import 'package:remote_tunes/providers/providers.dart';
@@ -92,6 +94,15 @@ class _FakeClient extends ControllerClient {
   Future<QueueSnapshot> getQueue() async => const QueueSnapshot(items: []);
 }
 
+class _FakeShortcuts implements LauncherShortcuts {
+  void Function(String type)? choose;
+  final names = <String>[];
+  @override
+  Future<void> listen(void Function(String type) onChosen) async => choose = onChosen;
+  @override
+  Future<void> set(String ambienceName) async => names.add(ambienceName);
+}
+
 /// The engine runs on real futures: give them a moment, then draw.
 Future<void> engineSettle(WidgetTester tester) async {
   await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
@@ -105,8 +116,10 @@ void main() {
   late FakeAudioBackend backend;
   late PlayerCore core;
   late _FakeClient client;
+  late _FakeShortcuts shortcuts;
 
   setUp(() async {
+    shortcuts = _FakeShortcuts();
     db = AppDatabase.forTesting(NativeDatabase.memory());
     backend = FakeAudioBackend();
     final repo = LibraryRepository(db);
@@ -168,6 +181,7 @@ void main() {
       playerCoreProvider.overrideWith((ref) async => core),
       controllerClientProvider.overrideWithValue(client),
       trustedPlayersStoreProvider.overrideWithValue(_FakeTrusted(trusted)),
+      launcherShortcutsProvider.overrideWithValue(shortcuts),
     ]);
     addTearDown(container.dispose);
     await tester.pumpWidget(UncontrolledProviderScope(
@@ -191,6 +205,37 @@ void main() {
     expect(find.text('Start as PLAYER'), findsNothing);
     expect(find.text('Alpha Song'), findsWidgets, reason: 'the song playing');
     expect(find.text('Ann · First'), findsOneWidget);
+  });
+
+  testWidgets('the home-screen shortcuts open Ambience or the player, from wherever you were', (tester) async {
+    final container = await open(tester);
+    expect(shortcuts.names, ['Ambience']);
+    Future<void> settle() async {
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    }
+
+    await tester.tap(find.text('Library'));
+    await settle();
+    await tester.tap(find.byTooltip('Settings'));
+    await settle();
+    shortcuts.choose!(shortcutAmbience);
+    await settle();
+    expect(find.byType(AmbienceScreen), findsOneWidget);
+    // Chosen again while there: still only one.
+    shortcuts.choose!(shortcutAmbience);
+    await settle();
+    expect(find.byType(AmbienceScreen, skipOffstage: false), findsOneWidget);
+    shortcuts.choose!(shortcutPlayer);
+    await settle();
+    expect(find.byType(AmbienceScreen, skipOffstage: false), findsNothing);
+    expect(find.text('Ann · First'), findsOneWidget, reason: 'Now Playing');
+    await tester.runAsync(() => container.read(settingsRepositoryProvider).setAmbienceName('Sleep sounds'));
+    container.invalidate(settingsProvider);
+    await settle();
+    expect(shortcuts.names.last, 'Sleep sounds');
   });
 
   group('the visualizer button on Now Playing', () {

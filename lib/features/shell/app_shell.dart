@@ -34,6 +34,7 @@ import '../controller/remote_session.dart';
 import '../group/group_card.dart';
 import '../library/import_actions.dart';
 import 'app_drawer.dart';
+import 'launcher_shortcuts.dart';
 import '../player/player_screen.dart' show showPairingDialog;
 import '../music/folder_tree.dart';
 import '../music/library_search.dart';
@@ -82,6 +83,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       unawaited(DefaultArt.precache(context));
       final settings = await ref.read(settingsRepositoryProvider).load();
       if (!mounted) return;
+      final shortcuts = ref.read(launcherShortcutsProvider);
+      unawaited(shortcuts.listen(_openShortcut).then((_) => shortcuts.set(settings.ambienceName)));
       if (settings.remoteAutoStart) {
         ref.read(remotePlaybackProvider.notifier).state = true;
       }
@@ -96,6 +99,24 @@ class _AppShellState extends ConsumerState<AppShell> {
         await ref.read(permissionsProvider).ensureNotifications();
       } catch (_) {}
     });
+  }
+
+  /// The app was opened, or brought back, by holding its icon on the home screen.
+  void _openShortcut(String type) {
+    if (!mounted) return;
+    // Back to the main screen first, whatever was open.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    navigator.popUntil((route) => route.settings is Page || route.isFirst);
+    GoRouter.maybeOf(context)?.go(AppRoutes.home);
+    if (type == shortcutPlayer) {
+      setState(() => _tab = 0);
+    } else if (type == shortcutAmbience) {
+      // After the pages above are gone, or this one would leave with them.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) navigator.push(MaterialPageRoute<void>(builder: (_) => const AmbienceScreen()));
+      });
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
   }
 
   /// Once, after the update that stopped songs with no album sharing a cover: takes the borrowed
@@ -156,6 +177,13 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     // While remote playback is on, the Player server is kept alive.
     if (ref.watch(remotePlaybackProvider)) ref.watch(playerHostProvider);
+
+    // The shortcut to Ambience carries its name.
+    ref.listen(settingsProvider.select((s) => s.valueOrNull?.ambienceName), (before, name) {
+      if (before != null && name != null && before != name) {
+        unawaited(ref.read(launcherShortcutsProvider).set(name));
+      }
+    });
 
     // Another phone asks to pair: show it over whatever is open.
     ref.listen(playerServerStateProvider, (prev, next) {

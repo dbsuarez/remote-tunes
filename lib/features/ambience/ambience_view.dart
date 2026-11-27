@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import 'ambience_banner.dart';
+import 'ambience_beats.dart';
 import 'ambience_icons.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
@@ -47,7 +48,17 @@ class AmbienceOwner {
     this.watchedFolder,
     this.watchFolder,
     this.checkFolder,
+    this.rename,
+    this.listBanners,
+    this.setListBanners,
   });
+
+  /// Renames one of the owner's own sounds. Null: not offered.
+  final Future<void> Function(String soundId, String name)? rename;
+
+  /// Whether the list of groups shows banners instead of circles, and changing that. Null: circles only.
+  final bool Function()? listBanners;
+  final Future<void> Function(bool banners)? setListBanners;
 
   /// The bedtime schedule (null: not offered).
   final AmbienceSchedule Function()? schedule;
@@ -86,6 +97,9 @@ class AmbienceOwner {
   final Future<void> Function(double volume) setMaxVolume;
 }
 
+/// A frequency without needless zeros.
+String _hz(double v) => v.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+
 String _timerLabel(int minutes) => minutes < 60 ? '$minutes min' : '${minutes ~/ 60} hour${minutes >= 120 ? 's' : ''}';
 
 String _left(int seconds) {
@@ -98,10 +112,10 @@ String _left(int seconds) {
 /// everything, the sleep timer and the mixes. The same on the playing phone and from the other one
 /// ([owner] is then null).
 class AmbienceView extends StatefulWidget {
-  const AmbienceView({super.key, required this.controls, this.owner, this.enabled = true, this.onColor});
+  const AmbienceView({super.key, required this.controls, this.owner, this.enabled = true, this.title = 'Ambience'});
 
-  /// Told the color of the page shown, so the bar above can match.
-  final ValueChanged<Color>? onColor;
+  /// The name in the bar at the top.
+  final String title;
 
   final AmbienceControls controls;
   final AmbienceOwner? owner;
@@ -126,7 +140,9 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
   String? _category;
 
   final _pages = PageController();
-  Color? _toldColor;
+
+  /// How far a finger has gone sideways over the banner.
+  double _swipe = 0;
 
   /// The pages as last built, to stay on the same group when one appears or goes.
   List<String?> _pageList = const [null];
@@ -264,7 +280,8 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     final owner = widget.owner;
     if (owner == null || !s.available) return;
     final noise = ambienceCatalog.any((x) => x.id == s.id && x.available);
-    // A built-in noise has no file to change.
+    final tones = beatTones(s.id);
+    // A sound the app makes has no file to change.
     if (noise && owner.setIcon == null && owner.setBoost == null) return;
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -275,6 +292,20 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (tones != null)
+              ListTile(
+                key: const Key('amb-tones'),
+                leading: const Icon(Icons.headphones_rounded),
+                title: Text('Left ear ${_hz(tones.left)} Hz · Right ear ${_hz(tones.right)} Hz'),
+                subtitle: Text('A beat of ${_hz(tones.right - tones.left)} Hz. Use headphones.'),
+              ),
+            if (owner.rename != null && isOwnAmbienceSound(s))
+              ListTile(
+                key: const Key('amb-rename'),
+                leading: const Icon(Icons.edit_rounded),
+                title: Text('Rename ${s.name}'),
+                onTap: () => Navigator.pop(ctx, 'rename'),
+              ),
             if (owner.setIcon != null)
               ListTile(
                 key: const Key('amb-icon'),
@@ -307,7 +338,14 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
         ),
       ),
     );
-    if (choice == 'boost') {
+    if (choice == 'rename') {
+      if (!mounted) return;
+      final name = await showDialog<String>(
+        context: context,
+        builder: (_) => _NameDialog(title: 'Rename this sound', initial: s.name, maxLength: 30),
+      );
+      if (name != null) await _run(() => owner.rename!(s.id, name));
+    } else if (choice == 'boost') {
       if (!mounted) return;
       final boost = await showDialog<double>(context: context, builder: (_) => _BoostDialog(sound: s));
       if (boost != null) await _run(() => owner.setBoost!(s.id, boost));
@@ -535,35 +573,263 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     });
   }
 
-  /// Every page in one list, to jump to.
+  /// Every page in one list, to jump to: with circles, or with each group's banner.
   Future<void> _groups(List<String?> pages) async {
-    final state = _c.state;
+    final owner = widget.owner;
+    var banners = owner?.setListBanners != null && (owner!.listBanners?.call() ?? false);
     final choice = await showModalBottomSheet<({String? page})>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final page in pages)
-                  ListTile(
-                    key: ValueKey('amb-cat-${page == _selected ? 'selected' : page ?? 'ready'}'),
-                    leading: CircleAvatar(backgroundColor: ambienceColor(page == _selected ? ambienceSelectedPage : page), radius: 14),
-                    title: Text(_titleOf(page, state)),
-                    trailing: page == _category ? const Icon(Icons.check_rounded) : null,
-                    onTap: () => Navigator.pop(ctx, (page: page)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, redraw) {
+          final state = _c.state;
+          void pick(String? page) => Navigator.pop(ctx, (page: page));
+          void style(bool value) {
+            redraw(() => banners = value);
+            _run(() => owner!.setListBanners!(value));
+          }
+
+          return SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.75),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (owner?.setListBanners != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(
+                            key: const Key('amb-list-circles'),
+                            label: const Text('Circles'),
+                            selected: !banners,
+                            onSelected: (_) => style(false),
+                          ),
+                          ChoiceChip(
+                            key: const Key('amb-list-banners'),
+                            label: const Text('Banners'),
+                            selected: banners,
+                            onSelected: (_) => style(true),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final page in pages)
+                            if (banners) _groupBanner(ctx, state, page, () => pick(page)) else _groupRow(state, page, () => pick(page)),
+                        ],
+                      ),
+                    ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
     if (choice != null && mounted) _goTo(pages, choice.page);
+  }
+
+  Key _groupKey(String? page) => ValueKey('amb-cat-${page == _selected ? 'selected' : page ?? 'ready'}');
+
+  Color _colorOf(String? page) => ambienceColor(page == _selected ? ambienceSelectedPage : page);
+
+  Widget _groupRow(AmbienceState state, String? page, VoidCallback onTap) {
+    final own = widget.owner?.banners?.of(_groupOf(page));
+    return ListTile(
+      key: _groupKey(page),
+      leading: CircleAvatar(backgroundColor: _colorOf(page), foregroundImage: own?.image, radius: 18),
+      title: Text(_titleOf(page, state)),
+      trailing: page == _category ? const Icon(Icons.check_rounded) : null,
+      onTap: onTap,
+    );
+  }
+
+  Widget _groupBanner(BuildContext context, AmbienceState state, String? page, VoidCallback onTap) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: Semantics(
+          button: true,
+          selected: page == _category,
+          child: InkWell(
+            key: _groupKey(page),
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                height: 100,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _art(state, page),
+                    if (page == _category)
+                      const Positioned(top: 8, right: 8, child: Icon(Icons.check_circle_rounded, color: Colors.white)),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      left: 8,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            child: Text(_titleOf(page, state),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  /// A group's picture: the owner's own, or its color with some of its sounds. A faint pair of
+  /// headphones lies over the groups that need them.
+  Widget _art(AmbienceState state, String? page) {
+    final own = widget.owner?.banners?.of(_groupOf(page));
+    final shown = [
+      for (final s in state.sounds)
+        if (switch (page) { null => s.available, _selected => state.active.containsKey(s.id), final c => s.category == c }) s,
+    ].take(5).toList();
+    final phones = ambienceNeedsHeadphones(page);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (own != null)
+          Image(
+            key: const Key('amb-banner-picture'),
+            image: own.image,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => ColoredBox(color: _colorOf(page)),
+          )
+        else
+          ColoredBox(
+            color: Color.alphaBlend(Colors.white.withValues(alpha: 0.10), _colorOf(page)),
+            child: phones
+                ? null
+                : ExcludeSemantics(
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < shown.length; i++)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: AmbiencePicture(ambienceIconName(shown[i]), size: i.isEven ? 64 : 46, color: Colors.white54),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        if (phones)
+          ExcludeSemantics(
+            child: FittedBox(
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(Icons.headphones_rounded, key: const Key('amb-headphones-art'), color: Colors.white.withValues(alpha: 0.22)),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// A sideways swipe over the banner turns the page, as over the sounds.
+  void _turn(List<String?> pages, double velocity) {
+    final way = velocity.abs() > 300 ? -velocity.sign : (_swipe.abs() > 50 ? -_swipe.sign : 0.0);
+    _swipe = 0;
+    if (way == 0 || !_pages.hasClients) return;
+    final next = pages.indexOf(pages.contains(_category) ? _category : null) + way.toInt();
+    if (next < 0 || next >= pages.length) return;
+    _pages.animateToPage(next, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+  }
+
+  void _headphonesInfo() => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.headphones_rounded),
+          title: const Text('Use headphones'),
+          content: const Text('A binaural beat is two tones a little apart, one for each ear; the beat is what you hear '
+              'between them. It needs stereo headphones. On a speaker the two tones just blend together.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+
+  void _folderInfo(String folder) => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Watched folder'),
+          content: Text('New files in "${folder.split(RegExp(r'[\\/]')).last}" named like a sound are added by themselves.',
+              key: const Key('amb-watching')),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+
+  /// The buttons at the top right: about the watched folder, and a menu of what is not needed often.
+  List<Widget> _actions(String? page) {
+    final owner = widget.owner;
+    if (owner == null) return const [];
+    final folder = owner.watchedFolder?.call();
+    PopupMenuItem<String> item(String key, IconData icon, String text) => PopupMenuItem(
+          key: Key(key),
+          value: key,
+          child: Row(children: [Icon(icon, size: 22), const SizedBox(width: 12), Flexible(child: Text(text))]),
+        );
+    final items = [
+      if (owner.banners != null) item('amb-banner-edit', Icons.add_photo_alternate_outlined, 'Banner picture'),
+      if (owner.pickFolder != null) item('amb-import', Icons.drive_folder_upload_rounded, 'Import a folder'),
+      if (owner.pickFolder != null && owner.checkFolder != null) item('amb-check', Icons.refresh_rounded, 'Rescan the folder'),
+      if (folder != null && owner.watchFolder != null) item('amb-unwatch', Icons.link_off_rounded, 'Stop watching the folder'),
+    ];
+    return [
+      if (folder != null)
+        IconButton(
+          key: const Key('amb-info'),
+          tooltip: 'About the watched folder',
+          icon: const Icon(Icons.info_outline_rounded),
+          onPressed: () => _folderInfo(folder),
+        ),
+      if (items.isNotEmpty)
+        PopupMenuButton<String>(
+          key: const Key('amb-menu'),
+          enabled: widget.enabled,
+          onSelected: (choice) {
+            switch (choice) {
+              case 'amb-banner-edit':
+                _editBanner(_groupOf(page));
+              case 'amb-import':
+                _importFolder();
+              case 'amb-check':
+                folder == null ? _snack('Import a folder first. Rescan then picks up its new files.') : _checkFolder(asked: true);
+              case 'amb-unwatch':
+                _run(() => owner.watchFolder!(null));
+            }
+          },
+          itemBuilder: (_) => items,
+        ),
+    ];
   }
 
   @override
@@ -573,9 +839,12 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
       builder: (context, _) {
         final state = _c.state;
         if (state.sounds.isEmpty) {
-          return state.error == null
-              ? const Center(child: CircularProgressIndicator())
-              : Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(state.error!, textAlign: TextAlign.center)));
+          return Scaffold(
+            appBar: AppBar(title: Text(widget.title)),
+            body: state.error == null
+                ? const Center(child: CircularProgressIndicator())
+                : Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(state.error!, textAlign: TextAlign.center))),
+          );
         }
         // A page for what is ready, one for what is on, then one for each group; swipe between them, or tap
         // the title for the list. The owner can always add a sound of their own.
@@ -588,14 +857,15 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
             if (mounted && _pages.hasClients) _pages.jumpToPage(pages.indexOf(chosen));
           });
         }
-        final color = ambienceColor(chosen == _selected ? ambienceSelectedPage : chosen);
-        if (color != _toldColor) {
-          _toldColor = color;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) widget.onColor?.call(color);
-          });
-        }
-        return AnimatedContainer(
+        final color = _colorOf(chosen);
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(widget.title),
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            actions: _actions(chosen),
+          ),
+          body: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -613,43 +883,9 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                   final theme = Theme.of(context);
                   return Column(
                     children: [
-                      _banner(theme, state, chosen),
+                      _banner(theme, state, pages, chosen),
+                      _status(theme, state),
                       _dots(pages.length, pages.indexOf(chosen)),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Balances the picture button, so the title stays in the middle.
-                          if (widget.owner?.banners != null) const SizedBox(width: 48),
-                          Flexible(child: InkWell(
-                        key: const Key('amb-title'),
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => _groups(pages),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(_titleOf(chosen, state),
-                                    key: const Key('amb-title-text'),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleLarge),
-                              ),
-                              const Icon(Icons.expand_more_rounded),
-                            ],
-                          ),
-                        ),
-                      )),
-                          if (widget.owner?.banners != null)
-                            IconButton(
-                              key: const Key('amb-banner-edit'),
-                              tooltip: 'Banner picture',
-                              icon: const Icon(Icons.add_photo_alternate_outlined),
-                              onPressed: widget.enabled ? () => _editBanner(_groupOf(chosen)) : null,
-                            ),
-                        ],
-                      ),
                       Expanded(
                         child: PageView.builder(
                           key: const Key('amb-pages'),
@@ -669,79 +905,122 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
               ),
             ),
           ),
+          ),
         );
       },
     );
   }
 
-  /// The picture across the top: some of the page's sounds, and what is playing.
-  Widget _banner(ThemeData theme, AmbienceState state, String? page) {
-    final count = state.active.length;
-    final timer = state.timerMinutes;
-    final shown = [
-      for (final s in state.sounds)
-        if (switch (page) { null => s.available, _selected => state.active.containsKey(s.id), final c => s.category == c }) s,
-    ].take(5).toList();
-    // A short screen keeps only the line of words.
-    final tall = MediaQuery.sizeOf(context).height >= 700;
+  /// The picture across the top, with the group's name on it. Swiping it turns the page.
+  Widget _banner(ThemeData theme, AmbienceState state, List<String?> pages, String? page) {
+    final screen = MediaQuery.sizeOf(context).height;
     final own = widget.owner?.banners?.of(_groupOf(page));
-    return Column(
-      children: [
-        if (own != null)
-          LayoutBuilder(
-            builder: (context, box) => SizedBox(
-              key: const Key('amb-banner-picture'),
-              width: double.infinity,
-              // As high as the owner set it, but the sounds always keep most of the screen.
-              height: min(box.maxWidth / own.framing.aspect, MediaQuery.sizeOf(context).height * 0.3),
-              child: Image(
-                image: own.image,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
-            ),
-          )
-        else if (tall)
-          Container(
-            height: 120,
-            width: double.infinity,
-            color: Colors.white.withValues(alpha: 0.10),
-            alignment: Alignment.center,
-            child: ExcludeSemantics(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < shown.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: AmbiencePicture(ambienceIconName(shown[i]), size: i.isEven ? 64 : 46, color: Colors.white70),
-                      ),
-                  ],
+    return GestureDetector(
+      key: const Key('amb-banner'),
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: (_) => _swipe = 0,
+      onHorizontalDragUpdate: (d) => _swipe += d.delta.dx,
+      onHorizontalDragEnd: (d) => _turn(pages, d.primaryVelocity ?? 0),
+      child: LayoutBuilder(
+        builder: (context, box) => SizedBox(
+          width: double.infinity,
+          // As high as the owner set it, but the sounds always keep most of the screen.
+          height: own != null
+              ? max(72.0, min(box.maxWidth / own.framing.aspect, screen * 0.3))
+              : (screen >= 700 ? 120 : 76),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _art(state, page),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Material(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(20),
+                          child: InkWell(
+                            key: const Key('amb-title'),
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => _groups(pages),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(maxWidth: max(80, box.maxWidth - 88)),
+                                    child: Text(_titleOf(page, state),
+                                        key: const Key('amb-title-text'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleLarge),
+                                  ),
+                                  const Icon(Icons.expand_more_rounded),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (ambienceNeedsHeadphones(page)) ...[
+                          const SizedBox(height: 4),
+                          Material(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              key: const Key('amb-headphones'),
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: _headphonesInfo,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.headphones_rounded, size: 16),
+                                    const SizedBox(width: 6),
+                                    Text('Use headphones', style: theme.textTheme.labelMedium),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        Container(
-          width: double.infinity,
-          color: Colors.black.withValues(alpha: 0.18),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          child: Text(
-            [
-              state.mixName ?? (count == 0 ? 'Tap a sound to begin' : '$count sound${count == 1 ? '' : 's'} on'),
-              if (state.mixName != null) '$count sound${count == 1 ? '' : 's'}',
-              if (timer != null) '${_left(state.secondsLeft ?? timer * 60)} left',
-            ].join(' · '),
-            key: const Key('amb-status'),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall,
+            ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  /// What is playing.
+  Widget _status(ThemeData theme, AmbienceState state) {
+    final count = state.active.length;
+    final timer = state.timerMinutes;
+    return Container(
+      width: double.infinity,
+      color: Colors.black.withValues(alpha: 0.18),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      child: Text(
+        [
+          state.mixName ?? (count == 0 ? 'Tap a sound to begin' : '$count sound${count == 1 ? '' : 's'} on'),
+          if (state.mixName != null) '$count sound${count == 1 ? '' : 's'}',
+          if (timer != null) '${_left(state.secondsLeft ?? timer * 60)} left',
+        ].join(' · '),
+        key: const Key('amb-status'),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.titleSmall,
+      ),
     );
   }
 
@@ -888,8 +1167,6 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
           key: PageStorageKey('amb-list-${page ?? 'ready'}'),
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           children: [
-            if (owner?.pickFolder != null && (page == null || page == ambienceOwnCategory))
-              _folderRow(theme, owner!),
             for (final c in categories) ...[
               // A group's own page is already named by the title above.
               if (page == null) _Heading(c, key: ValueKey('amb-group-$c')) else SizedBox(key: ValueKey('amb-group-$c'), height: 4),
@@ -938,51 +1215,6 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
     );
   }
 
-  /// The folder buttons: import one, rescan the one watched, stop watching it.
-  Widget _folderRow(ThemeData theme, AmbienceOwner owner) {
-    final folder = owner.watchedFolder?.call();
-    return Padding(
-      padding: const EdgeInsets.only(left: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: folder == null
-                ? const SizedBox.shrink()
-                : Text(
-                    'New files in "${folder.split(RegExp(r'[\\/]')).last}" named like a sound are added by themselves.',
-                    key: const Key('amb-watching'),
-                    style: theme.textTheme.bodySmall,
-                  ),
-          ),
-          IconButton(
-            key: const Key('amb-import'),
-            tooltip: 'Import a folder',
-            icon: const Icon(Icons.drive_folder_upload_rounded),
-            onPressed: widget.enabled ? _importFolder : null,
-          ),
-          if (owner.checkFolder != null)
-            IconButton(
-              key: const Key('amb-check'),
-              tooltip: 'Rescan the folder',
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: widget.enabled
-                  ? () => folder == null
-                      ? _snack('Import a folder first. Rescan then picks up its new files.')
-                      : _checkFolder(asked: true)
-                  : null,
-            ),
-          if (folder != null)
-            IconButton(
-              key: const Key('amb-unwatch'),
-              tooltip: 'Stop watching the folder',
-              icon: const Icon(Icons.link_off_rounded),
-              onPressed: widget.enabled ? () => _run(() => owner.watchFolder!(null)) : null,
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _square(ThemeData theme, {required Color color, required Widget child}) => Material(
         color: color,
         borderRadius: BorderRadius.circular(20),
@@ -1018,6 +1250,12 @@ class _AmbienceViewState extends State<AmbienceView> with WidgetsBindingObserver
                     child: AmbiencePicture(ambienceIconName(s), size: 32, color: on ? page : Colors.white, faded: !s.available),
                   ),
                   if (on) Positioned(top: 0, right: 0, child: Text('${(volume * 100).round()}', style: theme.textTheme.labelMedium)),
+                  if (ambienceNeedsHeadphones(s.category))
+                    Positioned(
+                      top: 0,
+                      left: 6,
+                      child: Icon(Icons.headphones_rounded, key: ValueKey('amb-phones-${s.id}'), size: 14, color: Colors.white70),
+                    ),
                   if (!s.available)
                     Positioned(
                       right: 12,
@@ -1087,9 +1325,10 @@ class _Heading extends StatelessWidget {
 }
 
 class _NameDialog extends StatefulWidget {
-  const _NameDialog({required this.title, this.initial = ''});
+  const _NameDialog({required this.title, this.initial = '', this.maxLength = 40});
   final String title;
   final String initial;
+  final int maxLength;
 
   @override
   State<_NameDialog> createState() => _NameDialogState();
@@ -1115,7 +1354,7 @@ class _NameDialogState extends State<_NameDialog> {
           key: const Key('amb-name'),
           controller: _field,
           autofocus: true,
-          maxLength: 40,
+          maxLength: widget.maxLength,
           textCapitalization: TextCapitalization.sentences,
           onSubmitted: (_) => _save(),
         ),
@@ -1332,7 +1571,7 @@ class _IconSheetState extends State<_IconSheet> {
                         TextButton(
                           key: const Key('amb-icon-usual'),
                           onPressed: () => Navigator.pop(context, (icon: null)),
-                          child: const Text('Use the usual'),
+                          child: const Text('Use default'),
                         ),
                       ],
                     ),
@@ -1527,7 +1766,7 @@ class _BoostDialogState extends State<_BoostDialog> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, 1.0), child: const Text('Usual')),
+          TextButton(onPressed: () => Navigator.pop(context, 1.0), child: const Text('Default')),
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(key: const Key('amb-boost-save'), onPressed: () => Navigator.pop(context, _value), child: const Text('Save')),
         ],

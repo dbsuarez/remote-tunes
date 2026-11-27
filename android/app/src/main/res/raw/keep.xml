@@ -2,4 +2,4 @@
 <!-- The lock-screen favorite button's icons are looked up by name at run time,
      so the resource shrinker must keep them. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_favorite,@drawable/ic_favorite_border" />
+    tools:keep="@drawable/ic_favorite,@drawable/ic_favorite_border,@drawable/ic_shortcut_player,@drawable/ic_shortcut_ambience" />

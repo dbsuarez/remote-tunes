@@ -147,6 +147,10 @@ void main() {
     }
 
     Future<void> tap(WidgetTester tester, String key) async {
+      if (key == 'amb-banner-edit') {
+        await tester.tap(find.byKey(const Key('amb-menu')));
+        await settle(tester);
+      }
       await tester.tap(find.byKey(Key(key)));
       await settle(tester);
     }
@@ -229,7 +233,7 @@ void main() {
 
     screenTest('is not offered from the other phone', (tester) async {
       await open(tester, owned: false);
-      expect(find.byKey(const Key('amb-banner-edit')), findsNothing);
+      expect(find.byKey(const Key('amb-menu')), findsNothing);
     });
   });
 }

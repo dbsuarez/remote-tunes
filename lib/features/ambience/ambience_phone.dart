@@ -13,6 +13,7 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:path/path.dart' as p;
 
 import '../../data/repositories/settings_repository.dart';
+import 'ambience_beats.dart';
 import 'ambience_controller.dart';
 import 'ambience_noise.dart';
 
@@ -34,6 +35,13 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
 
   /// Fades each volume change, so sliders do not crackle.
   static const _glide = Duration(milliseconds: 150);
+
+  /// The beats are pure tones: starting or cutting one at once clicks, so they fade in and out.
+  static const _beatFade = Duration(milliseconds: 2500);
+
+  /// Voices fading out, to be let go when silent; and the engine, once the last one is.
+  final _fading = <String, ({Timer timer, AudioSource source, SoundHandle handle})>{};
+  Timer? _release;
 
   SoLoud get _so => SoLoud.instance;
 
@@ -75,12 +83,18 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
 
   @override
   Future<void> start(String id, String path, double volume) async {
+    _release?.cancel();
+    _release = null;
     await _ready();
     await stop(id);
+    // The same file must be let go before it is loaded again.
+    await _drop(id);
     final long = await File(path).length() > _keepInMemory;
     final source = await _so.loadFile(path, mode: long ? LoadMode.disk : LoadMode.memory);
     await _takeFocus();
-    final handle = await _so.play(source, volume: volume, looping: true, paused: _paused || _interrupted);
+    final fade = isAmbienceBeat(id);
+    final handle = await _so.play(source, volume: fade ? 0 : volume, looping: true, paused: _paused || _interrupted);
+    if (fade) _so.fadeVolume(handle, volume, _beatFade);
     // A sleeping child's sound must not be dropped when many play at once.
     _so.setProtectVoice(handle, true);
     _voices[id] = (source: source, handle: handle);
@@ -113,10 +127,28 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
   Future<void> stop(String id) async {
     final v = _voices.remove(id);
     if (v == null) return;
+    // Only a voice that is heard needs to fade; a paused one just goes.
+    if (isAmbienceBeat(id) && !_paused && !_interrupted && _so.getIsValidVoiceHandle(v.handle)) {
+      _so.fadeVolume(v.handle, 0, _beatFade);
+      _fading[id] = (timer: Timer(_beatFade, () => unawaited(_drop(id))), source: v.source, handle: v.handle);
+      return;
+    }
+    await _end(v.source, v.handle);
+  }
+
+  Future<void> _end(AudioSource source, SoundHandle handle) async {
     try {
-      await _so.stop(v.handle);
-      await _so.disposeSource(v.source);
+      await _so.stop(handle);
+      await _so.disposeSource(source);
     } catch (_) {}
+  }
+
+  /// Lets a fading voice go now.
+  Future<void> _drop(String id) async {
+    final v = _fading.remove(id);
+    if (v == null) return;
+    v.timer.cancel();
+    await _end(v.source, v.handle);
   }
 
   @override
@@ -131,16 +163,29 @@ class SoLoudAmbienceEngine implements AmbienceEngine {
 
   @override
   Future<void> stopAll() async {
-    _paused = false;
-    _interrupted = false;
     for (final id in _voices.keys.toList()) {
       await stop(id);
     }
+    _paused = false;
+    _interrupted = false;
     await _interruptions?.cancel();
     _interruptions = null;
     await _unplugged?.cancel();
     _unplugged = null;
-    // The engine is let go, so it uses no battery while silent.
+    // The engine is let go, so it uses no battery while silent (after anything fading has faded).
+    _release?.cancel();
+    _release = null;
+    if (_fading.isEmpty) {
+      await _letGo();
+    } else {
+      _release = Timer(_beatFade + const Duration(milliseconds: 100), () => unawaited(_letGo()));
+    }
+  }
+
+  Future<void> _letGo() async {
+    for (final id in _fading.keys.toList()) {
+      await _drop(id);
+    }
     if (_starting != null) {
       _starting = null;
       try {
@@ -170,11 +215,18 @@ class PhoneAmbienceFiles implements AmbienceFiles {
       return await f.exists() ? f.path : null;
     }
     final color = noiseColorOf(soundId);
-    if (color == null) return null;
-    final f = File(p.join(dir.path, 'noise_${color.name}_1.wav'));
+    if (color != null) return _made(dir, 'noise_${color.name}_1.wav', () => noiseWav(color));
+    final beat = ambienceBeats[soundId];
+    if (beat != null) return _made(dir, '${soundId}_1.wav', () => beatWav(beat));
+    return null;
+  }
+
+  /// A file the app makes itself, on first use.
+  Future<String> _made(Directory dir, String name, Uint8List Function() make) async {
+    final f = File(p.join(dir.path, name));
     if (!await f.exists()) {
       final part = File('${f.path}.part');
-      await part.writeAsBytes(await Isolate.run(() => noiseWav(color)), flush: true);
+      await part.writeAsBytes(await Isolate.run(make), flush: true);
       await part.rename(f.path);
     }
     return f.path;

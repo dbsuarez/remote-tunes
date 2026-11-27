@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'ambience_banner.dart';
+import 'ambience_beats.dart';
 import 'ambience_import.dart';
 import 'ambience_models.dart';
 
@@ -103,6 +104,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   final Map<String, double> _gain = {}; // sound id -> the measured evening-out of its file
   final Map<String, double> _boost = {}; // sound id -> the owner's louder (above 1) or softer
   String? _folder;
+  bool _listBanners = false;
   AmbienceSchedule _schedule = const AmbienceSchedule();
   String? _ranOn; // the day the schedule last started
   Timer? _bedtime;
@@ -160,6 +162,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
       _schedule = AmbienceSchedule.fromJson(j['schedule']);
       if (j['ranOn'] is String) _ranOn = j['ranOn'] as String;
       if (j['folder'] is String) _folder = j['folder'] as String;
+      _listBanners = j['listBanners'] == true;
       if (j['empty'] is List) _keptEmpty.addAll([for (final id in j['empty'] as List) if (id is String) id]);
       if (j['env'] is List) _environments.addAll([for (final id in j['env'] as List) if (id is String) id]);
       if (j['mixes'] is List) {
@@ -201,6 +204,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         'gain': _gain,
         'boost': _boost,
         if (_folder != null) 'folder': _folder,
+        if (_listBanners) 'listBanners': true,
         'mixes': [for (final m in _mixes) m.toJson()],
         'active': _active,
         'master': _master,
@@ -211,8 +215,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     } catch (_) {}
   }
 
-  bool _isBuiltInNoise(String id) => ambienceCatalog.any((s) => s.id == id && s.available);
-  bool _hasAudio(String id) => _saved.containsKey(id) || _isBuiltInNoise(id);
+  bool _isBuiltIn(String id) => ambienceCatalog.any((s) => s.id == id && s.available);
+  bool _hasAudio(String id) => _saved.containsKey(id) || _isBuiltIn(id);
 
   List<AmbienceSound> get _sounds => [
         for (final s in ambienceCatalog) s.copyWith(available: _hasAudio(s.id), icon: _icons[s.id], boost: _boost[s.id]),
@@ -274,8 +278,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
     try {
       final path = await files.pathFor(id, _saved[id]);
       if (path == null) throw const AmbienceException('no file');
-      // Measured once for each file, the first time it plays.
-      if (!_gain.containsKey(id)) {
+      // Measured once for each file, the first time it plays. The beats are left as quiet as they are made.
+      if (!_gain.containsKey(id) && !isAmbienceBeat(id)) {
         try {
           _gain[id] = evenGain(await engine.measure(path));
           await _save();
@@ -380,7 +384,8 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         _error = null;
         if (on) {
           if (!_hasAudio(soundId)) throw AmbienceException('Add a file for ${_nameOf(soundId)} first.');
-          _active.putIfAbsent(soundId, () => 0.5);
+          // Beats start lower: the difference between the ears matters, not loudness.
+          _active.putIfAbsent(soundId, () => isAmbienceBeat(soundId) ? 0.4 : 0.5);
           _mixName = null;
           await _playNow();
         } else {
@@ -538,7 +543,7 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
   Future<void> removeFile(String soundId) => _inTurn(() async {
         await load();
         final saved = _saved.remove(soundId);
-        if (!_isBuiltInNoise(soundId)) {
+        if (!_isBuiltIn(soundId)) {
           _active.remove(soundId);
           if (_voices.remove(soundId)) await engine.stop(soundId);
           if (_active.isEmpty) await _stopNow();
@@ -550,6 +555,27 @@ class AmbienceController extends ChangeNotifier implements AmbienceControls {
         _environments.remove(soundId);
         if (!ambienceCatalog.any((s) => s.id == soundId)) _icons.remove(soundId);
         if (saved != null) await files.remove(saved);
+        notifyListeners();
+        await _save();
+      });
+
+  /// Gives one of the owner's own sounds another name.
+  Future<void> renameSound(String soundId, String name) => _inTurn(() async {
+        await load();
+        if (!_own.containsKey(soundId)) return;
+        final clean = name.trim();
+        if (clean.isEmpty) throw const AmbienceException('Give the sound a name.');
+        _own[soundId] = clean.length > 30 ? clean.substring(0, 30) : clean;
+        notifyListeners();
+        await _save();
+      });
+
+  /// Whether the list of groups shows their banners (instead of circles).
+  bool get listBanners => _listBanners;
+
+  Future<void> setListBanners(bool banners) => _inTurn(() async {
+        await load();
+        _listBanners = banners;
         notifyListeners();
         await _save();
       });
