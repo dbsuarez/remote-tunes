@@ -8,6 +8,12 @@ Inspiration only: own look and own code, see [docs/15](15_UX_DESIGN_GUARDRAILS.m
 
 ## Not done
 
+### Asked for, not built yet (2026-11-27)
+- [ ] **Update check that survives GitHub's limit** (owner: later, together with other items): anonymous GitHub checks are limited to about 60 an hour per internet connection, and then *Check for updates* says *GitHub said no (403)*. When that happens, look at the ordinary release page (`github.com/.../releases/latest` redirects to the newest tag) instead of the API and build the download address from the tag and the phone's type.
+- [ ] **Ambience: category and sound management:** create, rename and reorder categories; move and reorder sounds; own sounds into existing categories, marked as own; banners. Behind it: the three-dot menu.
+- [ ] **Ambience: *Play once*, *Play alone*, *Needs headphones*** per sound and per category, for the owner's own binaural MP3s (after the management screen).
+- [ ] **Vocals off** on Now Playing (`remotetunes-realtime-vocal-removal.md`): check first what is possible with `just_audio`.
+
 ### 1. Cloud Library: what is left
 The first versions are built (see Done > *Cloud Library*). Left, from [remotetunescloud.md](remotetunescloud.md):
 - [ ] Insights charts for the cloud (uploads per month, genre mix); the library screen already shows the space used of the free 10 GB.
@@ -38,7 +44,7 @@ The first versions are built (see Done > *Cloud Library*). Left, from [remotetun
 - [ ] *Per track progress* and *List position* are for audiobooks only (decided); music never remembers its place.
 
 **Other**
-- [ ] **Writing tags into files** writes title, artist, album, track number, and (from group edit and Tag cleanup) year and genre; **not** the cover, and not the composer from here.
+- [ ] **Writing tags into files** works for MP3, M4A and FLAC only; the cover is written from single-song *Edit info*, not from the several-songs dialog.
 
 ### 3. Audio effects (the owner's choice to wait)
 - [ ] Our own effects beyond the 10-band equalizer and the compressor: stereo width, a real bass boost and reverb (these would need our own audio processing, which `just_audio` has no hook for).
