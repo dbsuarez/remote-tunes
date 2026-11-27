@@ -138,6 +138,9 @@ The first time, add your music folder once with **Add folder**; it is remembered
 ### Crossfade (Settings > Crossfade, 0 to 12 seconds)
 One song fades out while the next fades in. Works between songs that are files on this phone. **Off** gives normal gapless (no gap, no fade).
 
+### Skip silent endings (Settings > search *silent*, on from the start)
+When a song ends in more than 5 seconds of silence, the next one starts a second after the sound stops (with Crossfade on, the fade begins there). Quiet parts in the middle are not touched, and audiobooks are left alone.
+
 ### Even out loudness (Settings)
 Off / By song / By album. Turns loud songs **down** to the level in their Replay Gain tags (it never turns a song up). Run *Update tags from files* first; songs with no tags are unchanged.
 
@@ -150,7 +153,8 @@ Moving bars under the cover. **Show or hide them with the button just left of th
 
 **Song menu > Edit info:** title, artist, album, track number. **Look up this song** (one button there) asks MusicBrainz for the details, the Cover Art Archive for the cover and the lyrics sources for the lyrics, and lets you choose what to use; only the title, artist, album and length are sent. To fix many songs at once, pick several and choose Edit info: only the fields they share (artist, album, album artist, genre, year, composer) can be changed.
 - By default this only changes **how RemoteTunes lists the song**; the file is untouched.
-- **Also write into the music file** is ticked from the start, so the file's tags change too (so other players see it). Android may refuse files in shared folders. Then it says *Saved in RemoteTunes only*. Fix: **Settings > All files access**, which opens Android's page for the app; switch it on, come back (the row says Allowed), save again.
+- **Choose a cover picture** takes a picture from the phone: move and zoom it in the square, then the tick. Saving puts it on **every song of that album** (only that song if it has no album). It needs *All files access* to show pictures.
+- **Also write into the music file** is ticked from the start, so the file's tags change too (so other players see it), and a chosen or looked-up cover goes **into each of those files**. Only what you changed is rewritten; lyrics, loudness values and other tags stay. This works for **MP3, M4A and FLAC**; other kinds keep the change in RemoteTunes only. Android may refuse files in shared folders. Then it says *Saved in RemoteTunes only*. Fix: **Settings > All files access**, which opens Android's page for the app; switch it on, come back (the row says Allowed), save again.
 
 ---
 

@@ -72,6 +72,12 @@ class _RemoteTunesAppState extends ConsumerState<RemoteTunesApp> with WidgetsBin
           ?.localEngine
           .setCrossfade(settings.crossfadeSeconds)
           .catchError((Object _) {});
+      ref
+          .read(playerCoreProvider)
+          .valueOrNull
+          ?.localEngine
+          .setSkipSilence(settings.skipSilence)
+          .catchError((Object _) {});
     });
     ref.listen(searchHistoryProvider, (prev, next) {
       if (prev == null || identical(prev, next)) return;

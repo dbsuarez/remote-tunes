@@ -191,6 +191,23 @@ final List<_Group> _groups = [
         },
       ),
       _Entry(
+        id: 'skip-silence',
+        title: 'Skip silent endings',
+        keywords: 'silence silent end quiet skip next song gap',
+        build: (c) => SwitchListTile(
+          key: const Key('skip-silence'),
+          contentPadding: EdgeInsets.zero,
+          secondary: const Icon(Icons.skip_next_rounded),
+          title: const Text('Skip silent endings'),
+          subtitle: const Text(
+            'When a song ends in more than 5 seconds of silence, the next one starts. Quiet parts in the '
+            'middle are left alone. Not for audiobooks.',
+          ),
+          value: c.s.skipSilence,
+          onChanged: c.repo.setSkipSilence,
+        ),
+      ),
+      _Entry(
         id: 'loudness',
         title: 'Even out loudness',
         keywords: 'loudness replay gain volume normalise tags',

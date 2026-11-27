@@ -33,6 +33,7 @@ class SettingKeys {
   static const startMode = 'start_mode';
   static const replayGainMode = 'replay_gain_mode';
   static const crossfadeSeconds = 'crossfade_seconds';
+  static const skipSilence = 'skip_silence';
   static const skinId = 'skin_id';
   static const queueScrollToCurrent = 'queue_scroll_to_current';
   static const visualizer = 'visualizer';
@@ -103,6 +104,7 @@ class AppSettings {
     this.startMode = StartMode.thisPhone,
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
+    this.skipSilence = true,
     this.skinId = Skin.defaultId,
     this.queueScrollToCurrent = true,
     this.visualizerEnabled = false,
@@ -161,6 +163,9 @@ class AppSettings {
 
   /// Seconds one song fades into the next (0: off, up to 12).
   final int crossfadeSeconds;
+
+  /// A long silent end of a song is skipped.
+  final bool skipSilence;
 
   /// The skin in use (a built-in one or one that was added).
   final String skinId;
@@ -249,6 +254,7 @@ class AppSettings {
       startMode: StartModeX.parse(m[SettingKeys.startMode]),
       replayGainMode: ReplayGainModeX.parse(m[SettingKeys.replayGainMode]),
       crossfadeSeconds: (int.tryParse(m[SettingKeys.crossfadeSeconds] ?? '') ?? 0).clamp(0, 12),
+      skipSilence: m[SettingKeys.skipSilence] != 'false',
       skinId: m[SettingKeys.skinId] ?? Skin.defaultId,
       queueScrollToCurrent: m[SettingKeys.queueScrollToCurrent] != 'false',
       visualizerEnabled: m[SettingKeys.visualizer] == 'true',
@@ -408,6 +414,8 @@ class SettingsRepository {
 
   Future<void> setCustomSkins(List<Skin> skins) => _put(
       SettingKeys.customSkins, jsonEncode([for (final s in skins) s.toJson()]));
+
+  Future<void> setSkipSilence(bool v) => _put(SettingKeys.skipSilence, v.toString());
 
   Future<void> setCrossfadeSeconds(int v) =>
       _put(SettingKeys.crossfadeSeconds, v.clamp(0, 12).toString());

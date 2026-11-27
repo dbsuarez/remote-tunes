@@ -16,6 +16,7 @@ import '../update/update_controller.dart';
 import '../update/update_widgets.dart';
 import '../player/visualizer.dart';
 import '../library/tag_writer.dart';
+import '../library/cover_picker.dart';
 import '../../core/constants.dart';
 import '../../core/haptics.dart';
 import '../../core/models/enums.dart';
@@ -675,6 +676,7 @@ class _LibraryTab extends ConsumerWidget {
       canWriteTags: local,
       onEditSongs: local ? (context, ids) => editSelectedSongs(context, ref, ids) : null,
       songLookup: local ? ref.read(songLookupProvider) : null,
+      pickCover: local ? ref.read(coverPickerProvider) : null,
       onUploadToCloud: local ? (ctx, ids) => uploadSongsToCloud(ctx, ref, ids) : null,
       listMemory: local ? ref.watch(playerCoreProvider).valueOrNull?.audiobooks : null,
       onSetAudiobook: local
@@ -697,7 +699,7 @@ class _LibraryTab extends ConsumerWidget {
                 album: e.album,
                 trackNumber: e.trackNumber,
               );
-              // A cover chosen in the look-up becomes the album's picture.
+              // A chosen cover (from the phone or the look-up) becomes the album's picture.
               if (saved && e.cover != null) {
                 await ref.read(songLookupProvider).applyCover(song.id, e.cover!);
                 SongArt.forgetAll();
@@ -711,6 +713,18 @@ class _LibraryTab extends ConsumerWidget {
                       artist: e.artist.trim().isEmpty ? 'Unknown artist' : e.artist.trim(),
                       album: e.album.trim().isEmpty ? 'Unknown album' : e.album.trim(),
                       trackNumber: e.trackNumber));
+                }
+                // The cover goes into every file it is now the picture of.
+                final cover = e.cover;
+                final art = row?.albumArtPath;
+                if (cover != null && art != null) {
+                  final files = await library.filesShowingArt(art);
+                  final results = <TagWriteResult>[];
+                  for (final file in files) {
+                    results.add(const TagWriter().writeCover(file, cover.bytes));
+                    await Future<void>.delayed(Duration.zero); // the screen keeps moving
+                  }
+                  e.fileNote = '${e.fileNote ?? 'Saved'}. ${TagWriter.coverMessage(results)}';
                 }
               }
               return saved;

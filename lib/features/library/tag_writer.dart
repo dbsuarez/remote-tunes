@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
+
+import 'tag_editor.dart';
 
 /// What happened when tags were written into a music file.
 enum TagWriteResult {
@@ -19,8 +22,9 @@ enum TagWriteResult {
   failed,
 }
 
-/// Writes title, artist, album and track number into the music file itself
-/// (MP3, M4A, FLAC, WAV...), keeping the other tags (cover, lyrics, ...).
+/// Writes tags and cover pictures into MP3, M4A and FLAC files. Only what is changed is rewritten
+/// ([rewriteTags]), so lyrics, loudness values and other tags stay. Other kinds are left untouched:
+/// the tag library's writers lose tags, and its WAV writer changes the sound itself.
 ///
 /// On newer Android versions an app cannot change files in shared folders
 /// unless it has been given that right, so [notAllowed] is a normal outcome.
@@ -34,89 +38,111 @@ class TagWriter {
     required String album,
     int? trackNumber,
   }) {
-    final file = File(path);
-    if (!file.existsSync()) return TagWriteResult.missing;
-    try {
-      updateMetadata(file, (m) {
-        m.setTitle(title);
-        m.setArtist(artist);
-        m.setAlbum(album);
-        m.setTrackNumber(trackNumber);
-      });
-      // The library does nothing (and says nothing) for a file it does not
-      // recognise: only what reads back counts.
-      final back = readMetadata(file, getImage: false);
-      return back.title == title ? TagWriteResult.written : TagWriteResult.unsupported;
-    } on FileSystemException {
-      return TagWriteResult.notAllowed;
-    } on UnsupportedError {
-      return TagWriteResult.unsupported;
-    } on NoMetadataParserException {
-      return TagWriteResult.unsupported;
-    } catch (_) {
-      return TagWriteResult.failed;
-    }
+    return _safely(
+      path,
+      fields: {
+        TagField.title: title,
+        TagField.artist: artist,
+        TagField.album: album,
+        TagField.track: trackNumber?.toString(),
+      },
+      // Only what reads back counts.
+      check: (before, after) => after.title == title,
+    );
   }
 
   /// Writes only the fields that songs can share: [changes] has the keys `artist`, `album`,
   /// `albumArtist`, `genre`, `year` (an int) and `composer`; a null value clears that field.
-  /// Title and track number are never touched. Fields a kind of file has no place for (an album
-  /// artist in an M4A, for example) are skipped.
+  /// Title and track number are never touched.
   TagWriteResult writeGroup(String path, Map<String, Object?> changes) {
+    const names = {
+      'artist': TagField.artist,
+      'album': TagField.album,
+      'albumArtist': TagField.albumArtist,
+      'genre': TagField.genre,
+      'year': TagField.year,
+      'composer': TagField.composer,
+    };
+    return _safely(
+      path,
+      fields: {
+        for (final e in changes.entries)
+          if (names[e.key] case final field?) field: e.value?.toString(),
+      },
+      // (The artist is not compared: read back, an MP3 with an album artist gives that instead.)
+      check: (before, after) => changes['album'] == null || after.album == changes['album'],
+    );
+  }
+
+  /// Writes a changed copy of the file, checks it, and only then lets it take the file's place, so a
+  /// song cannot be left half written.
+  TagWriteResult _safely(
+    String path, {
+    Map<TagField, String?> fields = const {},
+    Uint8List? cover,
+    required bool Function(AudioMetadata before, AudioMetadata after) check,
+  }) {
     final file = File(path);
     if (!file.existsSync()) return TagWriteResult.missing;
+    final copy = File('$path.rtcover');
     try {
-      updateMetadata(file, (m) {
-        for (final e in changes.entries) {
-          final v = e.value;
-          switch (e.key) {
-            case 'artist':
-              m.setArtist(v as String?);
-            case 'album':
-              m.setAlbum(v as String?);
-            case 'genre':
-              m.setGenres(v == null ? const [] : [v as String]);
-            case 'year':
-              m.setYear(v == null ? null : DateTime(v as int));
-            case 'albumArtist':
-              final s = v as String?;
-              if (m is Mp3Metadata) {
-                m.bandOrOrchestra = s;
-              } else if (m is VorbisMetadata) {
-                m.albumArtist = s == null ? [] : [s];
-              } else if (m is ApeMetadata) {
-                m.albumArtist = s;
-              }
-            case 'composer':
-              final s = v as String?;
-              if (m is Mp3Metadata) {
-                m.composer = s;
-              } else if (m is VorbisMetadata) {
-                m.composer = s == null ? [] : [s];
-              } else if (m is ApeMetadata) {
-                m.composer = s;
-              }
-          }
+      if (!rewriteTags(file, copy, fields, cover: cover)) return TagWriteResult.unsupported;
+      final before = readMetadata(file, getImage: false);
+      final after = readMetadata(copy, getImage: cover != null);
+      // Only what reads back counts.
+      if (!check(before, after)) return TagWriteResult.unsupported;
+      if (cover != null) {
+        if (!after.pictures.any((p) => _same(p.bytes, cover))) return TagWriteResult.unsupported;
+        // The words must still be there.
+        if (after.title != before.title || after.artist != before.artist || after.album != before.album) {
+          return TagWriteResult.failed;
         }
-      });
-      // Only what reads back counts (the library ignores files it does not know).
-      final back = readMetadata(file, getImage: false);
-      if (changes.containsKey('artist') && changes['artist'] != null && back.artist != changes['artist']) {
-        return TagWriteResult.unsupported;
       }
-      if (changes.containsKey('album') && changes['album'] != null && back.album != changes['album']) {
-        return TagWriteResult.unsupported;
-      }
+      copy.renameSync(path);
       return TagWriteResult.written;
     } on FileSystemException {
       return TagWriteResult.notAllowed;
+    } on TagUnsupported {
+      return TagWriteResult.unsupported;
     } on UnsupportedError {
       return TagWriteResult.unsupported;
     } on NoMetadataParserException {
       return TagWriteResult.unsupported;
     } catch (_) {
       return TagWriteResult.failed;
+    } finally {
+      try {
+        if (copy.existsSync()) copy.deleteSync();
+      } catch (_) {}
     }
+  }
+
+  /// Puts [picture] (a JPEG) into the music file as its front cover (MP3, M4A and FLAC).
+  TagWriteResult writeCover(String path, Uint8List picture) =>
+      _safely(path, cover: picture, check: (_, __) => true);
+
+  static bool _same(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// What happened to the cover across the files it was written into.
+  static String coverMessage(List<TagWriteResult> results) {
+    if (results.isEmpty) return 'Cover saved in RemoteTunes';
+    final done = results.where((r) => r == TagWriteResult.written).length;
+    final n = results.length;
+    if (done == n) return n == 1 ? 'Cover written into the music file' : 'Cover written into $n music files';
+    final why = results.firstWhere((r) => r != TagWriteResult.written);
+    final reason = switch (why) {
+      TagWriteResult.missing => 'a file was not found',
+      TagWriteResult.notAllowed => 'Android does not let the app change them (Settings > All files access)',
+      TagWriteResult.unsupported => 'this kind of file cannot take a picture',
+      _ => 'a file could not be changed',
+    };
+    return done == 0 ? 'Cover saved in RemoteTunes only: $reason' : 'Cover written into $done of $n files: $reason';
   }
 
   /// A plain sentence for the result, shown after saving.

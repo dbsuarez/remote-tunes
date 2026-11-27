@@ -16,6 +16,7 @@ import 'group_sync_source.dart';
 import 'queue/queue_controller.dart';
 import 'queue/queue_store.dart';
 import 'queue_aware_engine.dart';
+import 'silence_finder.dart';
 import 'url_checker.dart';
 
 /// The real Player engine: a [QueueController] driving an [AudioBackend].
@@ -36,6 +37,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     this.onStreamStarted,
     this.queueStore,
     this.formatReader,
+    this.soundEnd,
   })  : _backend = backend,
         _queue = queue ?? QueueController(),
         _volume = initialVolume.clamp(0.0, 1.0),
@@ -140,6 +142,71 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   /// line; null: not shown.
   final Future<String?> Function(String path)? formatReader;
   String _format = '';
+
+  // ---------------------------------------------------------- silent ends
+
+  /// Finds where a song falls silent (null: songs play to their end).
+  final Future<SoundEnd?> Function(String path)? soundEnd;
+
+  /// A silent end longer than this is skipped, this long after the sound stops.
+  static const longSilence = Duration(seconds: 5);
+  static const silenceKept = Duration(seconds: 1);
+
+  bool _skipSilence = false;
+
+  /// Where the loaded song is to be left, in ms, if its end is silent.
+  int? _cutMs;
+  bool _cutDone = false;
+
+  Future<void> setSkipSilence(bool skip) => _serial(() async {
+        if (_skipSilence == skip) return;
+        _skipSilence = skip;
+        final current = _queue.current;
+        if (current != null && current.id == _loadedEntryId) {
+          _findCut(current);
+        } else {
+          _cutMs = null;
+        }
+      });
+
+  /// Looks for the silent end of [entry], just loaded, without holding anything up. Audiobooks and
+  /// internet streams are left alone.
+  void _findCut(QueueEntry entry) {
+    _cutMs = null;
+    _cutDone = false;
+    final finder = soundEnd;
+    final path = entry.song.filePath;
+    if (!_skipSilence || finder == null || path == null || _isBook(entry.song)) return;
+    unawaited(() async {
+      SoundEnd? found;
+      try {
+        found = await finder(path);
+      } catch (_) {
+        found = null;
+      }
+      if (found == null || _disposed || !_skipSilence || _loadedEntryId != entry.id) return;
+      if (found.durationMs - found.endMs <= longSilence.inMilliseconds) return;
+      _cutMs = found.endMs + silenceKept.inMilliseconds;
+      PlaybackLog.add('engine: entry ${entry.id} is silent from ${found.endMs} of ${found.durationMs} ms');
+    }());
+  }
+
+  /// At the cut the song counts as finished: the next one starts.
+  void _maybeSkipSilence(Duration position) {
+    final cut = _cutMs;
+    if (cut == null) return;
+    // Back before it (repeat one, or a seek): it can happen again.
+    if (position.inMilliseconds < cut - 1000) _cutDone = false;
+    if (_cutDone || _crossfading || !_playing || position.inMilliseconds < cut) return;
+    final id = _loadedEntryId;
+    if (id == null) return;
+    _cutDone = true;
+    _serial(() async {
+      if (_loadedEntryId != id || !_playing || _crossfading) return;
+      PlaybackLog.add('engine: the rest of entry $id is silence, moving on');
+      await _onCompleted();
+    }).catchError((Object _) {});
+  }
 
   /// Saves the queue so it survives a restart (null: not saved).
   final QueueStore? queueStore;
@@ -385,6 +452,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     final song = next.song;
     _endTracking(finished: true);
     _loadedEntryId = next.id;
+    _findCut(next);
     if (_replayGain != ReplayGainMode.off) {
       unawaited(_backend.setVolume(_effectiveVolume()));
     }
@@ -538,6 +606,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     }());
     // The screen shows the new song now.
     _loadedEntryId = entry.id;
+    _findCut(entry);
     _readFormat(entry);
     _positionSeconds = 0;
     _durationSeconds = song.durationSeconds;
@@ -557,12 +626,17 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   void _maybeCrossfade(Duration position) {
     if (!_crossfadeActive || _crossfading || !_playing || _loadedEntryId == null) return;
     final len = _crossfadeSeconds;
+    // A song with a silent end fades out where its sound stops.
+    final cut = _cutMs;
+    final endMs = cut ?? _durationSeconds * 1000;
     // Songs too short to fade (twice the fade, plus a little) just change.
-    if (_durationSeconds < 2 * len + 6) return;
+    if (endMs < (2 * len + 6) * 1000) return;
     // Started a little early: the next song loads (a cold player is slow) and the
     // backend begins the fade at exactly the right moment.
-    final remainingMs = _durationSeconds * 1000 - position.inMilliseconds;
-    if (remainingMs > len * 1000 + 2500 || remainingMs < 0) return;
+    final remainingMs = endMs - position.inMilliseconds;
+    // At a cut the backend cannot time the fade itself (the file goes on), so it starts at once.
+    final early = cut == null ? 2500 : 500;
+    if (remainingMs > len * 1000 + early || (cut == null && remainingMs < 0)) return;
     final cur = _queue.current;
     if (cur == null || cur.id != _loadedEntryId) return;
     final next = _queue.peekNext();
@@ -584,7 +658,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     unawaited(() async {
       var ok = false;
       try {
-        ok = await _backend.crossfadeTo(path, Duration(seconds: len));
+        ok = await _backend.crossfadeTo(path, Duration(seconds: len), immediate: cut != null);
       } catch (_) {
         ok = false;
       }
@@ -600,6 +674,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     if (_manualFade != null) return;
     _trackListening(d);
     _maybeCrossfade(d);
+    _maybeSkipSilence(d);
     final s = d.inSeconds;
     if (s != _positionSeconds && _loadedEntryId != null) {
       _positionSeconds = s;
@@ -665,6 +740,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
               ? await _backend.loadUrl(song.url!)
               : await _backend.load(path!);
           _loadedEntryId = current.id;
+          _findCut(current);
           if (_replayGain != ReplayGainMode.off) await _backend.setVolume(_effectiveVolume());
           // Loading cleared whatever was lined up behind the old track.
           _crossfading = false;

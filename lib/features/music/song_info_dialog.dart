@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/protocol/library_models.dart';
+import '../../core/utils/album_name.dart';
 import '../library/lookup_models.dart';
 import 'song_lookup_sheet.dart';
 
@@ -32,15 +33,20 @@ class SongInfoEdit {
 
 /// Asks for new details for [song]; null if cancelled.
 Future<SongInfoEdit?> showSongInfoDialog(BuildContext context, RemoteSong song,
-    {bool canWriteFile = false, SongLookupService? lookup}) {
+    {bool canWriteFile = false,
+    SongLookupService? lookup,
+    Future<LookupCover?> Function(BuildContext context)? pickCover}) {
   return showDialog<SongInfoEdit>(
     context: context,
-    builder: (_) => _SongInfoDialog(song: song, canWriteFile: canWriteFile, lookup: lookup),
+    builder: (_) => _SongInfoDialog(song: song, canWriteFile: canWriteFile, lookup: lookup, pickCover: pickCover),
   );
 }
 
 class _SongInfoDialog extends StatefulWidget {
-  const _SongInfoDialog({required this.song, required this.canWriteFile, this.lookup});
+  const _SongInfoDialog({required this.song, required this.canWriteFile, this.lookup, this.pickCover});
+
+  /// Chooses a picture on this phone as the cover (null: no button).
+  final Future<LookupCover?> Function(BuildContext context)? pickCover;
 
   final RemoteSong song;
   final bool canWriteFile;
@@ -76,6 +82,19 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
 
   LookupCover? _cover;
   String? _lookupNote;
+
+  Future<void> _choosePicture() async {
+    final cover = await widget.pickCover!(context);
+    if (cover == null || !mounted) return;
+    setState(() => _cover = cover);
+  }
+
+  /// Which songs a cover goes to.
+  String get _coverNote {
+    final songs = isRealAlbum(_album.text.trim()) ? 'every song of this album' : 'this song';
+    final files = widget.canWriteFile && _writeToFile ? ', and into the music file${isRealAlbum(_album.text.trim()) ? 's' : ''}' : '';
+    return 'Save puts this picture on $songs$files.';
+  }
 
   /// Looks the song up, and fills in what was chosen (nothing is saved until Save).
   Future<void> _lookUp() async {
@@ -150,12 +169,48 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
               controller: _album,
               maxLength: 200,
               decoration: const InputDecoration(labelText: 'Album'),
+              onChanged: (_) => setState(() {}),
             ),
             TextField(
               controller: _track,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Track number'),
             ),
+            if (widget.pickCover != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const Key('choose-cover'),
+                  onPressed: _choosePicture,
+                  icon: const Icon(Icons.image_rounded),
+                  label: Text(_cover == null ? 'Choose a cover picture' : 'Choose another picture'),
+                ),
+              ),
+            if (_cover != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(_cover!.bytes,
+                          key: const Key('cover-preview'),
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, size: 48)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_coverNote, style: Theme.of(context).textTheme.bodySmall)),
+                    IconButton(
+                      key: const Key('cover-clear'),
+                      tooltip: 'Keep the cover as it is',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => setState(() => _cover = null),
+                    ),
+                  ],
+                ),
+              ),
             if (widget.lookup != null)
               Align(
                 alignment: Alignment.centerLeft,

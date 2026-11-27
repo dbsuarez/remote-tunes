@@ -692,6 +692,15 @@ class LibraryRepository {
         updates: {_db.songs},
       );
 
+  /// The files of the songs on this phone that show this picture.
+  Future<List<String>> filesShowingArt(String art) async {
+    final rows = await _db.customSelect(
+      'SELECT file_path AS f FROM songs WHERE album_art_path = ? AND file_path IS NOT NULL',
+      variables: [Variable<String>(art)],
+    ).get();
+    return [for (final r in rows) r.read<String>('f')];
+  }
+
   /// How many songs use this album-art file.
   Future<int> songsUsingArt(String path) async {
     final row = await _db.customSelect(

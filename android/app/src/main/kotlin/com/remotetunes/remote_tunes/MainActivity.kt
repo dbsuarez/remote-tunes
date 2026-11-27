@@ -13,6 +13,7 @@ class MainActivity : AudioServiceActivity() {
     private var updateSupport: UpdateSupport? = null
     private var visualizerSupport: VisualizerSupport? = null
     private var dynamicsSupport: DynamicsSupport? = null
+    private var silenceSupport: SilenceSupport? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +60,7 @@ class MainActivity : AudioServiceActivity() {
         updateSupport = UpdateSupport(this, flutterEngine.dartExecutor.binaryMessenger)
         visualizerSupport = VisualizerSupport(flutterEngine.dartExecutor.binaryMessenger)
         dynamicsSupport = DynamicsSupport(flutterEngine.dartExecutor.binaryMessenger)
+        silenceSupport = SilenceSupport(flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -72,6 +74,8 @@ class MainActivity : AudioServiceActivity() {
         visualizerSupport = null
         dynamicsSupport?.dispose()
         dynamicsSupport = null
+        silenceSupport?.dispose()
+        silenceSupport = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

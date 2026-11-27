@@ -110,6 +110,7 @@ class MusicBrowser extends StatefulWidget {
     this.canWriteTags = false,
     this.onEditSongs,
     this.songLookup,
+    this.pickCover,
     this.looks = const {},
     this.onLook,
     this.listMemory,
@@ -167,6 +168,9 @@ class MusicBrowser extends StatefulWidget {
 
   /// Looks a song up on the internet from Edit info (this phone's library only).
   final SongLookupService? songLookup;
+
+  /// Chooses a picture on this phone as a song's cover, from Edit info (this phone's library only).
+  final Future<LookupCover?> Function(BuildContext context)? pickCover;
 
   /// How each kind of song list is drawn, and how to remember a change (null: no List options,
   /// e.g. on the web Controller).
@@ -980,7 +984,7 @@ class _MusicBrowserState extends State<MusicBrowser> {
             ? null
             : () async {
                 final edit = await showSongInfoDialog(context, song,
-                    canWriteFile: widget.canWriteTags, lookup: widget.songLookup);
+                    canWriteFile: widget.canWriteTags, lookup: widget.songLookup, pickCover: widget.pickCover);
                 if (edit == null) return;
                 await _run(() async {
                   if (!await widget.onEditSong!(song, edit)) {

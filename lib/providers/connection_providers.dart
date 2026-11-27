@@ -31,6 +31,7 @@ import '../features/online/supabase_relay.dart';
 import '../features/player/audio/audio_backend.dart';
 import '../features/player/audio/audio_format.dart';
 import '../features/player/audio/crossfade_backend.dart';
+import '../features/player/silence_finder.dart';
 import '../features/player/audio/player_audio_handler.dart';
 import '../features/player/eq/equalizer_controller.dart';
 import '../features/player/eq/settings_eq_store.dart';
@@ -87,9 +88,11 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
     onStreamStarted: (s) => unawaited(library.recordStream(s).catchError((Object _) {})),
     queueStore: DriftQueueStore(ref.watch(databaseProvider)),
     formatReader: AudioFormatReader().describe,
+    soundEnd: SilenceFinder().find,
   );
   unawaited(localEngine.setReplayGainMode(settings.replayGainMode));
   unawaited(localEngine.setCrossfade(settings.crossfadeSeconds));
+  unawaited(localEngine.setSkipSilence(settings.skipSilence));
   // Shuffle and repeat come back as they were left (and are kept whenever they
   // change).
   try {

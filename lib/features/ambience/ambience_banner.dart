@@ -42,7 +42,8 @@ class BannerFraming {
   /// After a drag of [by] screen points over a frame [frameWidth] wide, and zoomed to [zoom].
   BannerFraming moved(Size image, double frameWidth, Offset by, {double? zoom, double? aspect}) {
     final z = (zoom ?? this.zoom).clamp(1.0, ambienceMaxZoom).toDouble();
-    final a = (aspect ?? this.aspect).clamp(ambienceTallestBanner, ambienceFlattestBanner).toDouble();
+    // Only a new height is held to what a banner may be (a cover stays square).
+    final a = aspect == null ? this.aspect : aspect.clamp(ambienceTallestBanner, ambienceFlattestBanner).toDouble();
     final part = BannerFraming(zoom: z, x: x, y: y, aspect: a).partOf(image);
     final perPoint = part.width / frameWidth;
     final centre = part.center - by * perPoint;
@@ -87,11 +88,27 @@ Future<Uint8List> renderBanner(ui.Image image, BannerFraming framing, {int width
 
 /// Drag and zoom a picture inside the banner's frame, and set the banner's height. Pops a [BannerResult].
 class BannerCropScreen extends StatefulWidget {
-  const BannerCropScreen({super.key, required this.bytes, required this.group, this.framing = const BannerFraming()});
+  const BannerCropScreen(
+      {super.key,
+      required this.bytes,
+      required this.group,
+      this.framing = const BannerFraming(),
+      this.title,
+      this.square = false,
+      this.render});
 
   final Uint8List bytes;
   final String group;
   final BannerFraming framing;
+
+  /// The words at the top (default: "Banner of ...").
+  final String? title;
+
+  /// The frame keeps its shape: no height slider (used for cover pictures).
+  final bool square;
+
+  /// Makes the finished picture (default: a banner PNG).
+  final Future<Uint8List> Function(ui.Image image, BannerFraming framing)? render;
 
   @override
   State<BannerCropScreen> createState() => _BannerCropScreenState();
@@ -138,7 +155,7 @@ class _BannerCropScreenState extends State<BannerCropScreen> {
     if (image == null || _saving) return;
     setState(() => _saving = true);
     try {
-      final png = await renderBanner(image, _framing);
+      final png = await (widget.render ?? renderBanner)(image, _framing);
       if (mounted) Navigator.pop<BannerResult>(context, (png: png, framing: _framing));
     } catch (_) {
       if (!mounted) return;
@@ -153,7 +170,7 @@ class _BannerCropScreenState extends State<BannerCropScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text('Banner of ${widget.group}', maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(widget.title ?? 'Banner of ${widget.group}', maxLines: 1, overflow: TextOverflow.ellipsis),
         leading: IconButton(
           key: const Key('banner-cancel'),
           tooltip: 'Cancel',
@@ -176,28 +193,37 @@ class _BannerCropScreenState extends State<BannerCropScreen> {
               : LayoutBuilder(
                   builder: (context, box) {
                     final width = box.maxWidth;
+                    final dragWidth = widget.square ? min(width, box.maxHeight * 0.65) : width;
                     final size = Size(image.width.toDouble(), image.height.toDouble());
                     return GestureDetector(
                       // Anywhere on the screen moves the picture; two fingers zoom.
                       key: const Key('banner-drag'),
                       behavior: HitTestBehavior.opaque,
                       onScaleStart: (_) => _zoomAtStart = _framing.zoom,
-                      onScaleUpdate: (d) => setState(() => _framing = _framing.moved(size, width, d.focalPointDelta,
+                      onScaleUpdate: (d) => setState(() => _framing = _framing.moved(size, dragWidth, d.focalPointDelta,
                           zoom: d.pointerCount > 1 ? _zoomAtStart * d.scale : null)),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text('Drag to move. Pinch to zoom. The sliders set the zoom and the height.',
-                                textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                                widget.square
+                                    ? 'Drag to move. Pinch or use the slider to zoom.'
+                                    : 'Drag to move. Pinch to zoom. The sliders set the zoom and the height.',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white70)),
                           ),
-                          Container(
-                            width: width,
-                            height: width / _framing.aspect,
-                            foregroundDecoration: BoxDecoration(border: Border.all(color: Colors.white)),
-                            child: CustomPaint(painter: _BannerPainter(image, _framing)),
-                          ),
+                          // A square frame is held small enough to leave room for the slider.
+                          Builder(builder: (context) {
+                            final frame = widget.square ? min(width, box.maxHeight * 0.65) : width;
+                            return Container(
+                              width: frame,
+                              height: frame / _framing.aspect,
+                              foregroundDecoration: BoxDecoration(border: Border.all(color: Colors.white)),
+                              child: CustomPaint(painter: _BannerPainter(image, _framing)),
+                            );
+                          }),
                           Padding(
                             padding: const EdgeInsets.all(16),
                             child: Row(
@@ -216,7 +242,7 @@ class _BannerCropScreenState extends State<BannerCropScreen> {
                               ],
                             ),
                           ),
-                          Padding(
+                          if (!widget.square) Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Row(
                               children: [
