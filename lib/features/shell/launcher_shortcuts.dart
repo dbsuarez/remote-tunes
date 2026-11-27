@@ -3,13 +3,17 @@ import 'package:quick_actions/quick_actions.dart';
 
 const shortcutPlayer = 'player';
 const shortcutAmbience = 'ambience';
+const shortcutAudiobooks = 'audiobooks';
+const shortcutCloud = 'cloud';
+const shortcutOnline = 'online';
 
 /// The choices shown when the app's icon on the home screen is held.
 abstract class LauncherShortcuts {
   /// Calls [onChosen] with the shortcut the app was opened by, now or later.
   Future<void> listen(void Function(String type) onChosen);
 
-  /// Offers the player, and Ambience under [ambienceName].
+  /// Offers the player, Ambience under [ambienceName], and the audio books, cloud and online libraries.
+  /// (Some home screens show only the first four.)
   Future<void> set(String ambienceName);
 }
 
@@ -31,6 +35,9 @@ class PhoneLauncherShortcuts implements LauncherShortcuts {
       await _actions.setShortcutItems([
         const ShortcutItem(type: shortcutPlayer, localizedTitle: 'Player', icon: 'ic_shortcut_player'),
         ShortcutItem(type: shortcutAmbience, localizedTitle: ambienceName, icon: 'ic_shortcut_ambience'),
+        const ShortcutItem(type: shortcutAudiobooks, localizedTitle: 'Audio Books', icon: 'ic_shortcut_audiobooks'),
+        const ShortcutItem(type: shortcutCloud, localizedTitle: 'Cloud Library', icon: 'ic_shortcut_cloud'),
+        const ShortcutItem(type: shortcutOnline, localizedTitle: 'Online Library', icon: 'ic_shortcut_online'),
       ]);
     } catch (_) {}
   }

@@ -58,6 +58,14 @@ class _Drill {
   final int? folderId;
 }
 
+/// Opens one of the Library's extra rows as a page of its own.
+void openLibraryExtra(NavigatorState navigator, LibraryExtra extra) => navigator.push(MaterialPageRoute<void>(
+      builder: (ctx) => Scaffold(
+        appBar: AppBar(title: Text(extra.title)),
+        body: SafeArea(child: extra.builder(ctx)),
+      ),
+    ));
+
 /// An extra row on the Library list (for example the Online Library) that opens
 /// its own page.
 class LibraryExtra {
@@ -123,10 +131,14 @@ class MusicBrowser extends StatefulWidget {
     this.initialTarget,
     this.extraCategories = const [],
     this.startOnPlaylists = false,
+    this.startOnAudiobooks = false,
   });
 
   /// Open straight on the playlists (the menu's Playlists shortcut).
   final bool startOnPlaylists;
+
+  /// Open straight on the audiobooks (the home-screen shortcut).
+  final bool startOnAudiobooks;
 
   /// More rows for the category list (home-list mode only).
   final List<LibraryExtra> extraCategories;
@@ -192,7 +204,9 @@ class MusicBrowser extends StatefulWidget {
 }
 
 class _MusicBrowserState extends State<MusicBrowser> {
-  late _Scope _scope = widget.startOnPlaylists ? _Scope.playlists : _Scope.songs;
+  late _Scope _scope = widget.startOnPlaylists
+      ? _Scope.playlists
+      : (widget.startOnAudiobooks ? _Scope.audiobooks : _Scope.songs);
   late _Drill? _drill = widget.initialTarget == null
       ? null
       : _Drill(
@@ -312,8 +326,10 @@ class _MusicBrowserState extends State<MusicBrowser> {
   }
 
   /// Showing the list of categories (only with [MusicBrowser.homeList]).
-  late bool _home =
-      widget.homeList && widget.initialTarget == null && !widget.startOnPlaylists;
+  late bool _home = widget.homeList &&
+      widget.initialTarget == null &&
+      !widget.startOnPlaylists &&
+      !widget.startOnAudiobooks;
 
   static String _scopeTitle(_Scope s) => switch (s) {
         _Scope.songs => 'All Songs',
@@ -1465,12 +1481,7 @@ class _CategoryList extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () {
               Haptics.selection();
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (ctx) => Scaffold(
-                  appBar: AppBar(title: Text(e.title)),
-                  body: SafeArea(child: e.builder(ctx)),
-                ),
-              ));
+              openLibraryExtra(Navigator.of(context), e);
             },
           ),
       ],

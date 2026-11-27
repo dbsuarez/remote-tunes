@@ -74,6 +74,13 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// Changes to reopen the Library (the menu's Playlists shortcut).
   int _libraryNonce = 0;
   bool _libraryOnPlaylists = false;
+  bool _libraryOnAudiobooks = false;
+
+  /// What the tabs show now (null until the player is ready).
+  _Active? _shown;
+
+  /// A library page asked for by a shortcut before the player was ready.
+  String? _wanted;
 
   @override
   void initState() {
@@ -111,6 +118,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     GoRouter.maybeOf(context)?.go(AppRoutes.home);
     if (type == shortcutPlayer) {
       setState(() => _tab = 0);
+    } else if (type == shortcutAudiobooks) {
+      setState(() {
+        _tab = 1;
+        _libraryOnPlaylists = false;
+        _libraryOnAudiobooks = true;
+        _libraryNonce++;
+      });
+    } else if (type == shortcutCloud || type == shortcutOnline) {
+      setState(() {
+        _tab = 1;
+        _wanted = type;
+      });
     } else if (type == shortcutAmbience) {
       // After the pages above are gone, or this one would leave with them.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -118,6 +137,18 @@ class _AppShellState extends ConsumerState<AppShell> {
       });
       WidgetsBinding.instance.ensureVisualUpdate();
     }
+  }
+
+  /// Opens the Cloud or Online Library asked for, once the pages above are gone and the player is
+  /// ready.
+  void _openWanted() {
+    final wanted = _wanted;
+    final shown = _shown;
+    if (!mounted || wanted == null || shown == null) return;
+    _wanted = null;
+    final title = wanted == shortcutCloud ? 'Cloud Library' : 'Online Library';
+    final extra = shown.extraCategories.where((e) => e.title == title).firstOrNull;
+    if (extra != null) openLibraryExtra(Navigator.of(context, rootNavigator: true), extra);
   }
 
   /// Once, after the update that stopped songs with no album sharing a cover: takes the borrowed
@@ -234,6 +265,11 @@ class _AppShellState extends ConsumerState<AppShell> {
               suggestions: ref.watch(settingsProvider).valueOrNull?.onlineSuggestions ?? true);
     }
 
+    _shown = active;
+    if (_wanted != null && active != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openWanted());
+    }
+
     final size = ref.watch(songListSizeProvider);
     final title = remote ? (conn.playerName ?? 'Player') : 'RemoteTunes';
 
@@ -254,11 +290,13 @@ class _AppShellState extends ConsumerState<AppShell> {
         onLibrary: () => setState(() {
           _tab = 1;
           _libraryOnPlaylists = false;
+          _libraryOnAudiobooks = false;
           _libraryNonce++;
         }),
         onPlaylists: () => setState(() {
           _tab = 1;
           _libraryOnPlaylists = true;
+          _libraryOnAudiobooks = false;
           _libraryNonce++;
         }),
         onSearch: () => setState(() => _tab = 2),
@@ -338,6 +376,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           active: active,
                           size: size,
                           startOnPlaylists: _libraryOnPlaylists,
+                          startOnAudiobooks: _libraryOnAudiobooks,
                           onSearch: () => setState(() => _tab = 2),
                         ),
                         LibrarySearchScreen(source: active.source, size: size, embedded: true),
@@ -645,9 +684,11 @@ class _LibraryTab extends ConsumerWidget {
     required this.size,
     required this.onSearch,
     this.startOnPlaylists = false,
+    this.startOnAudiobooks = false,
   });
 
   final bool startOnPlaylists;
+  final bool startOnAudiobooks;
   final _Active active;
   final SongListSize size;
   final VoidCallback onSearch;
@@ -661,6 +702,7 @@ class _LibraryTab extends ConsumerWidget {
       enabled: active.enabled,
       homeList: true,
       startOnPlaylists: startOnPlaylists,
+      startOnAudiobooks: startOnAudiobooks,
       onSearch: onSearch,
       extraCategories: active.extraCategories,
       emptyMessage: local

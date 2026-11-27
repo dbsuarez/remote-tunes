@@ -1,3 +1,7 @@
+import 'package:remote_tunes/features/library/metadata_extractor.dart';
+import 'package:remote_tunes/features/library/import_service.dart';
+import 'package:remote_tunes/features/library/lookup_models.dart';
+import 'package:remote_tunes/features/library/cover_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -55,6 +59,11 @@ Song _song({
       skipCount: 0,
       infoEdited: false,
     );
+
+class _NoTags implements MetadataExtractor {
+  @override
+  Future<ExtractedMetadata> extract(String path) async => throw UnimplementedError();
+}
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -403,4 +412,81 @@ void main() {
       }
     });
   });
+
+  group('a cover for several songs', () {
+    late AppDatabase db;
+    late LibraryRepository repo;
+    late Directory dir;
+    setUp(() {
+      db = AppDatabase.forTesting(NativeDatabase.memory());
+      repo = LibraryRepository(db);
+      dir = Directory.systemTemp.createTempSync('grpcover');
+    });
+    tearDown(() async {
+      await db.close();
+      dir.deleteSync(recursive: true);
+    });
+
+    testWidgets('goes on the picked songs and into their files, not on others of the album', (tester) async {
+      final picture = Uint8List.fromList([0xFF, 0xD8, 1, 2, 3, 0xFF, 0xD9]);
+      final paths = [for (var i = 1; i <= 3; i++) (File('${dir.path}/s$i.mp3')..writeAsBytesSync(mp3())).path];
+      final ids = [
+        for (var i = 0; i < 3; i++)
+          await repo.addSong(title: 'Song $i', artist: 'Same', album: 'One', filePath: paths[i], durationSeconds: 100),
+      ];
+      tester.view.physicalSize = const Size(500, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      late BuildContext ctx;
+      late WidgetRef widgetRef;
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          libraryRepositoryProvider.overrideWithValue(repo),
+          coverPickerProvider.overrideWithValue((_) async => LookupCover(picture, 'jpg')),
+          importServiceProvider.overrideWith((ref) async => LibraryImportService(
+                library: repo,
+                extractor: _NoTags(),
+                libraryDir: Directory('${dir.path}/library'),
+                artDir: Directory('${dir.path}/art'),
+                exclusions: MemoryExclusionStore(),
+              )),
+        ],
+        child: MaterialApp(
+          home: Consumer(builder: (context, ref, _) {
+            ctx = context;
+            widgetRef = ref;
+            return const Scaffold(body: Text('home'));
+          }),
+        ),
+      ));
+      bool? changed;
+      editSelectedSongs(ctx, widgetRef, ids.sublist(0, 2)).then((v) => changed = v);
+      Future<void> waitFor(bool Function() ready) async {
+        for (var i = 0; i < 300 && !ready(); i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 15)));
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      }
+
+      await waitFor(() => find.byKey(const Key('choose-cover')).evaluate().isNotEmpty);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('group-save'))).onPressed, isNull);
+      await tester.tap(find.byKey(const Key('choose-cover')));
+      await tester.pump();
+      expect(find.text('Save puts this picture on these 2 songs, and into the music files.'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('group-save')));
+      await waitFor(() => changed != null);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(changed, isTrue);
+      expect(find.textContaining('Cover written into 2 music files'), findsOneWidget);
+      final art = await tester.runAsync(() => db.customSelect('SELECT album_art_path AS a FROM songs ORDER BY id').get());
+      final shown = [for (final r in art!) r.readNullable<String>('a')];
+      expect(shown[0], isNotNull);
+      expect(shown[1], shown[0]);
+      expect(shown[2], isNull);
+      expect(File(shown[0]!).readAsBytesSync(), picture);
+      expect(readMetadata(File(paths[0]), getImage: true).pictures.single.bytes, picture);
+      expect(File(paths[2]).readAsBytesSync(), mp3(), reason: 'not picked');
+    });
+  });
 }
+

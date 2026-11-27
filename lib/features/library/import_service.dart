@@ -709,6 +709,16 @@ class LibraryImportService {
     }
   }
 
+  /// Keeps [bytes] as a picture and makes it the cover of just these songs.
+  Future<void> setCoverOf(List<int> songIds, List<int> bytes, String ext) async {
+    await _artDir.create(recursive: true);
+    final path = p.join(_artDir.path, '${_uuid.v4()}.$ext');
+    await File(path).writeAsBytes(bytes, flush: true);
+    for (final id in songIds) {
+      await _library.setSongArt(id, path);
+    }
+  }
+
   /// Album art is stored once per artist+album and shared by its songs. A song with no album keeps
   /// its own picture.
   Future<String?> _storeArt(

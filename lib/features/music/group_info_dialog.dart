@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/database/app_database.dart' show Song;
+import '../library/cover_picker.dart';
+import '../library/lookup_models.dart' show LookupCover;
+import 'song_art.dart';
 import '../../providers/library_providers.dart';
 import '../library/tag_writer.dart';
 
 /// What was chosen in the group dialog: only the fields that were changed.
 class GroupInfoEdit {
-  const GroupInfoEdit({required this.changes, required this.writeToFile});
+  const GroupInfoEdit({required this.changes, required this.writeToFile, this.cover});
+
+  /// A picture for these songs, or null to leave their covers.
+  final LookupCover? cover;
 
   /// Keys: `artist`, `album`, `albumArtist`, `genre`, `year` (an int), `composer`. A null value
   /// clears the field.
@@ -37,15 +43,18 @@ String groupValueOf(Song song, String key) => switch (key) {
 
 /// Asks what to change on [songs]. Null if cancelled.
 Future<GroupInfoEdit?> showGroupInfoDialog(BuildContext context, List<Song> songs,
-    {bool canWriteFile = true}) {
+    {bool canWriteFile = true, Future<LookupCover?> Function(BuildContext context)? pickCover}) {
   return showDialog<GroupInfoEdit>(
     context: context,
-    builder: (_) => GroupInfoDialog(songs: songs, canWriteFile: canWriteFile),
+    builder: (_) => GroupInfoDialog(songs: songs, canWriteFile: canWriteFile, pickCover: pickCover),
   );
 }
 
 class GroupInfoDialog extends StatefulWidget {
-  const GroupInfoDialog({super.key, required this.songs, this.canWriteFile = true});
+  const GroupInfoDialog({super.key, required this.songs, this.canWriteFile = true, this.pickCover});
+
+  /// Chooses a picture on this phone as their cover (null: no button).
+  final Future<LookupCover?> Function(BuildContext context)? pickCover;
 
   final List<Song> songs;
   final bool canWriteFile;
@@ -59,6 +68,13 @@ class _GroupInfoDialogState extends State<GroupInfoDialog> {
   final _initial = <String, String>{};
   final _different = <String, bool>{};
   bool _write = true;
+  LookupCover? _cover;
+
+  Future<void> _choosePicture() async {
+    final cover = await widget.pickCover!(context);
+    if (cover == null || !mounted) return;
+    setState(() => _cover = cover);
+  }
 
   @override
   void initState() {
@@ -91,7 +107,7 @@ class _GroupInfoDialogState extends State<GroupInfoDialog> {
   }
 
   bool get _canSave =>
-      groupFields.any((f) => _changed(f.key)) && _yearProblem() == null;
+      (_cover != null || groupFields.any((f) => _changed(f.key))) && _yearProblem() == null;
 
   void _save() {
     final changes = <String, Object?>{};
@@ -100,7 +116,8 @@ class _GroupInfoDialogState extends State<GroupInfoDialog> {
       final t = _controllers[f.key]!.text.trim();
       changes[f.key] = f.key == 'year' ? (t.isEmpty ? null : int.parse(t)) : (t.isEmpty ? null : t);
     }
-    Navigator.pop(context, GroupInfoEdit(changes: changes, writeToFile: widget.canWriteFile && _write));
+    Navigator.pop(context,
+        GroupInfoEdit(changes: changes, writeToFile: widget.canWriteFile && _write, cover: _cover));
   }
 
   @override
@@ -138,6 +155,46 @@ class _GroupInfoDialogState extends State<GroupInfoDialog> {
                       : null,
                 ),
               ),
+            if (widget.pickCover != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const Key('choose-cover'),
+                onPressed: _choosePicture,
+                icon: const Icon(Icons.image_rounded),
+                label: Text(_cover == null ? 'Choose a cover picture' : 'Choose another picture'),
+              ),
+            ],
+            if (_cover != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(_cover!.bytes,
+                          key: const Key('cover-preview'),
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, size: 48)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Save puts this picture on ${n == 1 ? 'this song' : 'these $n songs'}'
+                        '${widget.canWriteFile && _write ? ', and into the music file${n == 1 ? '' : 's'}' : ''}.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('cover-clear'),
+                      tooltip: 'Keep the covers as they are',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => setState(() => _cover = null),
+                    ),
+                  ],
+                ),
+              ),
             if (widget.canWriteFile)
               CheckboxListTile(
                 key: const Key('group-write'),
@@ -168,10 +225,19 @@ Future<bool> editSelectedSongs(BuildContext context, WidgetRef ref, List<int> id
   final repo = ref.read(libraryRepositoryProvider);
   final songs = await repo.songsByIds(ids);
   if (songs.isEmpty || !context.mounted) return false;
-  final edit = await showGroupInfoDialog(context, songs);
-  if (edit == null || edit.changes.isEmpty) return false;
+  final edit = await showGroupInfoDialog(context, songs, pickCover: ref.read(coverPickerProvider));
+  final cover = edit?.cover;
+  if (edit == null || (edit.changes.isEmpty && cover == null)) return false;
 
-  final changed = await repo.updateGroupInfo(ids, edit.changes);
+  var changed = edit.changes.isEmpty ? 0 : await repo.updateGroupInfo(ids, edit.changes);
+  // The picture goes on the songs picked (not on the rest of their albums).
+  if (cover != null) {
+    final import = await ref.read(importServiceProvider.future);
+    await import.setCoverOf([for (final s in songs) s.id], cover.bytes, cover.ext);
+    SongArt.forgetAll();
+    if (changed == 0) changed = songs.length;
+  }
+  final covers = <TagWriteResult>[];
   var written = 0;
   var refused = 0;
   var other = 0;
@@ -179,15 +245,21 @@ Future<bool> editSelectedSongs(BuildContext context, WidgetRef ref, List<int> id
     for (final s in songs) {
       final path = s.filePath;
       if (path == null) continue;
-      switch (const TagWriter().writeGroup(path, edit.changes)) {
-        case TagWriteResult.written:
-          written++;
-        case TagWriteResult.notAllowed:
-          refused++;
-        case TagWriteResult.missing:
-        case TagWriteResult.unsupported:
-        case TagWriteResult.failed:
-          other++;
+      if (edit.changes.isNotEmpty) {
+        switch (const TagWriter().writeGroup(path, edit.changes)) {
+          case TagWriteResult.written:
+            written++;
+          case TagWriteResult.notAllowed:
+            refused++;
+          case TagWriteResult.missing:
+          case TagWriteResult.unsupported:
+          case TagWriteResult.failed:
+            other++;
+        }
+      }
+      if (cover != null) {
+        covers.add(const TagWriter().writeCover(path, cover.bytes));
+        await Future<void>.delayed(Duration.zero); // the screen keeps moving
       }
     }
   }
@@ -197,6 +269,7 @@ Future<bool> editSelectedSongs(BuildContext context, WidgetRef ref, List<int> id
       if (edit.writeToFile && written > 0) 'written into $written file${written == 1 ? '' : 's'}',
       if (refused > 0) '$refused refused by Android (Settings > Library > All files access)',
       if (other > 0) '$other could not be written (library only)',
+      if (covers.isNotEmpty) TagWriter.coverMessage(covers),
     ];
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()

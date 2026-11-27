@@ -232,6 +232,18 @@ void main() {
     await settle();
     expect(find.byType(AmbienceScreen, skipOffstage: false), findsNothing);
     expect(find.text('Ann · First'), findsOneWidget, reason: 'Now Playing');
+    shortcuts.choose!(shortcutAudiobooks);
+    await settle();
+    expect(find.text('Audiobooks'), findsOneWidget, reason: 'the list, open');
+    expect(find.text('All Songs'), findsNothing);
+    for (final (type, title) in [(shortcutOnline, 'Online Library'), (shortcutCloud, 'Cloud Library')]) {
+      shortcuts.choose!(type);
+      await settle();
+      expect(find.widgetWithText(AppBar, title), findsOneWidget, reason: title);
+    }
+    shortcuts.choose!(shortcutPlayer);
+    await settle();
+    expect(find.widgetWithText(AppBar, 'Cloud Library'), findsNothing);
     await tester.runAsync(() => container.read(settingsRepositoryProvider).setAmbienceName('Sleep sounds'));
     container.invalidate(settingsProvider);
     await settle();
