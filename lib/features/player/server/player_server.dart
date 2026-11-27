@@ -778,6 +778,7 @@ class PlayerServer {
         payload: {
           ...engine.state.toJson(),
           if (_sleepSecondsLeft > 0) 'sleepTimerSeconds': _sleepSecondsLeft,
+          if (_sleep.finishingSong) 'sleepAfterSong': true,
           if (_currentIsFavorite) 'favorite': true,
         },
       ),
@@ -794,7 +795,7 @@ class PlayerServer {
 
   /// Starts (or with null, cancels) the sleep timer. [d] is exposed to tests
   /// through [debugSetSleepTimer].
-  void _setSleepTimer(Duration? d) => _sleep.set(d);
+  void _setSleepTimer(Duration? d, {bool finishSong = false}) => _sleep.set(d, finishSong: finishSong);
 
   void debugSetSleepTimer(Duration? d) => _setSleepTimer(d);
 
@@ -1288,7 +1289,7 @@ class PlayerServer {
           throw PlaybackException(ErrorCodes.invalidAction,
               'The sleep timer needs minutes from 0 to 720.');
         }
-        _setSleepTimer(m == 0 ? null : Duration(minutes: m.toInt()));
+        _setSleepTimer(m == 0 ? null : Duration(minutes: m.toInt()), finishSong: p['finishSong'] == true);
       case RemoteActions.groupCalibrate:
         final gs = _session;
         if (gs == null || gs.conn != conn || !gs.group) {

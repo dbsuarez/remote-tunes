@@ -94,6 +94,8 @@ class BackupService {
     SettingKeys.replayGainMode,
     SettingKeys.crossfadeSeconds,
     SettingKeys.skipSilence,
+    SettingKeys.sleepMinutes,
+    SettingKeys.sleepFinishSong,
     SettingKeys.skinId,
     SettingKeys.customSkins,
     SettingKeys.queueScrollToCurrent,

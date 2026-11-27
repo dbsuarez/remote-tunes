@@ -20,6 +20,7 @@ import '../data/repositories/settings_repository.dart';
 import '../features/controller/controller_client.dart';
 import '../features/controller/discovery.dart';
 import '../features/controller/trusted_players.dart';
+import '../core/models/enums.dart' show ControlMode;
 import '../features/external/control_mode_engine.dart';
 import '../features/external/external_app_engine.dart';
 import '../features/external/external_media.dart';
@@ -39,6 +40,7 @@ import '../features/player/play_modes_saver.dart';
 import '../features/player/player_core.dart';
 import '../features/player/player_host.dart';
 import '../features/player/sleep_timer.dart';
+import '../features/music/sleep_timer_dialog.dart';
 import '../features/player/queue_playback_engine.dart';
 import '../features/player/server/player_advertiser.dart';
 import '../features/player/server/player_library.dart';
@@ -130,7 +132,18 @@ final playerCoreProvider = FutureProvider<PlayerCore>((ref) async {
   } catch (_) {}
   handler?.isFavorite = library.isFavorite;
   handler?.setFavorite = library.setFavorite;
-  final sleep = SleepTimerService(onFire: engine.pause);
+  final sleep = SleepTimerService(
+    onFire: engine.pause,
+    // Another app's song cannot be waited for: it is paused when the time is up.
+    afterSong: (done) async =>
+        engine.controlMode == ControlMode.local && await localEngine.stopAfterSong(done),
+    cancelAfterSong: localEngine.cancelStopAfterSong,
+  );
+  // What the sleep timer's dialog was set to last.
+  SleepTimerMemory.minutes = settings.sleepMinutes;
+  SleepTimerMemory.finishSong = settings.sleepFinishSong;
+  final settingsKeeper = ref.watch(settingsRepositoryProvider);
+  SleepTimerMemory.save = settingsKeeper.setSleepTimerChoice;
 
   final settingsRepo = ref.watch(settingsRepositoryProvider);
   final equalizer = EqualizerController(

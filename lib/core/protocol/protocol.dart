@@ -80,7 +80,8 @@ class RemoteActions {
 
   // Phase 7 (Polish): `{"action":"setSleepTimer","minutes":30}`; 0 cancels. The
   // Player pauses when it runs out, and reports the time left in
-  // `state.sleepTimerSeconds`.
+  // `state.sleepTimerSeconds`. With `"finishSong":true` the song playing when the time
+  // is up plays to its end (`state.sleepAfterSong` meanwhile).
   static const setSleepTimer = 'setSleepTimer';
 
   // Phase 7 (Polish), all `command` actions:
@@ -296,6 +297,7 @@ class PlaybackState {
     this.canSkip = true,
     this.localArtPath,
     this.sleepTimerSeconds = 0,
+    this.sleepAfterSong = false,
     this.speed = 1.0,
     this.favorite = false,
     this.format = '',
@@ -312,6 +314,9 @@ class PlaybackState {
 
   /// Seconds until the Player's sleep timer pauses playback; 0 when off.
   final int sleepTimerSeconds;
+
+  /// The sleep timer's time is up and the last song is being played to its end.
+  final bool sleepAfterSong;
 
   final String title;
   final String artist;
@@ -390,6 +395,7 @@ class PlaybackState {
     bool? canSkip,
     String? localArtPath,
     int? sleepTimerSeconds,
+    bool? sleepAfterSong,
     double? speed,
     String? format,
     bool? favorite,
@@ -417,6 +423,7 @@ class PlaybackState {
         canSkip: canSkip ?? this.canSkip,
         localArtPath: localArtPath ?? this.localArtPath,
         sleepTimerSeconds: sleepTimerSeconds ?? this.sleepTimerSeconds,
+        sleepAfterSong: sleepAfterSong ?? this.sleepAfterSong,
         speed: speed ?? this.speed,
         format: format ?? this.format,
         favorite: favorite ?? this.favorite,
@@ -445,6 +452,7 @@ class PlaybackState {
         if (!canSeek) 'canSeek': false,
         if (!canSkip) 'canSkip': false,
         if (sleepTimerSeconds > 0) 'sleepTimerSeconds': sleepTimerSeconds,
+        if (sleepAfterSong) 'sleepAfterSong': true,
         if (speed != 1.0) 'speed': speed,
         if (format.isNotEmpty) 'format': format,
         if (favorite) 'favorite': true,
@@ -479,6 +487,7 @@ class PlaybackState {
       canSeek: j['canSeek'] != false,
       canSkip: j['canSkip'] != false,
       sleepTimerSeconds: i('sleepTimerSeconds'),
+      sleepAfterSong: j['sleepAfterSong'] == true,
       speed: j['speed'] is num
           ? (j['speed'] as num).toDouble().clamp(0.5, 2.0)
           : 1.0,

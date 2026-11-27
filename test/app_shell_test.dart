@@ -330,10 +330,10 @@ void main() {
     await open(tester);
     await tester.tap(find.byTooltip('Set sleep timer'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('15 minutes'));
+    await tester.tap(find.byKey(const Key('sleep-ok')));
     await tester.pumpAndSettle();
     expect(core.sleepTimer.isRunning, isTrue);
-    expect(core.sleepTimer.secondsLeft, inInclusiveRange(890, 900));
+    expect(core.sleepTimer.secondsLeft, inInclusiveRange(1790, 1800));
     core.sleepTimer.set(null);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

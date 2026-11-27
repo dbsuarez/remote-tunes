@@ -41,6 +41,7 @@ class LocalSession implements PlaybackSession {
     final id = _playback.songId;
     return _playback.copyWith(
       sleepTimerSeconds: sleepTimer.secondsLeft,
+      sleepAfterSong: sleepTimer.finishingSong,
       favorite: id != null && id > 0 && library.isFavorite(id),
     );
   }
@@ -76,8 +77,8 @@ class LocalSession implements PlaybackSession {
   Future<void> setRepeat(RepeatMode mode) => engine.setRepeatMode(mode);
 
   @override
-  Future<void> setSleepTimer(int minutes) async =>
-      sleepTimer.set(minutes <= 0 ? null : Duration(minutes: minutes));
+  Future<void> setSleepTimer(int minutes, {bool finishSong = false}) async =>
+      sleepTimer.set(minutes <= 0 ? null : Duration(minutes: minutes), finishSong: finishSong);
 
   @override
   Future<void> setFavorite(int songId, bool favorite) async {

@@ -35,7 +35,7 @@ abstract class PlaybackSession {
   Future<void> setRepeat(RepeatMode mode);
 
   /// Starts the sleep timer for [minutes]; 0 cancels it.
-  Future<void> setSleepTimer(int minutes);
+  Future<void> setSleepTimer(int minutes, {bool finishSong = false});
   Future<void> setFavorite(int songId, bool favorite);
   Future<RemoteLyrics> lyrics(int songId);
 

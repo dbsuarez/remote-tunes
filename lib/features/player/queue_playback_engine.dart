@@ -208,6 +208,37 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     }).catchError((Object _) {});
   }
 
+  // --------------------------------------------------------- stop after song
+
+  /// Waiting to pause when the song playing ends (the sleep timer's last song).
+  void Function()? _stopAfter;
+
+  /// Pauses once the song playing ends, with the next one ready, and calls [done]. False if there is
+  /// no end to wait for (nothing playing, or a stream with no length).
+  Future<bool> stopAfterSong(void Function() done) => _serial(() async {
+        if (!_playing || _loadedEntryId == null || _durationSeconds <= 0) return false;
+        _stopAfter = done;
+        // Nothing is lined up behind it, so it cannot run into the next song.
+        _preloadKey = null;
+        _preloadIfChanged();
+        return true;
+      });
+
+  void cancelStopAfterSong() {
+    if (_stopAfter == null) return;
+    _stopAfter = null;
+    _preloadKey = null;
+    _preloadIfChanged();
+  }
+
+  void _stoppedAfterSong() {
+    final done = _stopAfter;
+    _stopAfter = null;
+    _preloadKey = null;
+    PlaybackLog.add('engine: stopped after the last song (sleep timer)');
+    done?.call();
+  }
+
   /// Saves the queue so it survives a restart (null: not saved).
   final QueueStore? queueStore;
   Timer? _saveTimer;
@@ -380,7 +411,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
   void _preloadIfChanged() {
     if (_disposed) return;
     final key = '${_queue.revision}|${_queue.shuffle}|${_queue.repeat}|'
-        '$_loadedEntryId|${_queue.current?.id}|$_crossfadeActive';
+        '$_loadedEntryId|${_queue.current?.id}|$_crossfadeActive|${_stopAfter != null}';
     if (key == _preloadKey) return;
     _preloadKey = key;
     _preloadTail = _preloadTail.then((_) async {
@@ -388,7 +419,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
       QueueEntry? want;
       final cur = _queue.current;
       // With crossfade the next song is started by the fade, not lined up.
-      if (!_crossfadeActive && _loadedEntryId != null && cur != null && cur.id == _loadedEntryId) {
+      if (!_crossfadeActive && _stopAfter == null && _loadedEntryId != null && cur != null && cur.id == _loadedEntryId) {
         final n = _queue.peekNext();
         final path = n?.song.filePath;
         if (n != null &&
@@ -466,6 +497,13 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
     if (id != null) {
       onSongStarted?.call(id);
       _beginTracking(song);
+    }
+    // It had already run into the next song (a fade under way): that one waits at its start.
+    if (_stopAfter != null) {
+      await _backend.pause();
+      await _backend.seek(Duration.zero);
+      _playing = false;
+      _stoppedAfterSong();
     }
     _emit();
   }
@@ -624,7 +662,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
 
   /// Near the end of a song, starts fading into the next one.
   void _maybeCrossfade(Duration position) {
-    if (!_crossfadeActive || _crossfading || !_playing || _loadedEntryId == null) return;
+    if (_stopAfter != null || !_crossfadeActive || _crossfading || !_playing || _loadedEntryId == null) return;
     final len = _crossfadeSeconds;
     // A song with a silent end fades out where its sound stops.
     final cut = _cutMs;
@@ -959,6 +997,7 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
         'of $_durationSeconds s)');
     // It played to its end.
     _endTracking(finished: true);
+    final last = _stopAfter != null;
     final next = _queue.advance(auto: true);
     if (next == null) {
       // End of the queue: rewind and stop, staying on the last track.
@@ -966,10 +1005,27 @@ class QueuePlaybackEngine implements QueueAwareEngine, GroupSyncSource {
       await _backend.seek(Duration.zero);
       _playing = false;
       _positionSeconds = 0;
+      if (last) _stoppedAfterSong();
       _emit();
       return;
     }
     try {
+      if (last) {
+        // The next song is made ready, paused.
+        if (next.id == _loadedEntryId) {
+          await _backend.pause();
+          await _backend.seek(Duration.zero);
+          _playing = false;
+          _positionSeconds = 0;
+        } else {
+          await _backend.pause();
+          _playing = false;
+          await _startEntry(next, autoplay: false);
+        }
+        _stoppedAfterSong();
+        _emit();
+        return;
+      }
       if (next.id == _loadedEntryId) {
         // Repeat-one: replay the loaded track.
         _beginTracking(next.song);

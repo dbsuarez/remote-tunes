@@ -208,8 +208,9 @@ class NowPlayingViewState extends State<NowPlayingView> {
             SleepTimerControl(
               compact: true,
               secondsLeft: p.sleepTimerSeconds,
+              afterSong: p.sleepAfterSong,
               enabled: enabled,
-              onSet: (m) => _run(() => session.setSleepTimer(m)),
+              onSet: (m, finish) => _run(() => session.setSleepTimer(m, finishSong: finish)),
             ),
             if (widget.visualizerButton != null) widget.visualizerButton!,
             VolumeButton(
@@ -345,7 +346,8 @@ class NowPlayingViewState extends State<NowPlayingView> {
                       SleepTimerControl(
                         secondsLeft: p.sleepTimerSeconds,
                         enabled: enabled,
-                        onSet: (m) => _run(() => session.setSleepTimer(m)),
+                        offerFinishSong: false,
+                        onSet: (m, _) => _run(() => session.setSleepTimer(m)),
                       ),
                     ],
                     if (widget.extras != null && !p.isExternal) widget.extras!,

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/haptics.dart';
+import '../../core/widgets/haptic_button.dart';
 import '../../core/theme/app_theme.dart';
+import 'sleep_timer_dialog.dart';
 
 /// Speed as an icon in the quick-action row: the icon lights up (and says the
 /// speed) when it is not normal.
@@ -48,23 +50,32 @@ class SpeedButton extends StatelessWidget {
   }
 }
 
-/// Sleep timer: pick a time, see it count down, cancel. The Player does the
-/// pausing, so it works even if this phone disconnects.
+/// Sleep timer: opens the dial. The Player does the pausing, so it works even if this phone
+/// disconnects.
 class SleepTimerControl extends StatefulWidget {
   const SleepTimerControl({
     super.key,
     required this.secondsLeft,
     required this.enabled,
     required this.onSet,
+    this.afterSong = false,
+    this.offerFinishSong = true,
     this.compact = false,
   });
 
   final int secondsLeft;
-  final bool enabled;
-  final ValueChanged<int> onSet;
 
-  /// An icon for the quick-action row (shows the time left while it runs)
-  /// instead of the full card.
+  /// The time is up and the last song is playing to its end.
+  final bool afterSong;
+
+  /// Whether "Play last song to end" can be offered (not for another app's music).
+  final bool offerFinishSong;
+  final bool enabled;
+
+  /// Minutes (0 switches it off), and whether the last song plays to its end.
+  final void Function(int minutes, bool finishSong) onSet;
+
+  /// A button for the quick-action row (lit while the timer is on) instead of the full card.
   final bool compact;
 
   @override
@@ -94,6 +105,8 @@ class SleepTimerControlState extends State<SleepTimerControl> {
       return;
     }
     _endsAt = DateTime.now().add(Duration(seconds: widget.secondsLeft));
+    // Only the card counts down.
+    if (widget.compact) return;
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -105,40 +118,27 @@ class SleepTimerControlState extends State<SleepTimerControl> {
     super.dispose();
   }
 
-  String _left() {
-    final end = _endsAt;
-    if (end == null) return '';
-    final s = end.difference(DateTime.now()).inSeconds.clamp(0, 999999);
-    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  int get _seconds => _endsAt?.difference(DateTime.now()).inSeconds.clamp(0, 999999) ?? 0;
+
+  String _left() => '${_seconds ~/ 60}:${(_seconds % 60).toString().padLeft(2, '0')}';
+
+  Future<void> _open() async {
+    final choice = await showSleepTimerDialog(context,
+        secondsLeft: _seconds, waiting: widget.afterSong, offerFinishSong: widget.offerFinishSong);
+    if (choice != null && mounted) widget.onSet(choice.minutes, choice.finishSong);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final active = _endsAt != null;
+    final active = _endsAt != null || widget.afterSong;
     if (widget.compact) {
-      return PopupMenuButton<int>(
+      return HapticButton(
+        kind: HapticKind.selection,
         tooltip: 'Set sleep timer',
-        enabled: widget.enabled,
-        onSelected: (m) {
-          Haptics.selection();
-          widget.onSet(m);
-        },
-        itemBuilder: (_) => [
-          if (active) PopupMenuItem(value: 0, child: Text('Cancel (pauses in ${_left()})')),
-          const PopupMenuItem(value: 15, child: Text('15 minutes')),
-          const PopupMenuItem(value: 30, child: Text('30 minutes')),
-          const PopupMenuItem(value: 45, child: Text('45 minutes')),
-          const PopupMenuItem(value: 60, child: Text('1 hour')),
-          const PopupMenuItem(value: 120, child: Text('2 hours')),
-        ],
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: active
-              ? Text(_left(),
-                  style: theme.textTheme.titleSmall?.copyWith(color: RtColors.violet))
-              : Icon(Icons.bedtime_rounded, color: theme.colorScheme.onSurfaceVariant),
-        ),
+        isSelected: active,
+        onPressed: widget.enabled ? _open : null,
+        icon: Icon(Icons.bedtime_rounded, color: active ? theme.colorScheme.primary : null),
       );
     }
     return Card(
@@ -146,36 +146,23 @@ class SleepTimerControlState extends State<SleepTimerControl> {
         padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
         child: Row(
           children: [
-            Icon(Icons.bedtime_rounded,
-                color: active ? RtColors.violet : theme.colorScheme.onSurfaceVariant),
+            Icon(Icons.bedtime_rounded, color: active ? RtColors.violet : theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                active ? 'Pauses in ${_left()}' : 'Sleep timer',
+                widget.afterSong ? 'Pauses after this song' : (active ? 'Pauses in ${_left()}' : 'Sleep timer'),
                 style: theme.textTheme.titleSmall,
               ),
             ),
             if (active)
               TextButton(
-                onPressed: widget.enabled ? () => widget.onSet(0) : null,
+                onPressed: widget.enabled ? () => widget.onSet(0, false) : null,
                 child: const Text('Cancel'),
               ),
-            PopupMenuButton<int>(
-              tooltip: 'Set sleep timer',
-              enabled: widget.enabled,
-              onSelected: widget.onSet,
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 15, child: Text('15 minutes')),
-                PopupMenuItem(value: 30, child: Text('30 minutes')),
-                PopupMenuItem(value: 45, child: Text('45 minutes')),
-                PopupMenuItem(value: 60, child: Text('1 hour')),
-                PopupMenuItem(value: 120, child: Text('2 hours')),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(active ? 'Change' : 'Set',
-                    style: TextStyle(color: theme.colorScheme.primary)),
-              ),
+            TextButton(
+              key: const Key('sleep-card-set'),
+              onPressed: widget.enabled ? _open : null,
+              child: Text(active ? 'Change' : 'Set'),
             ),
           ],
         ),

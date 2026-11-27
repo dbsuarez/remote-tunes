@@ -34,6 +34,8 @@ class SettingKeys {
   static const replayGainMode = 'replay_gain_mode';
   static const crossfadeSeconds = 'crossfade_seconds';
   static const skipSilence = 'skip_silence';
+  static const sleepMinutes = 'sleep_minutes';
+  static const sleepFinishSong = 'sleep_finish_song';
   static const skinId = 'skin_id';
   static const queueScrollToCurrent = 'queue_scroll_to_current';
   static const visualizer = 'visualizer';
@@ -105,6 +107,8 @@ class AppSettings {
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
     this.skipSilence = true,
+    this.sleepMinutes = 30,
+    this.sleepFinishSong = false,
     this.skinId = Skin.defaultId,
     this.queueScrollToCurrent = true,
     this.visualizerEnabled = false,
@@ -166,6 +170,10 @@ class AppSettings {
 
   /// A long silent end of a song is skipped.
   final bool skipSilence;
+
+  /// What the sleep timer was set to last.
+  final int sleepMinutes;
+  final bool sleepFinishSong;
 
   /// The skin in use (a built-in one or one that was added).
   final String skinId;
@@ -255,6 +263,8 @@ class AppSettings {
       replayGainMode: ReplayGainModeX.parse(m[SettingKeys.replayGainMode]),
       crossfadeSeconds: (int.tryParse(m[SettingKeys.crossfadeSeconds] ?? '') ?? 0).clamp(0, 12),
       skipSilence: m[SettingKeys.skipSilence] != 'false',
+      sleepMinutes: (int.tryParse(m[SettingKeys.sleepMinutes] ?? '') ?? 30).clamp(1, 720),
+      sleepFinishSong: m[SettingKeys.sleepFinishSong] == 'true',
       skinId: m[SettingKeys.skinId] ?? Skin.defaultId,
       queueScrollToCurrent: m[SettingKeys.queueScrollToCurrent] != 'false',
       visualizerEnabled: m[SettingKeys.visualizer] == 'true',
@@ -414,6 +424,11 @@ class SettingsRepository {
 
   Future<void> setCustomSkins(List<Skin> skins) => _put(
       SettingKeys.customSkins, jsonEncode([for (final s in skins) s.toJson()]));
+
+  Future<void> setSleepTimerChoice(int minutes, bool finishSong) async {
+    await _put(SettingKeys.sleepMinutes, minutes.clamp(1, 720).toString());
+    await _put(SettingKeys.sleepFinishSong, finishSong.toString());
+  }
 
   Future<void> setSkipSilence(bool v) => _put(SettingKeys.skipSilence, v.toString());
 

@@ -59,8 +59,8 @@ class RemoteSession implements PlaybackSession {
   Future<void> setRepeat(RepeatMode mode) => source.setRepeat(mode);
 
   @override
-  Future<void> setSleepTimer(int minutes) =>
-      _send(RemoteActions.setSleepTimer, {'minutes': minutes});
+  Future<void> setSleepTimer(int minutes, {bool finishSong = false}) =>
+      _send(RemoteActions.setSleepTimer, {'minutes': minutes, if (finishSong) 'finishSong': true});
 
   @override
   Future<void> setFavorite(int songId, bool favorite) => source.setFavorite(songId, favorite);

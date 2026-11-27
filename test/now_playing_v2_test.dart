@@ -197,7 +197,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Set sleep timer'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('30 minutes'));
+    await tester.tap(find.byKey(const Key('sleep-ok')));
     await tester.pumpAndSettle();
     expect(client.sent, [RemoteActions.setSpeed, RemoteActions.setSleepTimer]);
     expect(client.params[0]['speed'], 1.5);
@@ -215,7 +215,8 @@ void main() {
     expect(find.text('1.25×'), findsOneWidget);
   });
 
-  testWidgets('a running sleep timer shows its time and can be cancelled', (tester) async {
+  testWidgets('a running sleep timer lights its button, shows its time in the dialog and can be disabled',
+      (tester) async {
     await open(
         tester,
         ControllerClientState(
@@ -223,10 +224,13 @@ void main() {
           playerName: 'P',
           playback: state().playback.copyWith(sleepTimerSeconds: 600),
         ));
-    expect(find.textContaining(RegExp(r'^(10:00|9:59)$')), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^(10:00|9:59)$')), findsNothing, reason: 'only the button lights up');
+    final button = find.ancestor(of: find.byIcon(Icons.bedtime_rounded), matching: find.byType(IconButton));
+    expect(tester.widget<IconButton>(button).isSelected, isTrue);
     await tester.tap(find.byTooltip('Set sleep timer'));
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Cancel'));
+    expect(find.text('Sleep Timer: in 10 min'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('sleep-disable')));
     await tester.pumpAndSettle();
     expect(client.params.last['minutes'], 0);
     await tester.pumpWidget(const SizedBox());
