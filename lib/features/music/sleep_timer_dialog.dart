@@ -18,15 +18,22 @@ class SleepTimerMemory {
 typedef SleepChoice = ({int minutes, bool finishSong});
 
 /// The sleep timer: turn the knob to set the time, one ring for each hour. Null if cancelled.
+///
+/// [onNight] offers a button for the night screen. It also keeps the time if the knob was turned (or
+/// the tick changed) first; otherwise the timer is left as it was.
 Future<SleepChoice?> showSleepTimerDialog(BuildContext context,
-        {int secondsLeft = 0, bool waiting = false, bool offerFinishSong = true}) =>
+        {int secondsLeft = 0, bool waiting = false, bool offerFinishSong = true, VoidCallback? onNight}) =>
     showDialog<SleepChoice>(
       context: context,
-      builder: (_) => _SleepTimerDialog(secondsLeft: secondsLeft, waiting: waiting, offerFinishSong: offerFinishSong),
+      builder: (_) => _SleepTimerDialog(
+          secondsLeft: secondsLeft, waiting: waiting, offerFinishSong: offerFinishSong, onNight: onNight),
     );
 
 class _SleepTimerDialog extends StatefulWidget {
-  const _SleepTimerDialog({required this.secondsLeft, required this.waiting, required this.offerFinishSong});
+  const _SleepTimerDialog(
+      {required this.secondsLeft, required this.waiting, required this.offerFinishSong, this.onNight});
+
+  final VoidCallback? onNight;
 
   final int secondsLeft;
   final bool waiting;
@@ -41,6 +48,9 @@ class _SleepTimerDialogState extends State<_SleepTimerDialog> {
       (widget.secondsLeft > 0 ? (widget.secondsLeft / 60).ceil() : SleepTimerMemory.minutes).clamp(1, sleepTimerMost);
   late bool _finishSong = SleepTimerMemory.finishSong;
 
+  /// The knob or the tick was changed here.
+  bool _touched = false;
+
   String get _title {
     if (widget.waiting) return 'Sleep Timer: after this song';
     if (widget.secondsLeft > 0) return 'Sleep Timer: in ${(widget.secondsLeft / 60).ceil()} min';
@@ -52,6 +62,15 @@ class _SleepTimerDialogState extends State<_SleepTimerDialog> {
     SleepTimerMemory.finishSong = _finishSong;
     SleepTimerMemory.save?.call(_minutes, _finishSong).catchError((Object _) {});
     Navigator.pop<SleepChoice>(context, (minutes: _minutes, finishSong: widget.offerFinishSong && _finishSong));
+  }
+
+  void _night() {
+    if (_touched) {
+      _ok();
+    } else {
+      Navigator.pop(context);
+    }
+    widget.onNight!();
   }
 
   @override
@@ -70,6 +89,13 @@ class _SleepTimerDialogState extends State<_SleepTimerDialog> {
           Icon(Icons.timelapse_rounded, color: theme.colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(child: Text(_title, key: const Key('sleep-title'), style: theme.textTheme.titleMedium)),
+          if (widget.onNight != null)
+            IconButton(
+              key: const Key('sleep-night'),
+              tooltip: 'Night screen',
+              icon: const Icon(Icons.brightness_low_rounded),
+              onPressed: _night,
+            ),
         ],
       ),
       content: SizedBox(
@@ -81,7 +107,13 @@ class _SleepTimerDialogState extends State<_SleepTimerDialog> {
                 key: const Key('sleep-minutes'),
                 style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            SleepDial(size: dial, minutes: _minutes, onChanged: (m) => setState(() => _minutes = m)),
+            SleepDial(
+                size: dial,
+                minutes: _minutes,
+                onChanged: (m) => setState(() {
+                      _minutes = m;
+                      _touched = true;
+                    })),
             if (widget.offerFinishSong)
               CheckboxListTile(
                 key: const Key('sleep-finish-song'),
@@ -89,7 +121,10 @@ class _SleepTimerDialogState extends State<_SleepTimerDialog> {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: const Text('Play last song to end'),
                 value: _finishSong,
-                onChanged: (v) => setState(() => _finishSong = v ?? false),
+                onChanged: (v) => setState(() {
+                  _finishSong = v ?? false;
+                  _touched = true;
+                }),
               ),
           ],
         ),

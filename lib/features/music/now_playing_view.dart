@@ -10,6 +10,7 @@ import '../../core/widgets/haptic_button.dart';
 import '../../core/widgets/playback_widgets.dart';
 import 'lyrics_view.dart';
 import 'music_source.dart';
+import 'night_screen.dart';
 import 'now_playing_controls.dart';
 import 'queue_peek.dart';
 
@@ -68,6 +69,39 @@ class NowPlayingViewState extends State<NowPlayingView> {
   final DraggableScrollableController _sheet = DraggableScrollableController();
 
   PlaybackSession get session => widget.session;
+
+  /// The player as it is now, for the night screen that lies over this one.
+  late final ValueNotifier<PlaybackSession> _live = ValueNotifier(widget.session);
+
+  @override
+  void didUpdateWidget(NowPlayingView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // After this frame: the night screen may not be told to redraw in the middle of one.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _live.value = widget.session;
+    });
+  }
+
+  void _night() {
+    _live.value = widget.session;
+    Navigator.of(context, rootNavigator: true)
+        .push(MaterialPageRoute<void>(builder: (_) => MusicNightScreen(session: _live)));
+  }
+
+  /// The button on the cover's bottom-right corner.
+  Widget _nightButton() => Material(
+        color: Colors.black54,
+        shape: const CircleBorder(),
+        child: IconButton(
+          key: const Key('night-button'),
+          tooltip: 'Night screen',
+          iconSize: 22,
+          visualDensity: VisualDensity.compact,
+          color: Colors.white,
+          icon: const Icon(Icons.brightness_low_rounded),
+          onPressed: _night,
+        ),
+      );
 
   @override
   void dispose() {
@@ -209,6 +243,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
               compact: true,
               secondsLeft: p.sleepTimerSeconds,
               afterSong: p.sleepAfterSong,
+              onNight: _night,
               enabled: enabled,
               onSet: (m, finish) => _run(() => session.setSleepTimer(m, finishSong: finish)),
             ),
@@ -335,6 +370,7 @@ class NowPlayingViewState extends State<NowPlayingView> {
                               // Top-left while the cover shows; the lyrics' fullscreen button
                               // has that corner when they show.
                               coverAction: _playlistButton(context, p),
+                              cornerAction: _nightButton(),
                               overlayAlignment: widget.visualizerPosition,
                               overlay: widget.visualizerOnCover && widget.visualizer != null
                                   ? widget.visualizer!(p.isPlaying)

@@ -61,7 +61,11 @@ class SleepTimerControl extends StatefulWidget {
     this.afterSong = false,
     this.offerFinishSong = true,
     this.compact = false,
+    this.onNight,
   });
+
+  /// Opens the night screen, offered in the dialog (null: not offered).
+  final VoidCallback? onNight;
 
   final int secondsLeft;
 
@@ -124,7 +128,10 @@ class SleepTimerControlState extends State<SleepTimerControl> {
 
   Future<void> _open() async {
     final choice = await showSleepTimerDialog(context,
-        secondsLeft: _seconds, waiting: widget.afterSong, offerFinishSong: widget.offerFinishSong);
+        secondsLeft: _seconds,
+        waiting: widget.afterSong,
+        offerFinishSong: widget.offerFinishSong,
+        onNight: widget.onNight);
     if (choice != null && mounted) widget.onSet(choice.minutes, choice.finishSong);
   }
 

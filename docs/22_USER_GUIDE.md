@@ -118,6 +118,7 @@ The first time, add your music folder once with **Add folder**; it is remembered
 
 ## 5. Now Playing
 
+- **Night screen** (the brightness button in the cover's bottom-right corner, or at the top of the sleep timer window; from there it also keeps the time if you turned the knob or changed the tick): nearly black and very dim, showing the time, the song and any sleep timer; it keeps the screen on. Tap for previous, play/pause, next and leave.
 - The page fits the screen: the cover takes the space left over, then the title in the cover's color, the row of quick actions, the play buttons, and the progress bar just above *Up next*. The row of quick actions has: **favorite**, **shuffle**, **repeat**, **speed**, **sleep timer**, **volume** (the speaker button opens a small slider). Shuffle and repeat are remembered when you close the app. **Shuffle never repeats a song until all of them have played** (then a new round starts if Repeat is on). With Crossfade on, **Next and Previous fade too**.
 - Round **play/pause**, previous, next, and **10-second back / forward**.
 - The line between the times shows the file's quality (for example "44.1 kHz · 320 kbps · MP3").
@@ -155,7 +156,7 @@ Moving bars under the cover. **Show or hide them with the button just left of th
 
 **Song menu > Edit info:** title, artist, album, track number. **Look up this song** (one button there) asks MusicBrainz for the details, the Cover Art Archive for the cover and the lyrics sources for the lyrics, and lets you choose what to use; only the title, artist, album and length are sent. To fix many songs at once, pick several and choose Edit info: only the fields they share (artist, album, album artist, genre, year, composer) can be changed, and **Choose a cover picture** puts one picture on just the songs picked.
 - By default this only changes **how RemoteTunes lists the song**; the file is untouched.
-- **Choose a cover picture** takes a picture from the phone: move and zoom it in the square, then the tick. Saving puts it on **every song of that album** (only that song if it has no album). It needs *All files access* to show pictures.
+- **Choose a cover picture** takes a picture from the phone: move and zoom it in the square, then the tick. Choose **This song only** (the usual) or **All in this folder** (the songs whose files lie beside it, not in folders inside it). It needs *All files access* to show pictures.
 - **Also write into the music file** is ticked from the start, so the file's tags change too (so other players see it), and a chosen or looked-up cover goes **into each of those files**. Only what you changed is rewritten; lyrics, loudness values and other tags stay. This works for **MP3, M4A and FLAC**; other kinds keep the change in RemoteTunes only. Android may refuse files in shared folders. Then it says *Saved in RemoteTunes only*. Fix: **Settings > All files access**, which opens Android's page for the app; switch it on, come back (the row says Allowed), save again.
 
 ---

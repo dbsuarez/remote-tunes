@@ -1,3 +1,8 @@
+import 'package:remote_tunes/features/library/metadata_extractor.dart';
+import 'package:remote_tunes/features/library/import_service.dart';
+import 'package:remote_tunes/data/repositories/library_repository.dart';
+import 'package:remote_tunes/data/database/app_database.dart';
+import 'package:drift/native.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -22,6 +27,11 @@ import 'package:remote_tunes/features/player/silence_finder.dart';
 import 'helpers/fake_audio_backend.dart';
 
 Uint8List jpeg(int r, [int side = 40]) => img.encodeJpg(img.fill(img.Image(width: side, height: side), color: img.ColorRgb8(r, 20, 20)));
+
+class _NoTags implements MetadataExtractor {
+  @override
+  Future<ExtractedMetadata> extract(String path) async => throw UnimplementedError();
+}
 
 void main() {
   group('writing a cover into a music file', () {
@@ -159,20 +169,29 @@ void main() {
     }
 
     testWidgets('a chosen picture is shown, says where it goes, and is given back', (tester) async {
-      final answers = await open(tester);
+      var answers = await open(tester);
       await tester.tap(find.byKey(const Key('choose-cover')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('cover-preview')), findsOneWidget);
-      expect(find.text('Save puts this picture on every song of this album, and into the music files.'), findsOneWidget);
-      await tester.enterText(find.widgetWithText(TextField, 'Album'), '');
-      await tester.pump();
+      expect(tester.widget<ChoiceChip>(find.byKey(const Key('cover-this'))).selected, isTrue);
       expect(find.text('Save puts this picture on this song, and into the music file.'), findsOneWidget);
-      await tester.tap(find.text('Also write into the music file'));
-      await tester.pump();
-      expect(find.text('Save puts this picture on this song.'), findsOneWidget);
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(answers.single!.cover!.ext, 'jpg');
+      expect(answers.single!.coverForFolder, isFalse, reason: 'this song only, unless chosen');
+
+      answers = await open(tester);
+      await tester.tap(find.byKey(const Key('choose-cover')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('cover-folder')));
+      await tester.pump();
+      expect(find.text('Save puts this picture on every song in this folder, and into the music files.'), findsOneWidget);
+      await tester.tap(find.text('Also write into the music file'));
+      await tester.pump();
+      expect(find.text('Save puts this picture on every song in this folder.'), findsOneWidget);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(answers.single!.coverForFolder, isTrue);
     });
 
     testWidgets('it can be taken back before saving; without a picker there is no button', (tester) async {
@@ -277,4 +296,26 @@ void main() {
       expect(backend.crossfadeImmediate.single, isTrue, reason: 'the file itself goes on');
     });
   });
+
+  test('the same folder means the files beside it, not those inside or the app\'s own copies', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final repo = LibraryRepository(db);
+    final import = LibraryImportService(
+        library: repo,
+        extractor: _NoTags(),
+        libraryDir: Directory('/app/library'),
+        artDir: Directory('/app/art'),
+        exclusions: MemoryExclusionStore());
+    Future<int> add(String path) => repo.addSong(title: path, artist: 'A', album: 'B', filePath: path, durationSeconds: 1);
+    final one = await add('/music/rock/1.mp3');
+    final two = await add('/music/rock/2.mp3');
+    await add('/music/rock/live/3.mp3');
+    await add('/music/pop/4.mp3');
+    final copy = await add('/app/library/5.mp3');
+    await add('/app/library/6.mp3');
+    expect(await import.songsInSameFolder(one), unorderedEquals([one, two]));
+    expect(await import.songsInSameFolder(copy), [copy]);
+  });
 }
+

@@ -99,6 +99,7 @@ class CoverWithLyrics extends StatefulWidget {
     this.enabled = true,
     this.openRequests,
     this.coverAction,
+    this.cornerAction,
     this.overlay,
     this.overlayAlignment = Alignment.center,
   });
@@ -135,6 +136,10 @@ class CoverWithLyrics extends StatefulWidget {
   /// A button in the top-left corner while the cover shows (for example "add to a playlist").
   /// When the lyrics show, that corner belongs to *Show fullscreen*, so it goes away.
   final Widget? coverAction;
+
+  /// A button in the bottom-right corner while the cover shows (the night screen); it goes while the
+  /// lyrics are up.
+  final Widget? cornerAction;
 
   @override
   State<CoverWithLyrics> createState() => _CoverWithLyricsState();
@@ -308,6 +313,15 @@ class _CoverWithLyricsState extends State<CoverWithLyrics> with SingleTickerProv
                   ignoring: _open,
                   child: widget.coverAction,
                 ),
+              ),
+            ),
+          if (widget.cornerAction != null)
+            Positioned(
+              right: 6,
+              bottom: 6,
+              child: FadeTransition(
+                opacity: coverOpacity,
+                child: IgnorePointer(ignoring: _open, child: widget.cornerAction),
               ),
             ),
           if (hasLyrics)

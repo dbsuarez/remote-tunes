@@ -509,8 +509,11 @@ class TransportControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    // On a very narrow phone the buttons shrink a little rather than spill over.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         HapticButton(
           kind: HapticKind.light,
@@ -556,6 +559,7 @@ class TransportControls extends StatelessWidget {
           icon: const Icon(Icons.skip_next_rounded),
         ),
       ],
+      ),
     );
   }
 }

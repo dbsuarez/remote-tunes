@@ -719,6 +719,20 @@ class LibraryImportService {
     }
   }
 
+  /// The songs whose files lie in the same folder as [songId]'s (folders inside it do not count), that
+  /// one included. A song the app copied in has no folder of its own: it is alone.
+  Future<List<int>> songsInSameFolder(int songId) async {
+    final path = (await _library.songById(songId))?.filePath;
+    if (path == null) return [songId];
+    final folder = p.dirname(path);
+    if (p.equals(folder, _libraryDir.path)) return [songId];
+    final out = [
+      for (final f in await _library.localSongFiles())
+        if (p.dirname(f.path) == folder) f.id,
+    ];
+    return out.contains(songId) ? out : [songId, ...out];
+  }
+
   /// Album art is stored once per artist+album and shared by its songs. A song with no album keeps
   /// its own picture.
   Future<String?> _storeArt(

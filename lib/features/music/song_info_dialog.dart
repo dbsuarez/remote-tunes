@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/protocol/library_models.dart';
-import '../../core/utils/album_name.dart';
 import '../library/lookup_models.dart';
 import 'song_lookup_sheet.dart';
 
@@ -14,10 +13,14 @@ class SongInfoEdit {
     this.trackNumber,
     this.writeToFile = false,
     this.cover,
+    this.coverForFolder = false,
   });
 
-  /// A cover chosen in the look-up: it becomes the picture of the song's album.
+  /// A cover chosen from the phone or the look-up: it becomes this song's picture.
   final LookupCover? cover;
+
+  /// The cover goes to every song in the same folder as well.
+  final bool coverForFolder;
 
   /// Also change the tags inside the music file.
   final bool writeToFile;
@@ -81,6 +84,7 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
   bool get _valid => _title.text.trim().isNotEmpty;
 
   LookupCover? _cover;
+  bool _wholeFolder = false;
   String? _lookupNote;
 
   Future<void> _choosePicture() async {
@@ -91,8 +95,8 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
 
   /// Which songs a cover goes to.
   String get _coverNote {
-    final songs = isRealAlbum(_album.text.trim()) ? 'every song of this album' : 'this song';
-    final files = widget.canWriteFile && _writeToFile ? ', and into the music file${isRealAlbum(_album.text.trim()) ? 's' : ''}' : '';
+    final songs = _wholeFolder ? 'every song in this folder' : 'this song';
+    final files = widget.canWriteFile && _writeToFile ? ', and into the music file${_wholeFolder ? 's' : ''}' : '';
     return 'Save puts this picture on $songs$files.';
   }
 
@@ -142,6 +146,7 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
         trackNumber: int.tryParse(_track.text.trim()),
         writeToFile: widget.canWriteFile && _writeToFile,
         cover: _cover,
+        coverForFolder: _cover != null && _wholeFolder,
       ),
     );
   }
@@ -169,7 +174,6 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
               controller: _album,
               maxLength: 200,
               decoration: const InputDecoration(labelText: 'Album'),
-              onChanged: (_) => setState(() {}),
             ),
             TextField(
               controller: _track,
@@ -209,6 +213,30 @@ class _SongInfoDialogState extends State<_SongInfoDialog> {
                       onPressed: () => setState(() => _cover = null),
                     ),
                   ],
+                ),
+              ),
+            if (_cover != null && widget.pickCover != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        key: const Key('cover-this'),
+                        label: const Text('This song only'),
+                        selected: !_wholeFolder,
+                        onSelected: (_) => setState(() => _wholeFolder = false),
+                      ),
+                      ChoiceChip(
+                        key: const Key('cover-folder'),
+                        label: const Text('All in this folder'),
+                        selected: _wholeFolder,
+                        onSelected: (_) => setState(() => _wholeFolder = true),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             if (widget.lookup != null)

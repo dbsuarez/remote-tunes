@@ -741,9 +741,11 @@ class _LibraryTab extends ConsumerWidget {
                 album: e.album,
                 trackNumber: e.trackNumber,
               );
-              // A chosen cover (from the phone or the look-up) becomes the album's picture.
+              // A chosen cover (from the phone or the look-up) goes on this song, or on its folder.
               if (saved && e.cover != null) {
-                await ref.read(songLookupProvider).applyCover(song.id, e.cover!);
+                final import = await ref.read(importServiceProvider.future);
+                final ids = e.coverForFolder ? await import.songsInSameFolder(song.id) : [song.id];
+                await import.setCoverOf(ids, e.cover!.bytes, e.cover!.ext);
                 SongArt.forgetAll();
               }
               if (saved && e.writeToFile) {
